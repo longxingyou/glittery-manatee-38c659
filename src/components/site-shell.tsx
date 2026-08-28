@@ -72,7 +72,11 @@ export function SiteShell({ children, categories }: { children: React.ReactNode;
       </aside>
 
       <main className="editor-area">{children}</main>
-      <footer className="statusbar"><span><Braces size={13} /> main*</span><span>0 errors</span><span className="status-spacer" /><span>UTF-8</span><span>Markdown</span><span>Ln 27, Col 8</span></footer>
+      <footer className="statusbar"><span><Braces size={13} /> main*</span><span>0 errors</span><span className="status-spacer" /><span>UTF-8</span><span>Markdown</span><span>Ln 27, Col 8</span><span>
+  <a href="https://www.netlify.com">
+  <img src="https://www.netlify.com/assets/badges/netlify-badge-color-bg.svg" alt="Deploys by Netlify" />
+</a>
+</span></footer>
       {sidebarOpen && <button className="sidebar-scrim" onClick={() => setSidebarOpen(false)} aria-label="关闭导航" />}
     </div>
   )

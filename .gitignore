@@ -1,0 +1,11 @@
+node_modules/ 
+dist/ 
+.content-collections/ 
+src/routeTree.gen.ts 
+.env
+.env.local
+.env.*.local
+.env.override
+
+# Local Netlify folder
+.netlify

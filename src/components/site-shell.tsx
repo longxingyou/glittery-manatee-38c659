@@ -9,6 +9,7 @@ import {
   Moon,
   Search,
   Settings,
+  ShieldCheck,
   Sun,
   TerminalSquare,
   UserRound,
@@ -28,6 +29,24 @@ import {
 
 export function SiteShell({ children, categories }: { children: React.ReactNode; categories: string[] }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [adminBadge, setAdminBadge] = useState(false)
+
+  // 根据 Identity token 或 fetch 服务器路由判断是否为管理员
+  useEffect(() => {
+    let alive = true
+    const probe = async (_email: string | undefined) => {
+      // 快速路径：环境变量 ADMIN_EMAILS 不敏感但客户端不可读；总是走服务端 adminStatus 判定
+      try {
+        const res = await fetch('/api/comments?action=adminStatus', { credentials: 'same-origin' })
+        const data = await res.json()
+        if (alive) setAdminBadge(!!data?.status?.isAdmin)
+      } catch {
+        // 忽略网络失败，安全回退不显示
+      }
+    }
+    getUser().then((u) => { if (alive) void probe(u?.email || undefined) })
+    return onAuthChange((_, next) => { void probe(next?.email || undefined) })
+  }, [])
 
   return (
     <div className="workbench">
@@ -38,13 +57,25 @@ export function SiteShell({ children, categories }: { children: React.ReactNode;
         <Link to="/" className="brand-mark"><Braces size={17} /><span>syntax.garden</span></Link>
         <nav className="top-menu" aria-label="主导航"><span>文件</span><span>编辑</span><span>选择</span><span>查看</span><span>转到</span></nav>
         <div className="title-command"><Search size={14} /><span>搜索文章、标签与灵感</span><kbd>⌘ K</kbd></div>
-        <div className="window-actions"><ThemeToggle /><AuthButton /></div>
+        <div className="window-actions">
+          {adminBadge && (
+            <Link to="/admin" className="admin-chip icon-button" title="管理后台" style={{ color: 'var(--accent)', width: 32 }}>
+              <ShieldCheck size={16} />
+            </Link>
+          )}
+          <ThemeToggle /><AuthButton />
+        </div>
       </header>
 
       <aside className="activitybar" aria-label="快捷工具">
         <Link to="/" className="activity active" aria-label="文章"><Files size={22} /></Link>
         <button className="activity" aria-label="搜索"><Search size={21} /></button>
         <a className="activity" href="https://github.com" rel="noreferrer" aria-label="GitHub"><Github size={21} /></a>
+        {adminBadge && (
+          <Link to="/admin" className="activity" aria-label="后台" title="管理后台" style={{ color: 'var(--accent)' }}>
+            <ShieldCheck size={21} />
+          </Link>
+        )}
         <div className="activity-spacer" />
         <button className="activity" aria-label="账户" onClick={() => window.dispatchEvent(new Event('open-auth'))}><UserRound size={21} /></button>
         <button className="activity" aria-label="设置"><Settings size={21} /></button>
@@ -53,8 +84,13 @@ export function SiteShell({ children, categories }: { children: React.ReactNode;
       <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-mobile-head"><span>EXPLORER</span><button onClick={() => setSidebarOpen(false)}><X size={17} /></button></div>
         <div className="sidebar-title">探索</div>
-        <div className="tree-section"><ChevronDown size={14} /><strong>SYNTAX.GARDEN</strong></div>
+        <div className="tree-section"><ChevronDown size={14} /><strong>ThoracicTag4669</strong></div>
         <Link to="/" className="tree-item selected" onClick={() => setSidebarOpen(false)}><BookOpenText size={15} /><span>全部文章.md</span></Link>
+        {adminBadge && (
+          <Link to="/admin" className="tree-item" onClick={() => setSidebarOpen(false)} style={{ color: 'var(--accent)' }}>
+            <ShieldCheck size={15} /><span>管理后台.md</span>
+          </Link>
+        )}
         <div className="tree-caption">分类</div>
         {categories.map((category) => (
           <Link
@@ -72,7 +108,7 @@ export function SiteShell({ children, categories }: { children: React.ReactNode;
       </aside>
 
       <main className="editor-area">{children}</main>
-      <footer className="statusbar"><span><Braces size={13} /> main*</span><span>0 errors</span><span className="status-spacer" /><span>UTF-8</span><span>Markdown</span><span>Ln 27, Col 8</span><span>
+      <footer className="statusbar"><span><Braces size={13} /> main*</span><span>0 errors</span><span className="status-spacer" /><span>UTF-8</span><span>Markdown</span><span>本网站由netlify支持</span><span>
   <a href="https://www.netlify.com">
   <img src="https://www.netlify.com/assets/badges/netlify-badge-color-bg.svg" alt="Deploys by Netlify" />
 </a>

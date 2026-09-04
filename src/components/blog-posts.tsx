@@ -1,9 +1,9 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowUpRight, CalendarDays, Clock3, Hash, Sparkles } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { Post } from 'content-collections'
+import type { PostData } from '@/lib/utils'
 
-export default function BlogPosts({ title, posts }: { title: string; posts: Post[] }) {
+export default function BlogPosts({ title, posts }: { title: string; posts: PostData[] }) {
   const [visibleCount, setVisibleCount] = useState(6)
   const sentinel = useRef<HTMLDivElement>(null)
   const categories = useMemo(() => Array.from(new Set(posts.flatMap((post) => post.categories))), [posts])
@@ -31,7 +31,7 @@ export default function BlogPosts({ title, posts }: { title: string; posts: Post
           <div className="hero-copy">
             <div className="eyebrow"><Sparkles size={14} /> DIGITAL FIELD NOTES · VOL. 08</div>
             <h1><span>把想法写成</span><strong>可运行的文字。</strong></h1>
-            <p>一个关于代码、设计、独立创作与理性浪漫的知识花园。支持 Markdown、LaTeX，以及慢慢生长的讨论。</p>
+            <p>一个关于代码、设计、独立创作与理性浪漫的个人博客。支持 Markdown、LaTeX，以及慢慢生长的讨论。</p>
             <div className="hero-code"><span className="code-key">const</span> curiosity = <span className="code-string">"always_on"</span><span>;</span><span className="cursor" /></div>
           </div>
           <div className="hero-orbit" aria-hidden="true"><div className="orbit-ring"><span>∑</span></div><code>ideas.map(<b>build</b>)</code></div>
@@ -46,7 +46,7 @@ export default function BlogPosts({ title, posts }: { title: string; posts: Post
 
         <div className="masonry-grid">
           {posts.slice(0, visibleCount).map((post, index) => (
-            <Link to="/posts/$slug" params={{ slug: post.slug }} key={post._meta.path} className={`post-card tone-${(index % 5) + 1}`}>
+            <Link to="/posts/$slug" params={{ slug: post.slug }} key={`${post.source}-${post.id ?? post.slug}`} className={`post-card tone-${(index % 5) + 1}`}>
               <article>
                 <div className="card-top"><span className="file-kind">{index % 3 === 0 ? 'TSX' : index % 3 === 1 ? 'MD' : 'JSON'}</span><span>{String(index + 1).padStart(2, '0')}</span></div>
                 <div className="card-symbol" aria-hidden="true">{['λ', '{}', '∿', '◌', '⌁'][index % 5]}</div>

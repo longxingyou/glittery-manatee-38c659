@@ -1,6 +1,6 @@
-# Syntax Garden
+# ThoracicTag4669
 
-Syntax Garden 是一个类 VS Code 工作台风格的中文静态博客。首页以响应式瀑布流呈现 Markdown 文章，文章页支持 LaTeX 公式，并提供仅限完成邮箱验证用户使用的 Markdown / LaTeX 评论区。
+ThoracicTag4669 是一个类 VS Code 工作台风格的中文静态博客。首页以响应式瀑布流呈现 Markdown 文章，文章页支持 LaTeX 公式，并提供仅限完成邮箱验证用户使用的 Markdown / LaTeX 评论区。
 
 ## 技术栈
 

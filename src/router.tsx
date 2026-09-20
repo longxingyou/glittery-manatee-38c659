@@ -4,7 +4,7 @@ import React from 'react'
 
 // Import the generated route tree
 import { routeTree } from './routeTree.gen'
-import { rssHandler } from './routes/api.comments'
+import { useT } from './lib/i18n'
 
 // 后台 UI 组件统一从 ./components/ui/card（懒加载，避免把 server fns/CRUD 拖入首屏）
 const AdminLayout = React.lazy(() => import('./components/ui/card').then((m) => ({ default: m.AdminLayout })))
@@ -12,6 +12,9 @@ const AdminDashboard = React.lazy(() => import('./components/ui/card').then((m) 
 const PostEditorPage = React.lazy(() => import('./components/ui/card').then((m) => ({ default: m.PostEditorPage })))
 const CategoryManager = React.lazy(() => import('./components/ui/card').then((m) => ({ default: m.CategoryManager })))
 const SettingsPanel = React.lazy(() => import('./components/ui/card').then((m) => ({ default: m.SettingsPanel })))
+const UserManager = React.lazy(() => import('./components/ui/card').then((m) => ({ default: m.UserManager })))
+const FeedbackManager = React.lazy(() => import('./components/ui/card').then((m) => ({ default: m.FeedbackManager })))
+const SiteContentEditor = React.lazy(() => import('./components/ui/card').then((m) => ({ default: m.SiteContentEditor })))
 const AdminGateWrap = React.lazy(() => import('./components/ui/card').then((m) => ({ default: m.AdminGateWrap })))
 
 type AnyLazy = LazyExoticComponent<ComponentType<unknown>>
@@ -71,41 +74,35 @@ export const getRouter = () => {
     getParentRoute: () => adminRoute,
     component: wrap(SettingsPanel as unknown as AnyLazy),
   })
-
-  // RSS：服务端 GET 直接返回 XML；客户端访问返回可读说明页
-  const rssRoute = createRoute({
-    path: 'rss.xml',
-    getParentRoute: () => root,
-    server: {
-      handlers: {
-        GET: async ({ request }) => rssHandler(request),
-      },
-    },
-    component: () => (
-      <div
-        style={{
-          padding: '80px 40px',
-          maxWidth: 720,
-          margin: '0 auto',
-          fontFamily: 'ui-sans-serif, system-ui, sans-serif',
-          color: 'var(--text, #111)',
-        }}
-      >
-        <h1 style={{ marginBottom: 10 }}>RSS 订阅源</h1>
-        <p>请使用支持 RSS 2.0 的阅读器订阅以下地址：</p>
-        <p>
-          <a href="/rss.xml" style={{ color: 'var(--accent, #087f6d)' }}>/rss.xml</a>
-        </p>
-      </div>
-    ),
+  const adminUsersRoute = createRoute({
+    path: 'users',
+    getParentRoute: () => adminRoute,
+    component: wrap(UserManager as unknown as AnyLazy),
+  })
+  const adminFeedbackRoute = createRoute({
+    path: 'feedback',
+    getParentRoute: () => adminRoute,
+    component: wrap(FeedbackManager as unknown as AnyLazy),
+  })
+  const adminContentRoute = createRoute({
+    path: 'content',
+    getParentRoute: () => adminRoute,
+    component: wrap(SiteContentEditor as unknown as AnyLazy),
   })
 
+  // /rss.xml 已改为文件路由 src/routes/rss[.]xml.tsx（[.] 是字面量句点），
+  // 其 server.handlers 会被编译器在客户端构建中正确剥离；
+  // 不能在此用编程式 createRoute 注册服务端 handler，否则静态导入的 db 链
+  // 不会被 tree-shaking，会把 SSR 运行时拖入客户端 bundle。
   const adminWithChildren = adminRoute.addChildren([
     adminIndexRoute,
     adminPostsRoute,
     adminNewRoute,
     adminEditRoute,
     adminCategoriesRoute,
+    adminUsersRoute,
+    adminFeedbackRoute,
+    adminContentRoute,
     adminSettingsRoute,
   ])
 
@@ -118,7 +115,7 @@ export const getRouter = () => {
   )
   const mergedChildren = alreadyMerged
     ? existingChildren
-    : [...existingChildren, adminWithChildren, rssRoute]
+    : [...existingChildren, adminWithChildren]
 
   const router = createRouter({
     routeTree: root.addChildren(mergedChildren as never),
@@ -131,6 +128,7 @@ export const getRouter = () => {
 }
 
 function AdminLoading() {
+  const t = useT()
   return (
     <div
       style={{
@@ -140,7 +138,7 @@ function AdminLoading() {
         color: 'var(--muted, #7f8b9b)',
       }}
     >
-      正在加载管理后台…
+      {t('admin.loading')}
     </div>
   )
 }

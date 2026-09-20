@@ -1,0 +1,17 @@
+# =====================================================================
+# Syntax Garden · 本地开发（Cloudflare Vite 插件 / wrangler）环境变量
+# 使用方法：复制本文件为 `.dev.vars`，填入真实值。
+# `.dev.vars` 包含密钥，已在 .gitignore 中忽略，切勿提交。
+# 线上环境用 `wrangler secret put <NAME>` 配置，不要写进 wrangler.jsonc。
+# =====================================================================
+
+# Neon Postgres 连接串（Neon 控制台 → Connection string，pooled 亦可）
+DATABASE_URL=postgresql://USER:PASSWORD@ep-xxxx.us-east-2.aws.neon.tech/neondb?sslmode=require
+
+# Resend 邮件服务（注册验证 / 找回密码）：https://resend.com/api-keys
+RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxx
+# 可选：已在 Resend 验证域名后的发件人；留空则用 onboarding@resend.dev（只能发到账号本人邮箱）
+# RESEND_FROM="Syntax Garden <no-reply@example.com>"
+
+# 管理员邮箱白名单（逗号/分号/空格分隔，大小写不敏感）
+ADMIN_EMAILS=you@example.com

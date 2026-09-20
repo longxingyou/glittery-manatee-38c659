@@ -1,0 +1,8 @@
+/* 得意黑 Smiley Sans（OFL-1.1，可自由分发；字形本身为斜切设计，故按 normal 声明使用） */
+@font-face {
+  font-family: 'Smiley Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../../../node_modules/@fontpkg/smiley-sans/SmileySans-Oblique.ttf.woff2') format('woff2');
+}

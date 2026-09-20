@@ -1,0 +1,43 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "syntax-garden",
+  // 自定义入口（Cloudflare 官方支持的模式）：包一层安全头并把 env 注入 server-env
+  "main": "./worker.ts",
+  "assets": {
+    // vite build 产出的客户端静态资源（仅指纹化 assets / favicon / stickers）。
+    // run_worker_first: true 让 Worker 先处理所有请求，
+    // 这样可以在静态资源响应上添加长期缓存头（/assets/* 有一年 immutable 缓存），
+    // 否则 Assets 绑定直接服务静态文件、绕过 Worker，无法控制缓存头。
+    // 不设置 not_found_handling：未命中静态资源的请求默认回落到 Worker，
+    // 由 TanStack Start 做 SSR 与 API 路由。
+    "directory": "./dist/client",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  // 用较新的兼容日期，保证 nodejs_compat 下 AsyncLocalStorage / process 等 API 可用
+  "compatibility_date": "2026-09-01",
+  // nodejs_compat：AsyncLocalStorage / process 等；
+  // no_handle_cross_request_promise_resolution：模块级单例（Neon HTTP 客户端、
+  // 建表单飞 Promise、用户缓存）会跨请求复用/续接 Promise，workerd 默认会
+  // 取消这类续体导致 Worker 永久挂起，此标志恢复"允许跨请求 Promise 续体"。
+  "compatibility_flags": ["nodejs_compat", "no_handle_cross_request_promise_resolution"],
+  // 自定义域名绑定在朋友的 Cloudflare 账号（zone 叫我.mom 归朋友所有），
+  // 跨账号无法用 Custom Domain。改为由朋友账号创建代理 Worker + Custom Domain
+  // 转发到本 Worker 的 workers.dev 地址。
+  // 下面 workers.dev 子域名已由 Cloudflare 自动分配，国内访问需经朋友代理。
+  "observability": {
+    "enabled": true,
+  },
+  // 面向用户的规范站点源：本 Worker 实际运行在 workers.dev，
+  // 经朋友账号的代理 Worker 转发到 wow.xn--fpr224a.mom（国内可访问）。
+  // 邮件验证/重置链接与确认跳转必须用此域名构造（request.url 是 workers.dev）。
+  "vars": {
+    "PUBLIC_ORIGIN": "https://wow.xn--fpr224a.mom"
+  },
+  // 敏感配置全部走 secret（wrangler secret put），不写在这里：
+  //   DATABASE_URL   Neon Postgres 连接串（pooled 或直连均可）
+  //   RESEND_API_KEY Resend 邮件服务 API key（注册验证 / 找回密码）
+  //   RESEND_FROM    可选，已验证的发件人地址，默认 onboarding@resend.dev
+  //   ADMIN_EMAILS   管理员邮箱白名单（逗号/分号/空格分隔）
+  // 本地开发由 .dev.vars 提供（已在 .gitignore 中忽略）。
+}

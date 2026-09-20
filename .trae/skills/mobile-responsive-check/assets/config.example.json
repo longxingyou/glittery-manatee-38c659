@@ -1,0 +1,24 @@
+{
+  "url": "https://wow.xn--fpr224a.mom/",
+  "outDir": "./shots",
+  "entry": "button[aria-label=\"用户中心\"]",
+  "modal": ".user-modal",
+  "entryWait": 600,
+  "targets": [".font-picker"],
+  "steps": [
+    { "click": ".user-tabs button:has-text(\"字体\")", "wait": 500, "overflow": true, "label": "font-tab-overflow" },
+    { "shot": "font-default" },
+    {
+      "click": ".font-lang-group .font-option >> nth=3",
+      "wait": 2500,
+      "label": "pick-smiley",
+      "expect": { "dataFont": "zh-smiley", "fontReady": "Smiley Sans", "storage": ["sg-font-pref", "zh-smiley"] }
+    },
+    {
+      "reload": true,
+      "wait": 1000,
+      "label": "persist-after-reload",
+      "expect": { "dataFont": "zh-smiley", "storage": ["sg-font-pref", "zh-smiley"] }
+    }
+  ]
+}

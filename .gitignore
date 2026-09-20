@@ -1,11 +1,18 @@
-node_modules/ 
-dist/ 
-.content-collections/ 
-src/routeTree.gen.ts 
+node_modules/
+dist/
+.content-collections/
+src/routeTree.gen.ts
 .env
 .env.local
 .env.*.local
 .env.override
 
-# Local Netlify folder
+# Cloudflare Wrangler 本地产物与密钥
+.wrangler/
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+worker-configuration.d.ts
+
+# Local Netlify folder（历史遗留，迁移后不再使用）
 .netlify

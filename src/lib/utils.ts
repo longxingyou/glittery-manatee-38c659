@@ -61,7 +61,8 @@ export function foldPostsForLang(posts: PostData[], lang: PostLanguage): PostDat
     }
     return arr[0]!
   })
-  return [...standalone, ...picked]
+  // 合并后按发表日期降序（新→旧），避免 standalone 与 picked 分组导致排序错乱
+  return [...standalone, ...picked].sort((a, b) => b.date.localeCompare(a.date))
 }
 
 /** 某篇文章的全部语言版本（含自身；无翻译组时仅自身），按 zh/en/ru 排序 */

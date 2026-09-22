@@ -226,7 +226,10 @@ function CloudflareGlyph() {
 
 type AuthMode = 'login' | 'signup' | 'forgot' | 'reset' | 'confirmSent'
 
-function AuthButton() {
+// 登录弹框宿主：监听 window 'open-auth' 事件并渲染弹框本体（不含触发 chip）。
+// 独立于 SiteShell 存在——后台 /admin 路由不渲染 SiteShell，但门禁页的
+// 「打开登录窗口」按钮也派发 open-auth，因此 __root 的 admin 分支同样挂载本宿主。
+export function AuthModalHost() {
   const t = useT()
   const [user, setUser] = useState<AuthUser | null>(null)
   const [open, setOpen] = useState(false)
@@ -259,8 +262,6 @@ function AuthButton() {
     return () => clearTimeout(timer)
   }, [resendCountdown])
 
-  const initials = useMemo(() => (user?.name || user?.email || t('common.guest')).slice(0, 2).toUpperCase(), [user, t])
-
   const switchMode = (next: AuthMode) => {
     setMode(next)
     setError('')
@@ -291,7 +292,10 @@ function AuthButton() {
         }
       } else if (mode === 'login') {
         const loggedIn = await login(email, password)
-        setUser(loggedIn); setNotice(t('auth.welcome'))
+        setUser(loggedIn)
+        // 关闭弹框：登录成功后身份已显示在 chip；若在后台门禁页，
+        // AdminGateWrap 会经 onAuthChange 自动刷新进入仪表盘
+        setOpen(false)
       } else if (mode === 'forgot') {
         const message = await requestPasswordReset(email)
         setNotice(message)
@@ -344,7 +348,6 @@ function AuthButton() {
 
   return (
     <>
-      <button className="auth-chip" onClick={() => setOpen(true)} title={user ? t('auth.chip.in', { email: user.email }) : t('auth.chip.out')}><span>{initials}</span><b>{user ? t('auth.verified') : t('auth.login')}</b></button>
       {open && (
         <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setOpen(false)}>
           <section className="auth-modal" role="dialog" aria-modal="true" aria-label={t('auth.modal.aria')}>
@@ -399,6 +402,27 @@ function AuthButton() {
           </section>
         </div>
       )}
+    </>
+  )
+}
+
+// 顶栏触发 chip：仅负责展示当前身份并派发 open-auth；弹框状态由 AuthModalHost 持有。
+function AuthButton() {
+  const t = useT()
+  const [user, setUser] = useState<AuthUser | null>(null)
+  useEffect(() => {
+    let alive = true
+    getUser().then((u) => { if (alive) setUser(u) })
+    const unsub = onAuthChange((u) => { if (alive) setUser(u ?? null) })
+    return () => { alive = false; unsub() }
+  }, [])
+  const initials = (user?.name || user?.email || t('common.guest')).slice(0, 2).toUpperCase()
+  return (
+    <>
+      <button className="auth-chip" onClick={() => window.dispatchEvent(new Event('open-auth'))} title={user ? t('auth.chip.in', { email: user.email }) : t('auth.chip.out')}>
+        <span>{initials}</span><b>{user ? t('auth.verified') : t('auth.login')}</b>
+      </button>
+      <AuthModalHost />
     </>
   )
 }

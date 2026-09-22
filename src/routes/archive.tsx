@@ -4,6 +4,7 @@ import { useEffect, useMemo } from 'react'
 import { publicServerFns } from '@/components/public-fns'
 import { foldPostsForLang, type PostData } from '@/lib/utils'
 import { useT, useLang } from '@/lib/i18n'
+import { usePublishedPosts } from '@/lib/use-published-posts'
 
 export const Route = createFileRoute('/archive')({
   component: RouteComponent,
@@ -44,7 +45,9 @@ function RouteComponent() {
   const t = useT()
   const lang = useLang()
   const dateLocale = lang === 'zh' ? 'zh-CN' : lang === 'ru' ? 'ru-RU' : 'en-US'
-  const { posts } = Route.useLoaderData()
+  const { posts: ssrPosts } = Route.useLoaderData()
+  // 冷启动 SSR 若降级（缺 DB 文章），客户端挂载后自动补拉
+  const posts = usePublishedPosts(ssrPosts)
   // 同一篇文章的多语言版本在归档中只保留当前语言版本
   const visiblePosts = useMemo(() => foldPostsForLang(posts, lang), [posts, lang])
   const groups = useMemo(() => groupByYearMonth(visiblePosts), [visiblePosts])

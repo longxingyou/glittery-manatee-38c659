@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { createServerFn } from '@tanstack/react-start'
-import { Link, Outlet, useNavigate, useParams } from '@tanstack/react-router'
+import { Link, Outlet, useLoaderData, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import {
   Bold,
   CirclePlus,
@@ -10,6 +10,7 @@ import {
   FileText,
   FolderTree,
   GripVertical,
+  Loader2,
   Hash,
   Home,
   Italic,
@@ -43,6 +44,7 @@ import {
 import { z } from 'zod'
 
 import { cn, pickupCodeFromInput, pickupMarkdown } from '@/lib/utils'
+import { Route as RootRoute } from '@/routes/__root'
 import {
   DEFAULT_SITE_DESCRIPTION,
   DEFAULT_SITE_TITLE,
@@ -51,6 +53,8 @@ import {
   estimateReadingTime,
   feedbackFileUrl,
   formatBytes,
+  isPostLanguage,
+  POST_LANGUAGES,
   slugify,
   type AdminSettings,
   type AdminStatus,
@@ -78,6 +82,7 @@ import {
   updateUserTagFn,
 } from '../admin-user-fns'
 import { listUserTagsFn } from '../user-fns'
+import { onAuthChange } from '@/lib/auth-client'
 import { UserTagList } from '../user-tag-badge'
 import type { UserTag } from '../../../db/index.js'
 
@@ -143,13 +148,18 @@ const deletePostFn = createServerFn({ method: 'POST' })
     return { ok: true }
   })
 
-const dashboardFn = createServerFn({ method: 'GET' }).handler(
+export const dashboardFn = createServerFn({ method: 'GET' }).handler(
   async (): Promise<{ posts: PostData[]; categories: CategoryInfo[]; attachments: AttachmentPublic[] }> => {
     const mod = await import('../../../db/index.js')
     await mod.requireAdmin()
-    const posts = await mod.listDbPosts(true)
-    const categories = await mod.listCategoryInfo()
-    const attachments = await mod.listAttachmentsAdmin()
+    // 三个独立查询并行化（原来是串行 await，冷启动时 3× Neon HTTP 往返）
+    // 附件是辅助数据：查询失败时降级为空数组，不能拖垮整个仪表盘（文章表格必须可用）。
+    // 分类信息内部已有静态降级；文章列表是核心数据，失败则按错误抛出。
+    const [posts, categories, attachments] = await Promise.all([
+      mod.listDbPosts(true),
+      mod.listCategoryInfo(),
+      mod.listAttachmentsAdmin().catch(() => [] as AttachmentPublic[]),
+    ])
     return { posts, categories, attachments }
   },
 )
@@ -159,11 +169,14 @@ const getPostForEditFn = createServerFn({ method: 'GET' })
   .handler(async ({ data }): Promise<{ post: PostData; attachments: AttachmentPublic[]; categories: CategoryInfo[]; posts: PostData[] }> => {
     const mod = await import('../../../db/index.js')
     await mod.requireAdmin()
-    const post = await mod.getDbPostById(data.id)
+    // 文章详情、分类、全部文章列表三者独立，并行拉取；附件依赖文章 slug 串行在后
+    const [post, categories, posts] = await Promise.all([
+      mod.getDbPostById(data.id),
+      mod.listCategoryInfo(),
+      mod.listDbPosts(true),
+    ])
     if (!post) throw new Error('文章不存在。')
     const attachments = await mod.listAttachmentsAdmin(post.slug)
-    const categories = await mod.listCategoryInfo()
-    const posts = await mod.listDbPosts(true)
     return { post, attachments, categories, posts }
   })
 
@@ -171,8 +184,10 @@ const getEditorBootstrapFn = createServerFn({ method: 'GET' }).handler(
   async (): Promise<{ categories: CategoryInfo[]; posts: PostData[] }> => {
     const mod = await import('../../../db/index.js')
     await mod.requireAdmin()
-    const categories = await mod.listCategoryInfo()
-    const posts = await mod.listDbPosts(true)
+    const [categories, posts] = await Promise.all([
+      mod.listCategoryInfo(),
+      mod.listDbPosts(true),
+    ])
     return { categories, posts }
   },
 )
@@ -262,31 +277,43 @@ export { publicServerFns }
 // =================================================================
 // 共享 Hook：管理员门控
 // =================================================================
-function useAdminStatus(): {
+function useAdminStatus(initial?: AdminStatus | null): {
   loading: boolean
   status: AdminStatus | null
   error: string
   refresh: () => Promise<void>
 } {
   const t = useT()
-  const [status, setStatus] = React.useState<AdminStatus | null>(null)
-  const [loading, setLoading] = React.useState(true)
+  // SSR root loader 已鉴权时直接用，跳过客户端 adminStatusFn 往返
+  const [status, setStatus] = React.useState<AdminStatus | null>(initial ?? null)
+  const [loading, setLoading] = React.useState(!initial)
   const [error, setError] = React.useState('')
   const refresh = React.useCallback(async () => {
+    console.info('[sg-debug] refresh:start')
     setLoading(true); setError('')
-    try { setStatus(await adminStatusFn()) } catch (e) { setError(e instanceof Error ? e.message : t('admin.auth.fail')) }
-    finally { setLoading(false) }
+    try {
+      const next = await adminStatusFn()
+      console.info('[sg-debug] refresh:resolved', JSON.stringify(next))
+      setStatus(next)
+    } catch (e) {
+      console.info('[sg-debug] refresh:error', e instanceof Error ? e.message : String(e))
+      setError(e instanceof Error ? e.message : t('admin.auth.fail'))
+    }
+    finally { setLoading(false); console.info('[sg-debug] refresh:done') }
   }, [t])
-  React.useEffect(() => { void refresh() }, [refresh])
+  React.useEffect(() => { if (!initial) void refresh() }, [initial, refresh])
+  // 登录/登出后自动重新鉴权：门禁页通过弹框登录成功后，无需手动刷新即可进入后台
+  React.useEffect(() => onAuthChange((u) => { console.info('[sg-debug] onAuthChange', u?.email ?? null); void refresh() }), [refresh])
   return { loading, status, error, refresh }
 }
 
 // =================================================================
 // 门控包装（router.tsx 引用）
 // =================================================================
-export function AdminGateWrap({ children }: { children: React.ReactNode }) {
+export function AdminGateWrap({ children, initialStatus }: { children: React.ReactNode; initialStatus?: AdminStatus | null }) {
   const t = useT()
-  const { loading, status, error, refresh } = useAdminStatus()
+  const { loading, status, error, refresh } = useAdminStatus(initialStatus)
+  console.info('[sg-debug] gate:render', { loading, error, authed: status?.authed ?? null, isAdmin: status?.isAdmin ?? null })
   if (loading) return <div className="admin-loading">{t('admin.gate.checking')}</div>
   if (error) return <div className="admin-error">{t('admin.gate.fail')}{error} <button onClick={() => void refresh()}>{t('admin.retry')}</button></div>
   if (!status) return null
@@ -329,7 +356,9 @@ export function AdminGateWrap({ children }: { children: React.ReactNode }) {
 // =================================================================
 export function AdminLayout() {
   const t = useT()
-  const { status } = useAdminStatus()
+  // 复用 root loader SSR 已有的管理员状态，避免客户端二次 adminStatusFn 往返
+  const { adminStatus: rootAdminStatus } = RootRoute.useLoaderData()
+  const { status } = useAdminStatus(rootAdminStatus ?? undefined)
   // 移动端侧边栏抽屉开关；路由变化后自动关闭
   const [sideOpen, setSideOpen] = React.useState(false)
   const closeOnNav = () => setSideOpen(false)
@@ -396,8 +425,10 @@ export function AdminDashboard() {
   const t = useT()
   const lang = useLang()
   const dateLocale = lang === 'zh' ? 'zh-CN' : lang === 'ru' ? 'ru-RU' : 'en-US'
-  const [data, setData] = React.useState<{ posts: PostData[]; categories: CategoryInfo[]; attachments: AttachmentPublic[] } | null>(null)
-  const [loading, setLoading] = React.useState(true)
+  // 优先使用路由 loader 的 SSR 数据（loader 已在服务端调 dashboardFn，客户端 hydration 直接取，省去一次往返）
+  const ssrData = useLoaderData({ strict: false }) as { posts: PostData[]; categories: CategoryInfo[]; attachments: AttachmentPublic[] } | null | undefined
+  const [data, setData] = React.useState<{ posts: PostData[]; categories: CategoryInfo[]; attachments: AttachmentPublic[] } | null>(ssrData ?? null)
+  const [loading, setLoading] = React.useState(!ssrData)
   const [error, setError] = React.useState('')
   const [deleting, setDeleting] = React.useState<number | null>(null)
   const [confirmDelete, setConfirmDelete] = React.useState<number | null>(null)
@@ -406,7 +437,31 @@ export function AdminDashboard() {
     try { setData(await dashboardFn()) } catch (e) { setError(e instanceof Error ? e.message : t('admin.load.fail')) }
     finally { setLoading(false) }
   }, [t])
-  React.useEffect(() => { void load() }, [load])
+  // 仅在没有 SSR 数据时（客户端路由切换）才拉取；SSR 直达已有数据无需二次请求
+  React.useEffect(() => { if (!ssrData) void load() }, [load, ssrData])
+  const navigate = useNavigate()
+
+  // 翻译组聚组：组键 = translationKey || slug（savePost 保存时会自动把锚点文章补进同一组）。
+  // 组内按语言序（中文原文优先）排列：代表行在前，其余语言版本缩进跟随，同组版本相邻便于管理。
+  const groupedRows = React.useMemo(() => {
+    if (!data) return []
+    const groups = new Map<string, PostData[]>()
+    for (const p of data.posts) {
+      const key = p.translationKey || p.slug
+      const arr = groups.get(key)
+      if (arr) arr.push(p)
+      else groups.set(key, [p])
+    }
+    const ordered: { post: PostData; depth: 0 | 1 }[] = []
+    ;[...groups.values()]
+      .map((members) => {
+        members.sort((a, b) => POST_LANG_ORDER[a.language] - POST_LANG_ORDER[b.language] || b.date.localeCompare(a.date))
+        return members
+      })
+      .sort((a, b) => b[0]!.date.localeCompare(a[0]!.date))
+      .forEach((members) => members.forEach((post, i) => ordered.push({ post, depth: i === 0 ? 0 : 1 })))
+    return ordered
+  }, [data])
 
   const remove = async (id: number) => {
     setDeleting(id)
@@ -434,7 +489,16 @@ export function AdminDashboard() {
         <div className="stat-card tone-4"><span>{t('admin.dash.stat.atts')}</span><b>{data?.attachments.length ?? 0}</b></div>
       </div>
       {error && <div className="banner error">{error} <button onClick={() => void load()}>{t('admin.retry')}</button></div>}
-      {loading && <div className="skeleton-table" />}
+      {loading && (
+        <div className="panel skeleton-panel">
+          <div className="skeleton-header" aria-busy="true">
+            <Loader2 size={18} className="spin" />
+            <span>{t('admin.busy.loading')}</span>
+            <small>{t('admin.dash.loading.tip')}</small>
+          </div>
+          <div className="skeleton-table" />
+        </div>
+      )}
       {data && (
         <div className="panel">
           <div className="panel-head"><h3>{t('admin.dash.list.title')} <small>{t('admin.dash.list.note')}</small></h3></div>
@@ -452,13 +516,14 @@ export function AdminDashboard() {
               </tr>
             </thead>
             <tbody>
-              {data.posts.length === 0 && (
+              {groupedRows.length === 0 && (
                 <tr><td colSpan={8} className="empty-row">{t('admin.dash.empty')}</td></tr>
               )}
-              {data.posts.map((post) => (
-                <tr key={post.id}>
+              {groupedRows.map(({ post, depth }) => (
+                <tr key={post.id} className={depth ? 'trans-sub' : undefined}>
                   <td className="mono">{post.id}</td>
                   <td className="strong">
+                    {depth === 1 && <span className="trans-sub-mark">└</span>}
                     <Link to="/admin/posts/$id" params={{ id: String(post.id) }} className="row-link">{post.title}</Link>
                     <span className={`badge ${post.language === 'zh' ? 'badge-yellow' : 'badge-blue'}`} style={{ marginLeft: 8 }}>{post.language.toUpperCase()}</span>
                     {post.translationKey && <span className="badge badge-blue" style={{ marginLeft: 6 }} title={t('admin.dash.trans.tip', { key: post.translationKey })}>↔ {t('admin.dash.trans.badge')}</span>}
@@ -480,6 +545,17 @@ export function AdminDashboard() {
                   <td>
                     <div className="row-actions">
                       <Link to="/admin/posts/$id" params={{ id: String(post.id) }} className="row-action primary">{t('admin.act.edit')}</Link>
+                      {(() => {
+                        // 组内语言不足三种时提供「译本」入口，缺哪些语言在编辑器里补齐
+                        const key = post.translationKey || post.slug
+                        const langs = new Set(data.posts.filter((q) => (q.translationKey || q.slug) === key).map((q) => q.language))
+                        return langs.size < 3 ? (
+                          <button
+                            className="row-action"
+                            onClick={() => navigate({ to: '/admin/posts/new', search: { translate: String(post.id) } })}
+                          >{t('admin.act.translate')}</button>
+                        ) : null
+                      })()}
                       <a className="row-action" target="_blank" rel="noreferrer" href={`/posts/${encodeURIComponent(post.slug)}`}>{t('admin.act.preview')}</a>
                       {confirmDelete === post.id ? (
                         <>
@@ -512,9 +588,9 @@ export function CategoryManager() {
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState('')
   const [busy, setBusy] = React.useState(false)
-  // id: null = 新建；id: 0 = 静态内置分类（按权威名 upsert 译名，不可改名）
-  const [form, setForm] = React.useState<{ id: number | null; name: string; nameEn: string; nameRu: string }>({
-    id: null, name: '', nameEn: '', nameRu: '',
+  // id: null = 新建；id: 0 = 静态内置分类（按权威名 upsert 译名）；builtin = 权威名来自静态文件，锁定不可改
+  const [form, setForm] = React.useState<{ id: number | null; name: string; nameEn: string; nameRu: string; builtin: boolean }>({
+    id: null, name: '', nameEn: '', nameRu: '', builtin: false,
   })
   const formRef = React.useRef<HTMLDivElement>(null)
   const load = React.useCallback(async () => {
@@ -524,14 +600,15 @@ export function CategoryManager() {
   }, [t])
   React.useEffect(() => { void load() }, [load])
 
-  const editingBuiltin = form.id === 0
+  // 内置判定随行数据走：静态分类补过译名（已登记行 id>0）后仍保持 builtin 锁定
+  const editingBuiltin = form.builtin
   const isEditing = form.id !== null
 
-  const resetForm = () => setForm({ id: null, name: '', nameEn: '', nameRu: '' })
+  const resetForm = () => setForm({ id: null, name: '', nameEn: '', nameRu: '', builtin: false })
 
   const startEdit = (c: CategoryInfo) => {
     setError('')
-    setForm({ id: c.id, name: c.name, nameEn: c.nameEn ?? '', nameRu: c.nameRu ?? '' })
+    setForm({ id: c.id, name: c.name, nameEn: c.nameEn ?? '', nameRu: c.nameRu ?? '', builtin: c.builtin })
     formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }
 
@@ -703,6 +780,9 @@ function useMarkdownEditor(initial: string) {
 // 翻译组代表排序：中文原文优先
 const POST_LANG_ORDER: Record<PostLanguage, number> = { zh: 0, en: 1, ru: 2 }
 
+// 新建译本时缺省目标语言顺序：英文 → 俄文（中文视为原文，最后兜底）
+const TRANSLATE_TARGET_ORDER: PostLanguage[] = ['en', 'ru', 'zh']
+
 // =================================================================
 // 文章编辑器页面（新建 / 编辑）
 // =================================================================
@@ -710,10 +790,14 @@ export function PostEditorPage() {
   const t = useT()
   const lang = useLang()
   const params = useParams({ strict: false }) as { id?: string }
+  const search = useSearch({ strict: false }) as { translate?: string; lang?: string }
   const editId = params.id ? Number(params.id) : null
+  // 新建译本入口：?translate=<源文章id>&lang=<目标语言>（仪表盘「译本」按钮 / 版本切换条跳入）
+  const translateFrom = search.translate ? Number(search.translate) : null
   const navigate = useNavigate()
   const [saving, setSaving] = React.useState(false)
   const [msg, setMsg] = React.useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
+  const [translatingFrom, setTranslatingFrom] = React.useState<string | null>(null)
   const [bootstrap, setBootstrap] = React.useState<{
     id: number | null
     title: string
@@ -738,7 +822,7 @@ export function PostEditorPage() {
 
   const flashErr = (e: unknown) => setMsg({ kind: 'err', text: e instanceof Error ? e.message : t('admin.op.fail') })
 
-  // 初始化：编辑模式加载文章详情；新建模式仅拉分类
+  // 初始化：编辑模式加载文章详情；新建模式拉分类；带 translate 参数时按源文章预填译本
   React.useEffect(() => {
     let alive = true
     void (async () => {
@@ -753,6 +837,33 @@ export function PostEditorPage() {
             attachments, categoryOptions: categories, allPosts: posts,
           })
           editor.setValue(post.content)
+        } else if (translateFrom && Number.isInteger(translateFrom) && translateFrom > 0) {
+          // 新建译本：分类/翻译键预填，语言缺省取组内缺失项，路径自动为「组键-语言」
+          const { post, categories, posts } = await getPostForEditFn({ data: { id: translateFrom } })
+          if (!alive) return
+          const groupKey = post.translationKey || post.slug
+          const groupLangs = new Set(
+            posts.filter((p) => (p.translationKey || p.slug) === groupKey).map((p) => p.language),
+          )
+          const fallback = TRANSLATE_TARGET_ORDER.find((l) => !groupLangs.has(l)) ?? 'en'
+          const nextLang = isPostLanguage(search.lang) && !groupLangs.has(search.lang) ? search.lang : fallback
+          setBootstrap((b) => ({
+            ...b,
+            categoryOptions: categories,
+            allPosts: posts,
+            translationKey: groupKey,
+            language: nextLang,
+            slug: slugify(`${groupKey}-${nextLang}`),
+            title: post.title,
+            summary: '',
+            content: '',
+            categories: [...post.categories],
+            status: 'draft',
+            date: new Date().toISOString().slice(0, 10),
+            attachments: [],
+          }))
+          setTranslatingFrom(post.title)
+          editor.setValue('')
         } else {
           const { categories, posts } = await getEditorBootstrapFn()
           if (!alive) return
@@ -762,7 +873,7 @@ export function PostEditorPage() {
     })()
     return () => { alive = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editId])
+  }, [editId, translateFrom])
 
   // 可关联的翻译组：键 = 组内锚点 slug；同一组只展示一个代表（优先中文版）
   const translationGroups = React.useMemo(() => {
@@ -784,6 +895,14 @@ export function PostEditorPage() {
     }
     return [...map.values()].sort((a, b) => a.title.localeCompare(b.title))
   }, [bootstrap.allPosts, bootstrap.id, t])
+
+  // 当前翻译组内的全部语言版本（含自身）；静态文章不在后台库列表，不参与组员计算
+  const groupMembers = React.useMemo(
+    () => (bootstrap.translationKey
+      ? bootstrap.allPosts.filter((p) => (p.translationKey || p.slug) === bootstrap.translationKey)
+      : []),
+    [bootstrap.allPosts, bootstrap.translationKey],
+  )
 
   const slugFromTitle = () => setBootstrap((b) => ({ ...b, slug: slugify(b.slug || b.title) }))
   const toggleCategory = (name: string) => setBootstrap((b) => ({
@@ -826,10 +945,8 @@ export function PostEditorPage() {
       })
       setMsg({ kind: 'ok', text: nextStatus === 'published' ? t('admin.editor.published') : t('admin.editor.draft.saved') })
       if (!bootstrap.id) navigate({ to: '/admin/posts/$id', params: { id: String(result.id) } })
-      // 重新拉取 attachments（避免状态丢失）
-      const attachments = await (async () => {
-        try { return (await getPostForEditFn({ data: { id: result.id } })).attachments } catch { return [] }
-      })()
+      // 保存后仅拉取附件（原来调 getPostForEditFn 会多拉 post+categories+allPosts，浪费 4× 查询）
+      const attachments = await publicServerFns.postAttachmentsFn({ data: { postSlug: result.slug } }).catch(() => [])
       setBootstrap((b) => ({ ...b, id: result.id, slug: result.slug, status: nextStatus || b.status, attachments }))
     } catch (e) { flashErr(e) }
     finally { setSaving(false) }
@@ -853,6 +970,7 @@ export function PostEditorPage() {
         </div>
       </div>
       {msg && <div className={`banner ${msg.kind === 'ok' ? 'ok' : 'error'}`}>{msg.text}</div>}
+      {translatingFrom && <div className="banner">{t('admin.editor.translate.of', { title: translatingFrom })}</div>}
 
       <div className="panel editor-meta">
         <div className="meta-row">
@@ -886,7 +1004,14 @@ export function PostEditorPage() {
             {t('admin.f.language')}
             <select
               value={bootstrap.language}
-              onChange={(e) => setBootstrap((b) => ({ ...b, language: e.target.value as PostLanguage }))}
+              onChange={(e) => {
+                const nextLang = e.target.value as PostLanguage
+                setBootstrap((b) => {
+                  // 新建关联译本时路径自动跟随「组键-语言」，保持同组版本路径相邻
+                  const autoSlug = !b.id && b.translationKey && (!b.slug || b.slug === `${b.translationKey}-${b.language}`)
+                  return { ...b, language: nextLang, slug: autoSlug ? slugify(`${b.translationKey}-${nextLang}`) : b.slug }
+                })
+              }}
             >
               <option value="zh">{t('lang.zh')}</option>
               <option value="en">{t('lang.en')}</option>
@@ -910,7 +1035,14 @@ export function PostEditorPage() {
             {t('admin.f.trans')}
             <select
               value={bootstrap.translationKey ?? ''}
-              onChange={(e) => setBootstrap((b) => ({ ...b, translationKey: e.target.value || null }))}
+              onChange={(e) => {
+                const nextKey = e.target.value || null
+                setBootstrap((b) => {
+                  // 新建文章选定翻译组后，路径自动按「组键-语言」预填（已有路径不覆盖）
+                  const autoSlug = !b.id && nextKey && !b.slug
+                  return { ...b, translationKey: nextKey, slug: autoSlug ? slugify(`${nextKey}-${b.language}`) : b.slug }
+                })
+              }}
             >
               <option value="">{t('admin.trans.none')}</option>
               {translationGroups.map((g) => (
@@ -925,6 +1057,41 @@ export function PostEditorPage() {
             <small className="muted">{t('admin.trans.hint')}</small>
           </label>
         </div>
+        {/* 语言版本切换条：同组版本互跳修改；缺失语言一键新建译本（需先保存拿到 id） */}
+        {bootstrap.translationKey && (
+          <div className="meta-row">
+            <label style={{ flex: 1 }}>
+              {t('admin.editor.trans.versions')}
+              <div className="version-pills">
+                {POST_LANGUAGES.map((l) => {
+                  const member = groupMembers.find((m) => m.language === l)
+                  if (member && member.id === bootstrap.id) {
+                    return <span key={l} className="version-pill current">{t(`lang.${l}`)}</span>
+                  }
+                  if (member) {
+                    return (
+                      <Link key={l} to="/admin/posts/$id" params={{ id: String(member.id) }} className="version-pill">
+                        {t(`lang.${l}`)}
+                      </Link>
+                    )
+                  }
+                  return (
+                    <button
+                      key={l}
+                      type="button"
+                      className="version-pill missing"
+                      disabled={!bootstrap.id}
+                      title={t('admin.editor.trans.none')}
+                      onClick={() => navigate({ to: '/admin/posts/new', search: { translate: String(bootstrap.id), lang: l } })}
+                    >
+                      + {t(`lang.${l}`)}
+                    </button>
+                  )
+                })}
+              </div>
+            </label>
+          </div>
+        )}
         <div className="meta-row">
           <label>
             {t('admin.f.summary')}

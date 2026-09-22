@@ -11,10 +11,20 @@ import { useT, useCatName } from '@/lib/i18n'
 
 export const Route = createFileRoute('/posts/$slug')({
   loader: async ({ params }) => {
-    const all = await publicServerFns.publishedPostsFn()
-    const post = all.find((p) => p.slug === params.slug)
-    if (!post) throw notFound()
-    return { post, siblings: getPostSiblings(all, post.slug) }
+    // 直接按 slug 查单篇（静态文章零成本，DB 文章单条查询），不再拉全量文章列表
+    const post = await publicServerFns.getPublishedPostFn({ data: { slug: params.slug } })
+    if (post) {
+      // 无翻译组的文章 siblings 就是自身，无需拉全量列表；有翻译组才查同组兄弟
+      const siblings = post.translationKey
+        ? getPostSiblings(await publicServerFns.publishedPostsFn(), post.slug)
+        : [post]
+      return { post, siblings }
+    }
+    // 草稿预览兜底：后台"预览"指向 /posts/{slug}，草稿不在已发布列表；
+    // adminPostPreviewFn 内部 requireAdmin，非管理员/无效 slug 仍走 404
+    const draft = await publicServerFns.adminPostPreviewFn({ data: { slug: params.slug } }).catch(() => null)
+    if (draft) return { post: draft, siblings: [] }
+    throw notFound()
   },
   component: RouteComponent,
   head: ({ loaderData }) => ({

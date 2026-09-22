@@ -58,7 +58,12 @@ function withSecurityHeaders(response: Response, request: Request): Response {
   if (url.pathname.startsWith('/assets/')) {
     headers.set('Cache-Control', 'public, max-age=31536000, immutable')
   }
-  // body 是流式 SSR 输出时也只能原样透传，避免缓冲整页
+  // 关键：流式 SSR 响应的 body 是 ReadableStream，若保留原始 Content-Length，
+  // 实际流出字节数可能与声明不符，Cloudflare 会判定响应损坏并返回 520。
+  // 当 body 为流时必须删除 Content-Length（由传输层自动用 chunked 编码）。
+  if (response.body !== null) {
+    headers.delete('Content-Length')
+  }
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -84,25 +89,56 @@ export default {
       url.pathname.startsWith('/assets/') ||
       url.pathname.startsWith('/stickers/') ||
       url.pathname === '/favicon.ico'
-    if (isStaticAsset && env.ASSETS) {
-      const assetResponse = await env.ASSETS.fetch(request)
-      if (assetResponse.status === 200) {
-        const headers = new Headers(assetResponse.headers)
-        if (url.pathname.startsWith('/assets/')) {
-          headers.set('Cache-Control', 'public, max-age=31536000, immutable')
-        } else {
-          headers.set('Cache-Control', 'public, max-age=86400')
-        }
-        return new Response(assetResponse.body, {
-          status: assetResponse.status,
-          statusText: assetResponse.statusText,
-          headers,
-        })
-      }
-      // 静态资源未命中 → 继续走 SSR（可能是动态路由）
-    }
 
-    const response = await startHandler.fetch(request)
-    return withSecurityHeaders(response, request)
+    try {
+      if (isStaticAsset && env.ASSETS) {
+        const assetResponse = await env.ASSETS.fetch(request)
+        if (assetResponse.status === 200) {
+          const headers = new Headers(assetResponse.headers)
+          if (url.pathname.startsWith('/assets/')) {
+            headers.set('Cache-Control', 'public, max-age=31536000, immutable')
+          } else {
+            headers.set('Cache-Control', 'public, max-age=86400')
+          }
+          // 静态资源也删除 Content-Length，避免 body 流长度不一致
+          headers.delete('Content-Length')
+          return new Response(assetResponse.body, {
+            status: assetResponse.status,
+            statusText: assetResponse.statusText,
+            headers,
+          })
+        }
+        // 静态资源未命中 → 继续走 SSR（可能是动态路由）
+      }
+
+      const response = await startHandler.fetch(request)
+      return withSecurityHeaders(response, request)
+    } catch (err) {
+      // 未捕获异常（Neon 冷启动超时、DB 连接失败等）返回明确的 500 而非让 Cloudflare 报 520。
+      // 520 是 Cloudflare 收到损坏/空响应时的错误，对用户不友好且无法被前端重试逻辑处理。
+      console.error('[worker] fetch error:', err)
+      const isHtml = request.headers.get('accept')?.includes('text/html')
+      if (isHtml) {
+        return new Response(
+          '<!doctype html><html><head><meta charset="utf-8"><title>500 · 服务器开小差了</title>' +
+          '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+          '<style>body{font-family:system-ui,sans-serif;display:flex;flex-direction:column;' +
+          'align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0d1117;color:#c9d1d9}' +
+          'h1{font-size:48px;margin:0}p{color:#8b949e;margin:8px 0 24px}' +
+          'a{color:#58a6ff;text-decoration:none;padding:8px 20px;border:1px solid #30363d;border-radius:6px}' +
+          'a:hover{background:#161b22}</style></head>' +
+          '<body><h1>500</h1><p>服务器暂时不可用，请稍后重试。</p>' +
+          '<a href="/">返回首页</a></body></html>',
+          {
+            status: 500,
+            headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+          },
+        )
+      }
+      return new Response('Internal Server Error', {
+        status: 500,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
+      })
+    }
   },
 }

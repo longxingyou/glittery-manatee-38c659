@@ -451,6 +451,7 @@ mergeDict('zh', {
   // ── admin: 文章仪表盘 ──
   'admin.dash.title': '文章仪表盘',
   'admin.dash.sub': '在 Markdown 里记下你的想法，然后让它们被人读到。',
+  'admin.dash.loading.tip': '正在从数据库加载文章列表…',
   'admin.dash.stat.draft': '草稿',
   'admin.dash.stat.published': '已发布（数据库）',
   'admin.dash.stat.cats': '分类',
@@ -533,6 +534,10 @@ mergeDict('zh', {
   'admin.trans.none': '— 独立文章（不关联）—',
   'admin.trans.versions': ' 等 {n} 个版本',
   'admin.trans.hint': '选择原文后，本文将作为其翻译版本，前台列表只显示访客语言对应的版本。',
+  'admin.act.translate': '译本',
+  'admin.editor.trans.versions': '语言版本（点击切换修改，缺失语言可新建译本）',
+  'admin.editor.trans.none': '该语言版本尚未创建，点击新建译本',
+  'admin.editor.translate.of': '正在为《{title}》创建译本：分类与翻译关联已预填，路径为「组键-语言」，请改写标题与正文。',
   'admin.f.summary': '摘要（≤ 1000 字，会出现在文章列表卡片和 RSS 描述中）',
   'admin.f.summary.ph': '用 1-2 句话概括这篇文章。',
   'admin.f.cats': '分类',
@@ -697,8 +702,12 @@ mergeDict('zh', {
   'error.404.title': '页面未找到',
   'error.404.desc': '你访问的页面不存在或已被移走。',
   'error.home': '返回首页',
+  'error.retry': '重试',
+  'error.retry.loading': '重试中…',
   'error.500.title': '服务器内部错误',
   'error.500.desc': '出错了，请稍后重试。',
+  'error.timeout.title': '服务器响应超时',
+  'error.timeout.desc': '数据库可能正在冷启动，请点击重试（通常第二次即可打开）。',
 })
 
 mergeDict('en', {
@@ -1140,6 +1149,7 @@ mergeDict('en', {
   // ── admin: dashboard ──
   'admin.dash.title': 'Posts dashboard',
   'admin.dash.sub': 'Capture your ideas in Markdown, then let people read them.',
+  'admin.dash.loading.tip': 'Loading post list from database…',
   'admin.dash.stat.draft': 'Drafts',
   'admin.dash.stat.published': 'Published (database)',
   'admin.dash.stat.cats': 'Categories',
@@ -1222,6 +1232,10 @@ mergeDict('en', {
   'admin.trans.none': '— Standalone post (no link) —',
   'admin.trans.versions': ' and {n} versions',
   'admin.trans.hint': 'After selecting the original, this post becomes its translation; public lists show only the visitor’s language version.',
+  'admin.act.translate': 'Translate',
+  'admin.editor.trans.versions': 'Language versions (click to switch and edit; create missing ones as translations)',
+  'admin.editor.trans.none': 'This language version does not exist yet — click to create it',
+  'admin.editor.translate.of': 'Creating a translation of "{title}": categories and the translation link are prefilled, and the path follows "group key - language". Rewrite the title and body.',
   'admin.f.summary': 'Summary (≤ 1000 chars; shown on list cards and in RSS descriptions)',
   'admin.f.summary.ph': 'Summarize this post in 1–2 sentences.',
   'admin.f.cats': 'Categories',
@@ -1385,8 +1399,12 @@ mergeDict('en', {
   'error.404.title': 'Page not found',
   'error.404.desc': 'The page you requested does not exist or has been moved.',
   'error.home': 'Back to home',
+  'error.retry': 'Retry',
+  'error.retry.loading': 'Retrying…',
   'error.500.title': 'Internal server error',
   'error.500.desc': 'Something went wrong, please try again later.',
+  'error.timeout.title': 'Server response timeout',
+  'error.timeout.desc': 'The database may be waking up. Please retry — it usually opens on the second try.',
 })
 
 mergeDict('ru', {
@@ -1828,6 +1846,7 @@ mergeDict('ru', {
   // ── admin: панель записей ──
   'admin.dash.title': 'Панель записей',
   'admin.dash.sub': 'Записывайте мысли в Markdown — и дайте их прочитать другим.',
+  'admin.dash.loading.tip': 'Загрузка списка записей из базы данных…',
   'admin.dash.stat.draft': 'Черновики',
   'admin.dash.stat.published': 'Опубликовано (БД)',
   'admin.dash.stat.cats': 'Категории',
@@ -1910,6 +1929,10 @@ mergeDict('ru', {
   'admin.trans.none': '— Отдельная запись (не связана) —',
   'admin.trans.versions': ' и ещё версий: {n}',
   'admin.trans.hint': 'После выбора оригинала эта запись станет его переводом; в публичных списках показывается только версия на языке посетителя.',
+  'admin.act.translate': 'Перевод',
+  'admin.editor.trans.versions': 'Языковые версии (нажмите для перехода; отсутствующие можно создать)',
+  'admin.editor.trans.none': 'Версии на этом языке ещё нет — нажмите, чтобы создать перевод',
+  'admin.editor.translate.of': 'Создаётся перевод «{title}»: категории и связь перевода предзаполнены, путь имеет вид «ключ группы - язык». Перепишите заголовок и текст.',
   'admin.f.summary': 'Краткое описание (≤ 1000 символов; показывается в карточках и описании RSS)',
   'admin.f.summary.ph': 'Опишите запись в 1–2 предложениях.',
   'admin.f.cats': 'Категории',
@@ -2073,6 +2096,10 @@ mergeDict('ru', {
   'error.404.title': 'Страница не найдена',
   'error.404.desc': 'Запрашиваемая страница не существует или была перемещена.',
   'error.home': 'На главную',
+  'error.retry': 'Повторить',
+  'error.retry.loading': 'Повтор…',
   'error.500.title': 'Внутренняя ошибка сервера',
   'error.500.desc': 'Что-то пошло не так, попробуйте позже.',
+  'error.timeout.title': 'Время ожидания ответа истекло',
+  'error.timeout.desc': 'Возможно, база данных ещё просыпается. Повторите — обычно со второго раза открывается.',
 })

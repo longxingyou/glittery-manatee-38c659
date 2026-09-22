@@ -5,6 +5,7 @@ import React from 'react'
 // Import the generated route tree
 import { routeTree } from './routeTree.gen'
 import { useT } from './lib/i18n'
+import { dashboardFn } from './components/ui/card'
 
 // 后台 UI 组件统一从 ./components/ui/card（懒加载，避免把 server fns/CRUD 拖入首屏）
 const AdminLayout = React.lazy(() => import('./components/ui/card').then((m) => ({ default: m.AdminLayout })))
@@ -26,9 +27,11 @@ export const getRouter = () => {
   /** 所有管理端子路由均经过 AdminGateWrap 门控 + Suspense 包裹 */
   const wrap = (Child: AnyLazy) =>
     function Wrapped(props: object) {
+      // 利用 root loader SSR 已鉴权的管理员状态，跳过客户端 adminStatusFn 二次往返
+      const { adminStatus } = root.useLoaderData()
       return (
         <React.Suspense fallback={<AdminLoading />}>
-          <AdminGateWrap>
+          <AdminGateWrap initialStatus={adminStatus}>
             <Child {...(props as Record<string, unknown>)} />
           </AdminGateWrap>
         </React.Suspense>
@@ -52,11 +55,21 @@ export const getRouter = () => {
   const adminPostsRoute = createRoute({
     path: 'posts',
     getParentRoute: () => adminRoute,
+    // SSR 预取仪表盘数据（与 root loader 并行），客户端 hydration 直接取，省去一次 dashboardFn 往返
+    // 非管理员时 requireAdmin 抛错，吞掉返回 null，由 AdminGateWrap 展示登录卡片
+    loader: async () => {
+      try { return await dashboardFn() } catch { return null }
+    },
     component: wrap(AdminDashboard as unknown as AnyLazy),
   })
   const adminNewRoute = createRoute({
     path: 'posts/new',
     getParentRoute: () => adminRoute,
+    // 新建译本入口：?translate=<源文章id>&lang=<目标语言>，由 PostEditorPage 按源文章预填
+    validateSearch: (search: Record<string, unknown>): { translate?: string; lang?: string } => ({
+      translate: typeof search.translate === 'string' ? search.translate : undefined,
+      lang: typeof search.lang === 'string' ? search.lang : undefined,
+    }),
     component: wrap(PostEditorPage as unknown as AnyLazy),
   })
   const adminEditRoute = createRoute({
@@ -120,7 +133,18 @@ export const getRouter = () => {
   const router = createRouter({
     routeTree: root.addChildren(mergedChildren as never),
     scrollRestoration: true,
-    defaultPreloadStaleTime: 0,
+    // 预加载数据 30s 内复用，避免悬停预取后立即过期导致重复请求
+    defaultPreloadStaleTime: 30_000,
+    // 悬停链接 120ms 后开始预加载该路由的 loader 数据 + 懒加载组件
+    defaultPreload: 'intent',
+    defaultPreloadIntentDelay: 120,
+    // 路由切换时的 pending 状态：150ms 内不展示，避免快切换闪烁；超时后显示骨架
+    defaultPendingMs: 150,
+    defaultPendingComponent: () => (
+      <div style={{ padding: '80px 20px', textAlign: 'center', color: 'var(--muted, #7f8b9b)' }}>
+        <span style={{ display: 'inline-block', animation: 'spin 0.9s linear infinite' }}>⟳</span>
+      </div>
+    ),
     // 防止 TanStack Router 严格类型断言报错
   } as unknown as Parameters<typeof createRouter>[0])
 

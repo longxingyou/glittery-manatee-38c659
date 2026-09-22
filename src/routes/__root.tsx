@@ -1,7 +1,7 @@
-import { HeadContent, Outlet, Scripts, createRootRoute, createRoute, useLocation } from '@tanstack/react-router'
-import { useEffect } from 'react'
+import { HeadContent, Link, Outlet, Scripts, createRootRoute, createRoute, useLocation, useRouter, useRouterState } from '@tanstack/react-router'
+import { useEffect, useState } from 'react'
 import { allPosts } from 'content-collections'
-import { SiteShell } from '@/components/site-shell'
+import { SiteShell, AuthModalHost } from '@/components/site-shell'
 import { publicServerFns } from '@/components/public-fns'
 import { PickupPreviewHost } from '@/components/pickup-preview'
 import 'katex/dist/katex.min.css'
@@ -234,12 +234,14 @@ export const Route = createRootRoute({
       .sort()
       .map((name) => ({ name, nameEn: null, nameRu: null }))
     const [settingsResult, categoriesResult] = await Promise.all([
-      publicServerFns.settingsFn().catch(() => ({ public: { siteTitle: DEFAULT_SITE_TITLE, siteDescription: DEFAULT_SITE_DESCRIPTION, customCss: '' }, isAdmin: false as const })),
+      publicServerFns.settingsFn().catch(() => ({ public: { siteTitle: DEFAULT_SITE_TITLE, siteDescription: DEFAULT_SITE_DESCRIPTION, customCss: '' }, isAdmin: false as const, adminStatus: null })),
       publicServerFns.allCategoriesFn().catch(() => staticLabels),
     ])
     return {
       settings: settingsResult.public,
       isAdmin: settingsResult.isAdmin,
+      // SSR 已知的管理员状态：admin 端组件可跳过客户端二次鉴权往返（省 1-3s 冷启动）
+      adminStatus: settingsResult.adminStatus ?? null,
       categories: categoriesResult,
     }
   },
@@ -249,10 +251,62 @@ export const Route = createRootRoute({
   errorComponent: ErrorPage,
 })
 
+function NavProgressBar({ active }: { active: boolean }) {
+  // 顶部细条进度：active 时从左滑入并循环动画，不 active 时淡出
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: '2px',
+        background: 'transparent',
+        zIndex: 9999,
+        pointerEvents: 'none',
+        opacity: active ? 1 : 0,
+        transition: 'opacity 0.2s ease',
+      }}
+    >
+      <div
+        style={{
+          height: '100%',
+          width: active ? '40%' : '0%',
+          background: 'var(--accent, #4cc2ff)',
+          boxShadow: '0 0 6px var(--accent, #4cc2ff)',
+          animation: active ? 'nav-progress 1s ease-in-out infinite' : 'none',
+          transition: 'width 0.2s ease',
+        }}
+      />
+    </div>
+  )
+}
+
 function RootComponent() {
   const { settings, categories } = Route.useLoaderData()
   const loc = useLocation()
   const inAdmin = loc.pathname.startsWith('/admin')
+  // 导航进度条：isLoading 比 status==='pending' 更可靠（pending 状态在某些边缘场景下不会复位）
+  const routerLoading = useRouterState({ select: (s) => s.isLoading })
+  const [showBar, setShowBar] = useState(false)
+
+  // 显示/隐藏逻辑：routerLoading 变 true 时立即显示；变 false 时延迟 200ms 隐藏（避免快速闪烁）
+  useEffect(() => {
+    if (routerLoading) {
+      setShowBar(true)
+    } else {
+      const t = setTimeout(() => setShowBar(false), 200)
+      return () => clearTimeout(t)
+    }
+  }, [routerLoading])
+
+  // 安全兜底：最多显示 8 秒，防止异常状态下进度条永远不消失
+  useEffect(() => {
+    if (!showBar) return
+    const t = setTimeout(() => setShowBar(false), 8000)
+    return () => clearTimeout(t)
+  }, [showBar])
 
   // 渲染子树前注入分类译名表（模块级注册表；SSR/CSR 同构，数据对所有访客一致）
   setCategoryLabels(categories || [])
@@ -270,14 +324,19 @@ function RootComponent() {
   if (inAdmin) {
     return (
       <>
+        <NavProgressBar active={showBar} />
         {settings.customCss ? <style data-role="site-custom-css" dangerouslySetInnerHTML={{ __html: settings.customCss }} /> : null}
         <Outlet />
+        {/* admin 分支不渲染 SiteShell，但门禁页「打开登录窗口」依赖 open-auth 事件，
+            必须挂载登录弹框宿主，否则按钮点击无响应 */}
+        <AuthModalHost />
       </>
     )
   }
 
   return (
     <>
+      <NavProgressBar active={showBar} />
       {settings.customCss ? <style data-role="site-custom-css" dangerouslySetInnerHTML={{ __html: settings.customCss }} /> : null}
       <SiteShell categories={categories || []}>
         <Outlet />
@@ -309,20 +368,42 @@ function NotFoundPage() {
     <main className="error-page">
       <HttpCatImage code={404} title={t('error.404.title')} />
       <p className="error-desc">{t('error.404.desc')}</p>
-      <a href="/" className="error-home">{t('error.home')}</a>
+      <Link to="/" className="error-home">{t('error.home')}</Link>
     </main>
   )
 }
 
 function ErrorPage({ error }: { error: Error }) {
   const t = useT()
-  const code = 500
-  const msg = error?.message || t('error.500.title')
+  const router = useRouter()
+  const [retrying, setRetrying] = useState(false)
+  // 从错误消息中提取真实 HTTP 状态码（如 "Server error (HTTP status 522)"），不再硬编码 500
+  const rawMsg = error?.message || ''
+  const codeMatch = rawMsg.match(/HTTP status (\d{3})/) || rawMsg.match(/\b(5\d{2})\b/)
+  const code = codeMatch ? parseInt(codeMatch[1], 10) : 500
+  const titleKey = code === 522 || code === 524 ? 'error.timeout.title' : 'error.500.title'
+  const descKey = code === 522 || code === 524 ? 'error.timeout.desc' : 'error.500.desc'
+
+  // 500 多为 Neon 冷启动超时，重试时 DB 已暖，成功率很高；用客户端重跑 loader 而非整页刷新
+  const retry = async () => {
+    setRetrying(true)
+    try {
+      await router.invalidate()
+    } finally {
+      setRetrying(false)
+    }
+  }
+
   return (
     <main className="error-page">
-      <HttpCatImage code={code} title={msg} />
-      <p className="error-desc">{t('error.500.desc')}</p>
-      <a href="/" className="error-home">{t('error.home')}</a>
+      <HttpCatImage code={code} title={t(titleKey)} />
+      <p className="error-desc">{t(descKey)}</p>
+      <div className="error-actions">
+        <button className="error-retry" onClick={() => void retry()} disabled={retrying}>
+          {retrying ? t('error.retry.loading') : t('error.retry')}
+        </button>
+        <Link to="/" className="error-home">{t('error.home')}</Link>
+      </div>
     </main>
   )
 }

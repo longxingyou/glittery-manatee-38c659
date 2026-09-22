@@ -31,6 +31,42 @@ export function isDbConfigured(): boolean {
   return !!getEnv().DATABASE_URL
 }
 
+/**
+ * 给 DB Promise 加硬超时。Neon 冷启动或网络异常时，底层 fetch 可能数十秒才失败，
+ * 期间整个 Worker 请求被阻塞，Cloudflare 边缘会先返回 522。
+ * 用 Promise.race 主动在 ms 后 reject，调用方 catch 后降级，保证页面能渲染。
+ */
+export function withDbTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label}超时（>${ms / 1000}s），数据库可能正在冷启动`)), ms)
+  })
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
+}
+
+/**
+ * 读路径通用包装：直接执行查询；仅当报"表不存在"(Postgres 42P01) 时，
+ * 才跑 ensureSchema() 建表后重试一次。
+ * 稳态下（表早已建好）读请求永远不执行 ~40 条 DDL——冷启动关键路径只剩纯 SELECT，
+ * 这是登录变慢、访客文章列表冷启动超时降级（看不到 DB 文章）的根因修复。
+ */
+export async function readWithSchemaFallback<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn()
+  } catch (e) {
+    if (!isUndefinedTableError(e)) throw e
+    await ensureSchema()
+    return fn()
+  }
+}
+
+function isUndefinedTableError(e: unknown): boolean {
+  const code = (e as { code?: string } | null)?.code
+  if (code === '42P01') return true
+  const msg = e instanceof Error ? e.message : String(e)
+  return /42P01|relation "[^"]+" does not exist|undefined_table/.test(msg)
+}
+
 // 旧名称兼容（探测脚本等外部引用）
 export const netlifyDbConfigured = isDbConfigured
 
@@ -486,15 +522,29 @@ export function adminEmailList(): string[] {
   return parseEmails(getEnv().ADMIN_EMAILS || '')
 }
 
+// settings 行短 TTL 缓存：requireAdmin 内部会先经 getTokenSecret → getSettingsRow 查一次 settings，
+// 随后又经 tryGetSettingsRowReadonly 再查一次同一行。缓存后同一次请求内不再重复往返。
+// settings 行改动极少（站点标题/管理员邮箱），10s TTL 完全可接受。
+let _settingsCache: { row: NonNullable<Awaited<ReturnType<typeof getSettingsRowInternalRaw>>>; at: number } | null = null
+const SETTINGS_CACHE_TTL = 10_000
+
+async function getSettingsRowInternalRaw(_useCached = true) {
+  // 读优先：直接 SELECT，仅当 settings 表不存在(42P01)才建表后重试（readWithSchemaFallback）
+  return readWithSchemaFallback(async () => {
+    const client = useDb()
+    const rows = await client.select().from(schema.settings).where(eq(schema.settings.id, 1)).limit(1)
+    if (rows[0]) return rows[0]
+    await client.insert(schema.settings).values({ id: 1 }).onConflictDoNothing()
+    return (await client.select().from(schema.settings).where(eq(schema.settings.id, 1)).limit(1))[0]
+  })
+}
+
 async function getSettingsRowInternal(useCached = true) {
-  // 避免循环：ensureSchema 内部又会 useDb → getSettingsRow() 调用；
-  // 参数 useCached=false 时跳过 ensureSchema()，直接尝试 SELECT（表可能不存在时返回空数组也 OK）。
-  if (useCached) await ensureSchema()
-  const client = useDb()
-  const rows = await client.select().from(schema.settings).where(eq(schema.settings.id, 1)).limit(1)
-  if (rows[0]) return rows[0]
-  await client.insert(schema.settings).values({ id: 1 }).onConflictDoNothing()
-  return (await client.select().from(schema.settings).where(eq(schema.settings.id, 1)).limit(1))[0]!
+  // 缓存命中时直接返回，跳过 ensureSchema + SELECT
+  if (_settingsCache && Date.now() - _settingsCache.at < SETTINGS_CACHE_TTL) return _settingsCache.row
+  const row = await getSettingsRowInternalRaw(useCached)
+  if (row) _settingsCache = { row, at: Date.now() }
+  return row
 }
 
 // 一个"useCached=false + ignore errors"的只读 settings 行读取：
@@ -503,6 +553,8 @@ async function getSettingsRowInternal(useCached = true) {
 async function tryGetSettingsRowReadonly() {
   // 未配置数据库时直接短路，避免每次请求都走一遍"抛错→捕获"链路
   if (!isDbConfigured()) return null
+  // 缓存命中时直接返回
+  if (_settingsCache && Date.now() - _settingsCache.at < SETTINGS_CACHE_TTL) return _settingsCache.row
   try {
     return await getSettingsRowInternal(false)
   } catch {
@@ -702,19 +754,21 @@ function mapDbPost(row: DbPostRow): PostData {
 export async function listDbPosts(includeDrafts = true): Promise<PostData[]> {
   // 本地无 DB：仅静态文章（listPublishedPosts 会自动合并 allPosts）
   if (!isDbConfigured()) return []
-  await ensureSchema()
-  const rows = await (includeDrafts
-    ? useDb().select().from(schema.posts).orderBy(desc(schema.posts.date), desc(schema.posts.id))
-    : useDb()
-        .select()
-        .from(schema.posts)
-        .where(eq(schema.posts.status, 'published'))
-        .orderBy(desc(schema.posts.date), desc(schema.posts.id)))
-  return rows.map(mapDbPost)
+  // 读优先：直接 SELECT，表不存在才建表重试（稳态零 DDL）
+  return readWithSchemaFallback(() =>
+    (includeDrafts
+      ? useDb().select().from(schema.posts).orderBy(desc(schema.posts.date), desc(schema.posts.id))
+      : useDb()
+          .select()
+          .from(schema.posts)
+          .where(eq(schema.posts.status, 'published'))
+          .orderBy(desc(schema.posts.date), desc(schema.posts.id)))
+      .then((rows) => rows.map(mapDbPost)))
 }
 
 export async function listPublishedPosts(): Promise<PostData[]> {
-  const dbPosts = await listDbPosts(false)
+  // DB 部分 9s 超时：冷启动超时后降级为仅静态文章，页面仍可正常渲染
+  const dbPosts = await withDbTimeout(listDbPosts(false), 9_000, '读取文章列表').catch(() => [])
   const seen = new Set(dbPosts.map((p) => p.slug))
   const merged = [
     ...dbPosts,
@@ -725,14 +779,34 @@ export async function listPublishedPosts(): Promise<PostData[]> {
 }
 
 export async function getPublishedPost(slug: string): Promise<PostData | null> {
-  const published = await listPublishedPosts()
-  return published.find((p) => p.slug === slug) || null
+  // 优先查静态文章（构建时已编译入内存，零成本）
+  const staticHit = allPosts.find((p) => p.slug === slug)
+  if (staticHit) return mapStaticPost(staticHit)
+  // 静态未命中再查库（仅按 slug + status='published' 单条查询，不拉全表）
+  if (!isDbConfigured()) return null
+  // 读优先：直接 SELECT，表不存在才建表重试
+  return readWithSchemaFallback(async () => {
+    const rows = await useDb()
+      .select()
+      .from(schema.posts)
+      .where(and(eq(schema.posts.slug, slug), eq(schema.posts.status, 'published')))
+      .limit(1)
+    return rows[0] ? mapDbPost(rows[0]) : null
+  })
 }
 
 export async function getDbPostById(id: number): Promise<PostData | null> {
   if (!isDbConfigured()) return null
   await ensureSchema()
   const rows = await useDb().select().from(schema.posts).where(eq(schema.posts.id, id)).limit(1)
+  return rows[0] ? mapDbPost(rows[0]) : null
+}
+
+/** 按 slug 取库内文章（含草稿）；调用方自行做管理员鉴权 */
+export async function getDbPostBySlug(slug: string): Promise<PostData | null> {
+  if (!isDbConfigured()) return null
+  await ensureSchema()
+  const rows = await useDb().select().from(schema.posts).where(eq(schema.posts.slug, slug)).limit(1)
   return rows[0] ? mapDbPost(rows[0]) : null
 }
 
@@ -777,57 +851,61 @@ export async function savePost(input: PostSaveInput): Promise<{ id: number; slug
     throw new Error(`该路径「${slug}」已被静态文章占用，请换一个。`)
   }
 
-  // slug 唯一性校验（DB 层面）
-  const conflict = await useDb()
+  // slug 唯一性校验 + 翻译组同语言查重：两条件独立，并行化省一次往返
+  const slugConflictPromise = useDb()
     .select({ id: schema.posts.id })
     .from(schema.posts)
     .where(and(eq(schema.posts.slug, slug), input.id ? ne(schema.posts.id, input.id) : undefined))
     .limit(1)
+  const dupLangPromise = translationKey
+    ? useDb()
+        .select({ id: schema.posts.id })
+        .from(schema.posts)
+        .where(and(
+          eq(schema.posts.translationKey, translationKey),
+          eq(schema.posts.language, language),
+          input.id ? ne(schema.posts.id, input.id) : undefined,
+        ))
+        .limit(1)
+    : Promise.resolve([])
+  const [conflict, dupLang] = await Promise.all([slugConflictPromise, dupLangPromise])
   if (conflict.length) throw new Error(`路径「${slug}」已存在，请换一个。`)
+  if (translationKey && dupLang.length) throw new Error(`该语言版本已存在于翻译组「${translationKey}」中。`)
 
-  // 同一翻译组下同语言只能有一篇
-  if (translationKey) {
-    const dupLang = await useDb()
-      .select({ id: schema.posts.id })
-      .from(schema.posts)
-      .where(and(
-        eq(schema.posts.translationKey, translationKey),
-        eq(schema.posts.language, language),
-        input.id ? ne(schema.posts.id, input.id) : undefined,
-      ))
-      .limit(1)
-    if (dupLang.length) throw new Error(`该语言版本已存在于翻译组「${translationKey}」中。`)
-  }
-
-  // 自动登记分类到 categories 表
+  // 自动登记分类到 categories 表：批量插入而非逐条 await
   for (const name of categories) {
     if (name.length > 40) throw new Error(`分类名「${name}」过长（≤40 字符）。`)
-    await useDb().insert(schema.categories).values({ name }).onConflictDoNothing()
+  }
+  if (categories.length) {
+    await useDb().insert(schema.categories).values(categories.map((name) => ({ name }))).onConflictDoNothing()
   }
 
-  if (input.id) {
-    await useDb()
-      .update(schema.posts)
-      .set({
-        slug,
-        title,
-        summary: input.summary.slice(0, 1000),
-        content: input.content,
-        categories,
-        status: input.status,
-        date: input.date,
-        language,
-        translationKey,
-        updatedAt: sql`NOW()`,
-      })
-      .where(eq(schema.posts.id, input.id))
-    // 翻译组键约定为原文 slug：首次关联时把锚点文章补进同一组
-    if (translationKey) {
-      await useDb()
+  // 翻译组键约定为原文 slug：首次关联时把锚点文章补进同一组（与文章写入无依赖，并行）
+  const anchorPromise = translationKey
+    ? useDb()
         .update(schema.posts)
         .set({ translationKey })
         .where(and(eq(schema.posts.slug, translationKey), isNull(schema.posts.translationKey)))
-    }
+    : Promise.resolve()
+  if (input.id) {
+    await Promise.all([
+      useDb()
+        .update(schema.posts)
+        .set({
+          slug,
+          title,
+          summary: input.summary.slice(0, 1000),
+          content: input.content,
+          categories,
+          status: input.status,
+          date: input.date,
+          language,
+          translationKey,
+          updatedAt: sql`NOW()`,
+        })
+        .where(eq(schema.posts.id, input.id)),
+      anchorPromise,
+    ])
     return { id: input.id, slug }
   }
   const [ins] = await useDb()
@@ -844,12 +922,7 @@ export async function savePost(input: PostSaveInput): Promise<{ id: number; slug
       translationKey,
     })
     .returning({ id: schema.posts.id, slug: schema.posts.slug })
-  if (translationKey) {
-    await useDb()
-      .update(schema.posts)
-      .set({ translationKey })
-      .where(and(eq(schema.posts.slug, translationKey), isNull(schema.posts.translationKey)))
-  }
+  await anchorPromise
   return { id: ins.id, slug: ins.slug }
 }
 
@@ -876,8 +949,8 @@ export function listAllStaticCategoryNames(): string[] {
 }
 
 export async function listCategoryInfo(): Promise<CategoryInfo[]> {
-  // 本地无 DB：仅展示静态文章衍生的分类（全部视为 builtin 不可删）
-  if (!isDbConfigured()) {
+  // 纯静态分类（零 DB），作为未配置 DB 或冷启动超时时的降级
+  const buildStatic = (): CategoryInfo[] => {
     const staticCountBy = new Map<string, number>()
     for (const p of allPosts) for (const c of p.categories) {
       staticCountBy.set(c, (staticCountBy.get(c) || 0) + 1)
@@ -886,7 +959,19 @@ export async function listCategoryInfo(): Promise<CategoryInfo[]> {
       .sort()
       .map((name) => ({ id: 0, name, nameEn: null, nameRu: null, dbCount: 0, staticCount: staticCountBy.get(name) || 0, builtin: staticCountBy.has(name) }))
   }
-  await ensureSchema()
+
+  // 本地无 DB：仅静态分类
+  if (!isDbConfigured()) return buildStatic()
+
+  // DB 查询（含 ensureSchema 建表）整体 7s 超时：冷启动时降级为纯静态分类，
+  // 避免 root loader 的 Promise.all 被本查询拖到 522。
+  // 读优先：表不存在(42P01)时 readWithSchemaFallback 自动建表重试；
+  // 整体再套 7s 超时，冷启动过慢时降级纯静态分类，避免 root loader 被拖到 522。
+  return withDbTimeout(readWithSchemaFallback(listCategoryInfoFromDb), 7_000, '读取分类').catch(() => buildStatic())
+}
+
+async function listCategoryInfoFromDb(): Promise<CategoryInfo[]> {
+  // 读优先：两条 SELECT 直接执行，表不存在才整体建表重试（由调用处 listCategoryInfo 不再包 ensure）
   const dbCountBy = new Map<string, number>()
   const dbRows = await useDb()
     .select({
@@ -919,8 +1004,9 @@ export async function listCategoryInfo(): Promise<CategoryInfo[]> {
       nameRu: row?.nameRu || null,
       dbCount: dbCountBy.get(name) || 0,
       staticCount: staticCountBy.get(name) || 0,
-      // 只有静态文件衍生、且 categories 表中没记录的才是 builtin（不可删/不可改名）
-      builtin: !row && staticCountBy.has(name),
+      // 静态文件衍生的分类恒为 builtin：即便已登记入 categories 表补译名，
+      // 也不可改名/删除（改名会与 Markdown frontmatter 脱节）
+      builtin: staticCountBy.has(name),
     }
   })
 }
@@ -1024,6 +1110,10 @@ export async function deleteCategory(id: number): Promise<void> {
   await ensureSchema()
   const rows = await useDb().select({ name: schema.categories.name }).from(schema.categories).where(eq(schema.categories.id, id)).limit(1)
   if (!rows.length) return
+  // 静态文章衍生的分类不可删除（即便已登记行补译名；删除行只会丢译名且与前端门禁矛盾）
+  if (listAllStaticCategoryNames().includes(rows[0]!.name)) {
+    throw new Error('静态文章内置分类不可删除；删除对应静态文件即可。')
+  }
   // 从 DB 文章的分类数组中剔除
   await useDb().execute(sql`UPDATE posts SET categories = array_remove(categories, ${rows[0]!.name}) WHERE ${rows[0]!.name} = ANY(categories)`)
   await useDb().delete(schema.categories).where(eq(schema.categories.id, id))
@@ -1078,37 +1168,36 @@ export async function listAttachmentsPublic(postSlug: string): Promise<Attachmen
 }
 
 export async function listAttachmentsAdmin(postSlug?: string): Promise<AttachmentPublic[]> {
-  await requireAdmin()
-  await ensureSchema()
-  const rows = postSlug
-    ? await useDb()
-        .select({
-          id: schema.attachments.id,
-          postSlug: schema.attachments.postSlug,
-          filename: schema.attachments.filename,
-          mimeType: schema.attachments.mimeType,
-          sizeBytes: schema.attachments.sizeBytes,
-          downloads: schema.attachments.downloads,
-          createdAt: schema.attachments.createdAt,
-          passwordHash: schema.attachments.passwordHash,
-        })
-        .from(schema.attachments)
-        .where(eq(schema.attachments.postSlug, postSlug))
-        .orderBy(schema.attachments.id)
-    : await useDb()
-        .select({
-          id: schema.attachments.id,
-          postSlug: schema.attachments.postSlug,
-          filename: schema.attachments.filename,
-          mimeType: schema.attachments.mimeType,
-          sizeBytes: schema.attachments.sizeBytes,
-          downloads: schema.attachments.downloads,
-          createdAt: schema.attachments.createdAt,
-          passwordHash: schema.attachments.passwordHash,
-        })
-        .from(schema.attachments)
-        .orderBy(desc(schema.attachments.id))
-  return rows.map(toPublic)
+  // 读优先：直接 SELECT，表不存在(42P01)才建表重试（稳态零 DDL）。
+  // Neon 冷启动偶发查询失败时，额外整体重试一次（冷启动错误第二次通常成功）。
+  const query = () => {
+    const q = useDb()
+      .select({
+        id: schema.attachments.id,
+        postSlug: schema.attachments.postSlug,
+        filename: schema.attachments.filename,
+        mimeType: schema.attachments.mimeType,
+        sizeBytes: schema.attachments.sizeBytes,
+        downloads: schema.attachments.downloads,
+        createdAt: schema.attachments.createdAt,
+        passwordHash: schema.attachments.passwordHash,
+      })
+      .from(schema.attachments)
+    return (postSlug
+      ? q.where(eq(schema.attachments.postSlug, postSlug)).orderBy(schema.attachments.id)
+      : q.orderBy(desc(schema.attachments.id)))
+  }
+
+  return readWithSchemaFallback(async () => {
+    try {
+      return (await query()).map(toPublic)
+    } catch (e) {
+      // Neon 冷启动/瞬时网络错误：等待 600ms 重试一次，避免偶发失败直接抛给仪表盘
+      if (isUndefinedTableError(e)) throw e
+      await new Promise((r) => setTimeout(r, 600))
+      return (await query()).map(toPublic)
+    }
+  })
 }
 
 export async function insertAttachment(params: {

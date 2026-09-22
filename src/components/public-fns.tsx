@@ -37,28 +37,42 @@ export const adminStatusFn = createServerFn({ method: 'GET' }).handler(
 )
 
 export const settingsFn = createServerFn({ method: 'GET' }).handler(
-  async (): Promise<{ public: SiteSettings; admin?: AdminSettings; isAdmin: boolean }> => {
+  async (): Promise<{ public: SiteSettings; admin?: AdminSettings; isAdmin: boolean; adminStatus: AdminStatus | null }> => {
     const mod = await import('../../db/index.js')
+    // root loader 是每个页面的关键路径。未登录访客（绝大多数）冷启动只需一次 settings 查询，
+    // 不再像原来那样经 getAdminStatus 查一次 settings、再经 getPublicSettings 查一次（9+9=18s）。
+    const DB_TIMEOUT = 7_000
+    const fallbackPublic = { siteTitle: DEFAULT_SITE_TITLE, siteDescription: DEFAULT_SITE_DESCRIPTION, customCss: '' }
     try {
-      const status = await mod.getAdminStatus()
-      if (status.isAdmin) return { public: await mod.getPublicSettings(), admin: await mod.getAdminSettings(), isAdmin: true as const }
-      return { public: await mod.getPublicSettings(), isAdmin: false as const }
-    } catch (e) {
-      // DB 不可用时（例如本地未配置 DATABASE_URL），退化为：
-      //   - 仍尝试重新跑一次 getAdminStatus（它内部兜住了 DB 不可用的情况）
-      //   - public/admin settings 返回默认值
-      // 这样 SSR __root loader 能正确序列化 isAdmin=true，让 Suspense 不再永远等待。
-      try {
-        const status = await mod.getAdminStatus()
-        if (status.isAdmin) {
-          return {
-            public: { siteTitle: DEFAULT_SITE_TITLE, siteDescription: DEFAULT_SITE_DESCRIPTION, customCss: '' },
-            admin: { siteTitle: DEFAULT_SITE_TITLE, siteDescription: DEFAULT_SITE_DESCRIPTION, customCss: '', adminEmails: '', bannedWords: '' },
-            isAdmin: true as const,
-          }
+      // 第一步：当前用户（无 cookie 时零 DB，立即返回 null）
+      const me = await mod.withDbTimeout(mod.getCurrentUser(), DB_TIMEOUT, '读取登录状态').catch(() => null)
+
+      if (!me) {
+        // 未登录：只查一次 public settings；未登录必非管理员，无需读 adminEmails
+        const pub = await mod.withDbTimeout(mod.getPublicSettings(), DB_TIMEOUT, '读取站点设置').catch(() => fallbackPublic)
+        return {
+          public: pub,
+          isAdmin: false as const,
+          adminStatus: { authed: false, email: null, isAdmin: false, adminConfigured: false },
         }
-      } catch { /* ignore */ }
-      return { public: { siteTitle: DEFAULT_SITE_TITLE, siteDescription: DEFAULT_SITE_DESCRIPTION, customCss: '' }, isAdmin: false as const }
+      }
+
+      // 已登录：走完整 adminStatus（内部合并 env + settings 的 adminEmails，有缓存）
+      const status = await mod.withDbTimeout(mod.getAdminStatus(), DB_TIMEOUT, '读取管理员状态').catch(() => ({
+        authed: true as const, email: me.email, isAdmin: false as const, adminConfigured: false,
+      }))
+      if (status.isAdmin) {
+        const [pub, adm] = await Promise.all([
+          mod.withDbTimeout(mod.getPublicSettings(), DB_TIMEOUT, '读取站点设置'),
+          mod.withDbTimeout(mod.getAdminSettings(), DB_TIMEOUT, '读取管理设置'),
+        ])
+        return { public: pub, admin: adm, isAdmin: true as const, adminStatus: status }
+      }
+      const pub = await mod.withDbTimeout(mod.getPublicSettings(), DB_TIMEOUT, '读取站点设置').catch(() => fallbackPublic)
+      return { public: pub, isAdmin: false as const, adminStatus: status }
+    } catch {
+      // 超时或 DB 不可用：返回默认值，页面照常渲染
+      return { public: fallbackPublic, isAdmin: false as const, adminStatus: null }
     }
   },
 )
@@ -87,6 +101,16 @@ export const getPublishedPostFn = createServerFn({ method: 'GET' })
     return mod.getPublishedPost(data.slug)
   })
 
+// 草稿预览（仅管理员）：后台仪表盘"预览"跳转 /posts/{slug} 时，
+// 未发布文章不在 publishedPostsFn 结果里，由本 fn 兜底；requireAdmin 拦截非管理员
+export const adminPostPreviewFn = createServerFn({ method: 'GET' })
+  .inputValidator((input) => z.object({ slug: z.string().min(1).max(160) }).parse(input))
+  .handler(async ({ data }): Promise<PostData | null> => {
+    const mod = await import('../../db/index.js')
+    await mod.requireAdmin()
+    return mod.getDbPostBySlug(data.slug)
+  })
+
 export const postAttachmentsFn = createServerFn({ method: 'GET' })
   .inputValidator((input) => z.object({ postSlug: z.string().min(1).max(160) }).parse(input))
   .handler(async ({ data }): Promise<AttachmentPublic[]> => {
@@ -110,6 +134,7 @@ export const publicServerFns = {
   allCategoriesFn,
   publishedPostsFn,
   getPublishedPostFn,
+  adminPostPreviewFn,
   postAttachmentsFn,
   adminStatusFn,
   siteContentFn,

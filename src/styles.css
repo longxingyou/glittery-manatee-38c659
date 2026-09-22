@@ -515,6 +515,18 @@ kbd { color: var(--faint); border: 1px solid var(--line); border-radius: 3px; pa
 .row-action.danger:hover { background: color-mix(in srgb, var(--red) 10%, transparent); color: var(--red); border-color: color-mix(in srgb, var(--red) 40%, var(--line)); }
 .row-action:disabled { opacity: .4; cursor: not-allowed; }
 .empty-row { text-align: center; padding: 36px 16px !important; color: var(--muted); font-size: 13px; }
+/* 仪表盘翻译组子版本行：缩进 + 弱化，视觉上从属于代表行 */
+.data-table tr.trans-sub td { background: color-mix(in srgb, var(--panel-2) 32%, transparent); }
+.data-table tr.trans-sub td.strong { padding-left: 30px; position: relative; }
+.trans-sub-mark { position: absolute; left: 12px; top: 11px; color: var(--faint); font: 12px ui-monospace, monospace; }
+/* 编辑器语言版本切换条 */
+.version-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+.version-pill { display: inline-flex; align-items: center; padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel-2); color: var(--muted); font-size: 12px; text-decoration: none; cursor: pointer; transition: .15s; }
+.version-pill:hover { color: var(--accent); border-color: var(--accent); }
+.version-pill.current { background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); color: var(--accent); cursor: default; }
+.version-pill.missing { border-style: dashed; color: var(--faint); }
+.version-pill.missing:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+.version-pill:disabled { opacity: .45; cursor: not-allowed; }
 
 .chip-row { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
 .chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; font-size: 11px; border: 1px solid var(--line); background: var(--panel-2); border-radius: 999px; color: var(--muted); }
@@ -651,6 +663,17 @@ kbd { color: var(--faint); border: 1px solid var(--line); border-radius: 3px; pa
 .skeleton-table { height: 340px; background: linear-gradient(90deg, var(--panel) 0%, var(--panel-2) 50%, var(--panel) 100%); background-size: 200% 100%; animation: shimmer 1.3s linear infinite; border: 1px solid var(--line); border-radius: 6px; }
 .skeleton-list { height: 240px; background: linear-gradient(90deg, var(--panel) 0%, var(--panel-2) 50%, var(--panel) 100%); background-size: 200% 100%; animation: shimmer 1.3s linear infinite; border: 1px solid var(--line); border-radius: 6px; }
 @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+/* 明确的加载提示头：旋转图标 + 文字 + 副标题，避免纯骨架块让人困惑 */
+.skeleton-panel { display: flex; flex-direction: column; gap: 14px; }
+.skeleton-header { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); }
+.skeleton-header small { color: var(--faint); font-size: 12px; margin-left: 6px; }
+.spin { animation: spin 0.9s linear infinite; color: var(--accent); }
+@keyframes spin { to { transform: rotate(360deg); } }
+/* 顶部导航进度条：左→右循环滑动 */
+@keyframes nav-progress {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
 
 /* 响应式 */
 /* 桌面端隐藏移动端汉堡按钮和遮罩 */
@@ -1176,6 +1199,14 @@ button.title-command:hover { color: var(--text); border-color: var(--accent-2); 
   transition: background .12s;
 }
 .error-home:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.error-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.error-retry {
+  padding: 8px 20px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--panel-2); color: var(--text); font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: background 0.15s;
+}
+.error-retry:hover:not(:disabled) { background: var(--panel); }
+.error-retry:disabled { opacity: 0.6; cursor: wait; }
 
 /* 管理后台：用户管理 / 反馈处理 */
 .admin-filter-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--line); }

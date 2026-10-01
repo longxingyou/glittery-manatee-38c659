@@ -1,40 +1,104 @@
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
 import { ArrowLeft, CalendarDays, Check, Clock3, Hash, Share2 } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { ArticleOutline } from '@/components/article-outline'
 import { CommentSection } from '@/components/comment-section'
-import { AttachmentPanel, publicServerFns } from '@/components/public-fns'
-import { getPostSiblings, type PostData } from '@/lib/utils'
-import { renderMarkdown } from '@/lib/markdown'
+import { AttachmentPanel, EggPanel, publicServerFns } from '@/components/public-fns'
+import { getPostSiblings, DEFAULT_SITE_TITLE, type PostData } from '@/lib/utils'
+import { renderMarkdown, extractHeadingsFromHtml } from '@/lib/markdown'
 import { useMermaidLazy } from '@/lib/use-mermaid'
+import { getPublicOrigin } from '@/lib/server-env'
 import { useT, useCatName } from '@/lib/i18n'
 
 export const Route = createFileRoute('/posts/$slug')({
-  loader: async ({ params }) => {
-    // 直接按 slug 查单篇（静态文章零成本，DB 文章单条查询），不再拉全量文章列表
-    const post = await publicServerFns.getPublishedPostFn({ data: { slug: params.slug } })
-    if (post) {
-      // 无翻译组的文章 siblings 就是自身，无需拉全量列表；有翻译组才查同组兄弟
-      const siblings = post.translationKey
-        ? getPostSiblings(await publicServerFns.publishedPostsFn(), post.slug)
-        : [post]
-      return { post, siblings }
+  // ?preview=1：管理员后台"预览"入口。绕开发布缓存直接读 DB 最新保存版本
+  // （草稿与已发布文章的改稿都即时可见）；非管理员/未保存的 slug 仍 404。
+  validateSearch: (search: Record<string, unknown>) => ({
+    preview: search.preview === '1' || search.preview === true ? true : undefined,
+  }),
+  loader: async ({ params, location }) => {
+    const slug = params.slug
+    const isPreview = (location.search as { preview?: boolean }).preview === true
+    // 文章列表与下面的 DB 读取并行（siblings 依赖列表，先把 Promise 挂出去）
+    const listPromise = publicServerFns.publishedPostsFn().catch(() => null)
+    // 彩蛋开关并行拉取（失败默认关闭，不阻断正文加载）
+    const eggPromise = publicServerFns.postEggMetaFn({ data: { slug } }).catch(() => ({ enabled: false }))
+
+    // 预览模式：管理员实时版本优先（内部 requireAdmin，非管理员返回 null）
+    let post = null as Awaited<ReturnType<typeof publicServerFns.getPublishedPostFn>>
+    if (isPreview) {
+      post = await publicServerFns.adminPostPreviewFn({ data: { slug } }).catch(() => null)
     }
-    // 草稿预览兜底：后台"预览"指向 /posts/{slug}，草稿不在已发布列表；
-    // adminPostPreviewFn 内部 requireAdmin，非管理员/无效 slug 仍走 404
-    const draft = await publicServerFns.adminPostPreviewFn({ data: { slug: params.slug } }).catch(() => null)
-    if (draft) return { post: draft, siblings: [] }
+    // 普通访问（或预览兜底失败）：已发布缓存版本
+    if (!post) {
+      post = await publicServerFns.getPublishedPostFn({ data: { slug } })
+    }
+    const all = await listPromise
+    const egg = await eggPromise
+
+    if (post) {
+      // 无翻译组的文章 siblings 就是自身；有翻译组且列表可用时才算同组兄弟
+      const siblings = post.translationKey && all
+        ? getPostSiblings(all, post.slug)
+        : [post]
+      return { post, siblings, egg }
+    }
+    // 非预览模式下 published 查不到时，再给草稿兜底（兼容历史无参预览链接）；
+    // adminPostPreviewFn 内部 requireAdmin，非管理员/无效 slug 仍 404
+    if (!isPreview) {
+      const draft = await publicServerFns.adminPostPreviewFn({ data: { slug } }).catch(() => null)
+      if (draft) return { post: draft, siblings: [], egg }
+    }
     throw notFound()
   },
   component: RouteComponent,
-  head: ({ loaderData }) => ({
-    meta: loaderData
-      ? [
-          { title: `${loaderData.post.title} · 笔记` },
-          { name: 'description', content: loaderData.post.summary },
-        ]
-      : [],
-  }),
+  head: ({ loaderData }) => {
+    if (!loaderData) return {}
+    const { post } = loaderData
+    // 规范 URL：跨账号代理下不能取 request.url（workers.dev 不可达）
+    const origin = getPublicOrigin()
+    const canonical = origin ? `${origin}/posts/${post.slug}` : `/posts/${post.slug}`
+    const published = /^\d{4}-\d{2}-\d{2}$/.test(post.date) ? `${post.date}T00:00:00Z` : undefined
+    // 结构化数据：BlogPosting（作者/发布方用站点品牌 handle，真实标识不虚构）
+    const brand = DEFAULT_SITE_TITLE.split(' · ')[0] || DEFAULT_SITE_TITLE
+    const articleLd = {
+      '@context': 'https://schema.org',
+      '@type': 'BlogPosting',
+      headline: post.title,
+      description: post.summary,
+      ...(published
+        ? {
+            datePublished: published,
+            dateModified: post.updatedAt || published,
+          }
+        : {}),
+      ...(post.categories.length ? { keywords: post.categories.join(', ') } : {}),
+      ...(origin
+        ? { url: canonical, mainEntityOfPage: canonical }
+        : {}),
+      author: { '@type': 'Person', name: brand },
+      publisher: { '@type': 'Organization', name: brand },
+    }
+    return {
+      meta: [
+        { title: `${post.title} · 笔记` },
+        { name: 'description', content: post.summary },
+        { property: 'og:type', content: 'article' },
+        { property: 'og:title', content: post.title },
+        { property: 'og:description', content: post.summary },
+        { property: 'og:url', content: canonical },
+        { name: 'twitter:title', content: post.title },
+        { name: 'twitter:description', content: post.summary },
+        ...(published
+          ? [
+              { property: 'article:published_time', content: published },
+            ]
+          : []),
+      ],
+      links: [{ rel: 'canonical', href: canonical }],
+      scripts: [{ type: 'application/ld+json', children: JSON.stringify(articleLd) }],
+    }
+  },
 })
 
 /** 复制文本：优先 Clipboard API（需安全上下文），降级到 execCommand */
@@ -66,10 +130,14 @@ async function copyText(text: string): Promise<boolean> {
 function RouteComponent() {
   const t = useT()
   const catName = useCatName()
-  const { post, siblings } = Route.useLoaderData()
+  const { post, siblings, egg } = Route.useLoaderData()
   const [copied, setCopied] = useState(false)
   const articleRef = useRef<HTMLDivElement>(null)
   useMermaidLazy(articleRef)
+  // markdown 产物一次计算、两处复用（正文渲染 + SSR 大纲提取），
+  // 使大纲按钮直接进入首屏 HTML（不依赖水合，弱网下也可见）
+  const articleHtml = useMemo(() => renderMarkdown(post.content), [post.content])
+  const initialHeadings = useMemo(() => extractHeadingsFromHtml(articleHtml), [articleHtml])
 
   // 分享：优先系统分享面板（iOS Safari / Android Chrome）；
   // 微信/QQ 等内置浏览器不支持 navigator.share 时降级为复制链接，
@@ -129,12 +197,13 @@ function RouteComponent() {
           <div
             ref={articleRef}
             className="markdown-body"
-            dangerouslySetInnerHTML={{ __html: renderMarkdown(post.content) }}
+            dangerouslySetInnerHTML={{ __html: articleHtml }}
           />
+          <EggPanel postSlug={post.slug} enabled={egg.enabled} />
           <AttachmentPanel postSlug={post.slug} />
           <CommentSection postSlug={post.slug} />
           </article>
-          <ArticleOutline containerRef={articleRef} slug={post.slug} />
+          <ArticleOutline containerRef={articleRef} slug={post.slug} initialHeadings={initialHeadings} />
         </div>
       </div>
     </div>

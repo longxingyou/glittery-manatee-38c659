@@ -3,7 +3,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { z } from 'zod'
 
 import * as dbApi from '../../db/index.js'
-import { getEnv } from '../lib/server-env.js'
+import { getEnv, getPublicOrigin } from '../lib/server-env.js'
 
 // ============================================================
 // 自建账户 API（替代 Netlify Identity）
@@ -87,17 +87,8 @@ async function issueCookieFor(userId: string, email: string, secure: boolean): P
   return authCookie(token, secure)
 }
 
-/**
- * 面向用户的规范站点源。
- * 本站部署在跨账号代理之后：朋友账号的 Worker 把 wow.xn--fpr224a.mom
- * 转发到本 Worker 的 workers.dev，因此 request.url 的 origin 是 workers.dev，
- * 不能用于构造邮件链接。优先取 PUBLIC_ORIGIN（wrangler vars），缺省回退请求源。
- */
-function publicOrigin(request: Request): string {
-  const configured = (getEnv().PUBLIC_ORIGIN || '').trim().replace(/\/+$/, '')
-  if (configured) return configured
-  return new URL(request.url).origin
-}
+// 规范站点源统一走 server-env 的 getPublicOrigin（PUBLIC_ORIGIN 优先）
+const publicOrigin = (request: Request) => getPublicOrigin(request)
 
 /**
  * 带 Set-Cookie 的 302 跳转。
@@ -211,27 +202,33 @@ const loginSchema = z.object({
 })
 
 async function handleLogin(body: unknown, secure: boolean): Promise<Response> {
-  const t0 = Date.now()
-  const step = (name: string) => console.log(`[login-step] +${Date.now() - t0}ms ${name}`)
   const parsed = loginSchema.safeParse(body)
   if (!parsed.success) return json({ error: '请输入邮箱与密码。' }, 400)
   const email = parsed.data.email.toLowerCase()
   if (!EMAIL_RE.test(email)) return json({ error: '邮箱或密码不正确。' }, 401)
-  step('parsed; querying user')
   // 读优先：直接查用户，仅当 users 表不存在时才建表重试。
   // 原来无条件 ensureSchema()（~40 条 DDL 批处理）是冷启动登录慢的主因。
+  // withDbRetry：CF→Neon 长尾挂起/偶发 fetch failed 时，9s 超时后重试一次，
+  // 避免登录请求挂到 60-90s 再返回 Failed query。
   const row = await dbApi.readWithSchemaFallback(() =>
-    dbApi.useDb().select().from(dbApi.schema.users).where(eq(dbApi.schema.users.email, email)).limit(1).then((r) => r[0]))
-  step(`user query done; found=${!!row}`)
+    dbApi.withDbRetry(
+      () =>
+        dbApi
+          .useDb()
+          .select()
+          .from(dbApi.schema.users)
+          .where(eq(dbApi.schema.users.email, email))
+          .limit(1)
+          .then((r) => r[0]),
+      { timeoutMs: 9000 },
+    ))
   if (!row) return json({ error: '邮箱或密码不正确。' }, 401)
   const ok = await dbApi.verifyPassword(parsed.data.password, row.passwordSalt, row.passwordHash)
-  step(`pbkdf2 verify done; ok=${ok}`)
   if (!ok) return json({ error: '邮箱或密码不正确。' }, 401)
   if (!row.confirmedAt) {
     return json({ error: '邮箱尚未验证，请先查收验证邮件完成激活。', needConfirm: true }, 403)
   }
   const cookie = await issueCookieFor(row.id, row.email, secure)
-  step('cookie issued; returning')
   return json({ user: { id: row.id, email: row.email, name: row.displayName || row.email.split('@')[0] } }, 200, cookie)
 }
 

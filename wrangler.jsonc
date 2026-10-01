@@ -28,6 +28,25 @@
   "observability": {
     "enabled": true,
   },
+  // 每 5 分钟预热 Neon compute：Neon serverless compute 空闲 5 分钟后休眠，
+  // 首次查询需唤醒（5~10s），导致页面加载慢或超时降级看不到 DB 文章/评论。
+  // Cron 定时发送 SELECT 1 保持 compute 活跃，使每次查询都走暖态（<200ms）。
+  // 注意：免费版 KV 写入仅 1000 次/天，文章列表 KV 的刷新在 scheduled handler
+  // 内部按 20 分钟节拍执行（每次 cron 都跑 SELECT 1，但不都写 KV）。
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  },
+  // KV 缓存：公开数据（已发布文章列表）跨 colo 共享，绕过 CF→Neon 高延迟链路。
+  // 文章变更时主动失效；KV 读延迟 <50ms，远低于 Neon 查询（8~15s）。
+  "kv_namespaces": [
+    {
+      "binding": "SG_CACHE",
+      "id": "cefb4baf6a094e62b437af1874466fc6"
+    }
+  ],
+  // 附件二进制存储在 Telegram 云端（经 Bot API 代理转发/取回）：
+  // 完全免费、无配额、无需绑卡；分片 ≤19 MiB 绕开 bot 上传 50MB / 下载 20MB 限制。
+  // 需要 secrets：TG_BOT_TOKEN（bot token）、TG_STORAGE_CHAT_ID（存文件的私有频道/群组）。
   // 面向用户的规范站点源：本 Worker 实际运行在 workers.dev，
   // 经朋友账号的代理 Worker 转发到 wow.xn--fpr224a.mom（国内可访问）。
   // 邮件验证/重置链接与确认跳转必须用此域名构造（request.url 是 workers.dev）。
@@ -35,9 +54,11 @@
     "PUBLIC_ORIGIN": "https://wow.xn--fpr224a.mom"
   },
   // 敏感配置全部走 secret（wrangler secret put），不写在这里：
-  //   DATABASE_URL   Neon Postgres 连接串（pooled 或直连均可）
-  //   RESEND_API_KEY Resend 邮件服务 API key（注册验证 / 找回密码）
-  //   RESEND_FROM    可选，已验证的发件人地址，默认 onboarding@resend.dev
-  //   ADMIN_EMAILS   管理员邮箱白名单（逗号/分号/空格分隔）
+  //   DATABASE_URL        Neon Postgres 连接串（pooled 或直连均可）
+  //   RESEND_API_KEY      Resend 邮件服务 API key（注册验证 / 找回密码）
+  //   RESEND_FROM         可选，已验证的发件人地址，默认 onboarding@resend.dev
+  //   ADMIN_EMAILS        管理员邮箱白名单（逗号/分号/空格分隔）
+  //   TG_BOT_TOKEN        附件存储 bot 的 token（@BotFather 创建）
+  //   TG_STORAGE_CHAT_ID  附件存储会话 id（bot 为管理员的私有频道/群组）
   // 本地开发由 .dev.vars 提供（已在 .gitignore 中忽略）。
 }

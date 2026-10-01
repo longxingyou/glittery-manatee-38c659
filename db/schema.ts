@@ -1,4 +1,4 @@
-import { index, integer, pgTable, primaryKey, serial, text, timestamp } from 'drizzle-orm/pg-core'
+import { boolean, index, integer, pgTable, primaryKey, serial, text, timestamp } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 
 // 自建账户体系（替代 Netlify Identity）：PBKDF2 密码哈希 + 邮箱验证 + 找回密码令牌
@@ -69,14 +69,16 @@ export const categories = pgTable('categories', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 })
 
-// 文章附件（二进制以 base64 存于 content 列；passwordHash 为空表示公开）
+// 文章附件（二进制对象存于 R2，storage_key 为对象键；旧数据保留在 content 列的
+// base64 会在首次下载时惰性迁移；passwordHash 为空表示公开）
 export const attachments = pgTable(
   'attachments',
   {
     id: serial('id').primaryKey(),
     postSlug: text('post_slug').notNull(),
     filename: text('filename').notNull(),
-    content: text('content').notNull().default(''), // base64 编码的附件二进制
+    content: text('content').notNull().default(''), // 兼容：旧附件的 base64（迁移后清空）
+    storageKey: text('storage_key'), // R2 对象键（null = 仍在 content 列）
     mimeType: text('mime_type').notNull().default('application/octet-stream'),
     sizeBytes: integer('size_bytes').notNull().default(0),
     passwordHash: text('password_hash'),
@@ -86,6 +88,15 @@ export const attachments = pgTable(
   },
   (table) => [index('attachments_post_slug_idx').on(table.postSlug)],
 )
+
+// 文章彩蛋（管理员为单篇文章附带的整页静态 HTML，经 /egg/:slug 以 iframe 嵌入文章页；
+// enabled=false 为待审/停用状态，公开不可见）
+export const postEggs = pgTable('post_eggs', {
+  postSlug: text('post_slug').primaryKey(),
+  html: text('html').notNull().default(''),
+  enabled: boolean('enabled').notNull().default(false),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
 
 // 用户资料：个签（Markdown 源）与昵称缓存（评论署名的权威来源）
 export const profiles = pgTable(

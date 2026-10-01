@@ -114,6 +114,7 @@ export function SiteShell({ children, categories }: { children: React.ReactNode;
 
   return (
     <div className="workbench">
+      <a href="#main-content" className="skip-link">{t('a11y.skip')}</a>
       <header className="titlebar">
         <button className="icon-button mobile-only" onClick={() => setSidebarOpen(true)} aria-label={t('shell.openNav')} title={t('shell.openNav.title')}>
           <Menu size={17} />
@@ -202,7 +203,7 @@ export function SiteShell({ children, categories }: { children: React.ReactNode;
         <div className="sidebar-note"><TerminalSquare size={15} /><span>{t('shell.tagline')}</span></div>
       </aside>
 
-      <main className="editor-area">{children}</main>
+      <main className="editor-area" id="main-content">{children}</main>
       <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} user={user} isAdmin={adminBadge} />
       <GamesMenu open={gamesOpen} onClose={() => setGamesOpen(false)} />
       <UserPanel />
@@ -229,6 +230,48 @@ type AuthMode = 'login' | 'signup' | 'forgot' | 'reset' | 'confirmSent'
 // 登录弹框宿主：监听 window 'open-auth' 事件并渲染弹框本体（不含触发 chip）。
 // 独立于 SiteShell 存在——后台 /admin 路由不渲染 SiteShell，但门禁页的
 // 「打开登录窗口」按钮也派发 open-auth，因此 __root 的 admin 分支同样挂载本宿主。
+// 可访问性：aria-modal 弹窗内的焦点陷阱——打开时焦点送入、Tab 不外溢、关闭后归还触发元素
+function useFocusTrap(active: boolean, containerRef: { current: HTMLElement | null }) {
+  useEffect(() => {
+    if (!active) return
+    const node = containerRef.current
+    if (!node) return
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const selector =
+      'a[href],button:not([disabled]),input:not([disabled]):not([type="hidden"]),textarea:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])'
+    const visibleItems = () =>
+      [...node.querySelectorAll<HTMLElement>(selector)].filter(
+        (el) => el.offsetParent !== null || el === document.activeElement,
+      )
+    if (!node.contains(document.activeElement)) visibleItems()[0]?.focus()
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab') return
+      const items = visibleItems()
+      if (!items.length) return
+      const first = items[0]!
+      const last = items[items.length - 1]!
+      const activeEl = document.activeElement
+      if (!(activeEl instanceof HTMLElement) || !node.contains(activeEl)) {
+        event.preventDefault()
+        first.focus()
+        return
+      }
+      if (event.shiftKey && activeEl === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && activeEl === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', onKey, true)
+    return () => {
+      document.removeEventListener('keydown', onKey, true)
+      previouslyFocused?.focus?.()
+    }
+  }, [active, containerRef])
+}
+
 export function AuthModalHost() {
   const t = useT()
   const [user, setUser] = useState<AuthUser | null>(null)
@@ -242,6 +285,8 @@ export function AuthModalHost() {
   const [resendCountdown, setResendCountdown] = useState(0)
   const lastCredentialsRef = useRef<{ email: string; password: string }>({ email: '', password: '' })
   const resetTokenRef = useRef<string>('')
+  const authDialogRef = useRef<HTMLElement>(null)
+  useFocusTrap(open, authDialogRef)
 
   useEffect(() => {
     getUser().then(setUser)
@@ -261,6 +306,16 @@ export function AuthModalHost() {
     const timer = setTimeout(() => setResendCountdown((n) => n - 1), 1000)
     return () => clearTimeout(timer)
   }, [resendCountdown])
+
+  // 可访问性：弹框打开时 Esc 关闭（点击遮罩关闭之外的键盘路径）
+  useEffect(() => {
+    if (!open) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open])
 
   const switchMode = (next: AuthMode) => {
     setMode(next)
@@ -350,7 +405,7 @@ export function AuthModalHost() {
     <>
       {open && (
         <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setOpen(false)}>
-          <section className="auth-modal" role="dialog" aria-modal="true" aria-label={t('auth.modal.aria')}>
+          <section ref={authDialogRef} className="auth-modal" role="dialog" aria-modal="true" aria-label={t('auth.modal.aria')}>
             <button className="modal-close" onClick={() => setOpen(false)} aria-label={t('common.close')} title={t('common.close')}><X size={18} /></button>
             <div className="auth-modal-body">
             <div className="terminal-label">identity.verify()</div>
@@ -370,9 +425,9 @@ export function AuthModalHost() {
               </>
             ) : (
               <form onSubmit={submit} className="auth-form">
-                {mode === 'signup' && <label>{t('auth.name')}<input name="name" maxLength={20} placeholder={t('auth.name.ph')} /></label>}
-                {mode !== 'reset' && <label>{t('auth.email')}<input name="email" type="email" required placeholder="you@example.com" /></label>}
-                {mode !== 'forgot' && <label>{t('auth.password')}<input name="password" type="password" minLength={8} required placeholder={mode === 'reset' ? t('auth.password.new.ph') : t('auth.password.ph')} /></label>}
+                {mode === 'signup' && <label>{t('auth.name')}<input name="name" maxLength={20} placeholder={t('auth.name.ph')} autoComplete="name" /></label>}
+                {mode !== 'reset' && <label>{t('auth.email')}<input name="email" type="email" required placeholder="you@example.com" autoComplete="email" autoCapitalize="none" autoCorrect="off" /></label>}
+                {mode !== 'forgot' && <label>{t('auth.password')}<input name="password" type="password" minLength={8} required autoComplete={mode === 'login' ? 'current-password' : 'new-password'} placeholder={mode === 'reset' ? t('auth.password.new.ph') : t('auth.password.ph')} /></label>}
                 {error && <div className="form-message error">{error}</div>}
                 {notice && <div className="form-message success">{notice}</div>}
                 <button className="primary-button" disabled={busy}>
@@ -470,6 +525,8 @@ function SearchPalette({ open, onClose, user, isAdmin }: { open: boolean; onClos
   const [commentHits, setCommentHits] = useState<CommentHit[] | null>(null)
   const [commentLoading, setCommentLoading] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const dialogRef = useRef<HTMLElement>(null)
+  useFocusTrap(open, dialogRef)
 
   // 评论搜索（走服务器 myCommentsFn / adminCommentsFn）
   useEffect(() => {
@@ -496,7 +553,7 @@ function SearchPalette({ open, onClose, user, isAdmin }: { open: boolean; onClos
   // 面板首次打开时拉取文章（含原始 content），之后缓存在内存中
   useEffect(() => {
     if (!open || posts) return
-    publishedPostsFn()
+    publishedPostsFn({ data: { timeoutMs: 15_000, includeContent: true } })
       .then(setPosts)
       .catch((e) => setLoadError(e instanceof Error ? e.message : t('search.err.posts')))
   }, [open, posts, t])
@@ -550,7 +607,7 @@ function SearchPalette({ open, onClose, user, isAdmin }: { open: boolean; onClos
 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section className="search-palette" role="dialog" aria-modal="true" aria-label={t('shell.search.posts')}>
+      <section ref={dialogRef} className="search-palette" role="dialog" aria-modal="true" aria-label={t('shell.search.posts')}>
         <div className="terminal-label">workbench.search()</div>
         <div className="search-row">
           <Search size={16} />

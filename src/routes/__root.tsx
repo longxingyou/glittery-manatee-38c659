@@ -7,6 +7,7 @@ import { PickupPreviewHost } from '@/components/pickup-preview'
 import 'katex/dist/katex.min.css'
 import '../styles.css'
 import { DEFAULT_SITE_DESCRIPTION, DEFAULT_SITE_TITLE, type CategoryLabel } from '@/lib/utils'
+import { getPublicOrigin } from '@/lib/server-env'
 import { I18nProvider, setCategoryLabels, useT } from '@/lib/i18n'
 import { initFontPrefs } from '@/lib/font-prefs'
 
@@ -218,17 +219,66 @@ const clientBootstrapPatch = `(function(){try{
 }catch(e){}})()`
 
 export const Route = createRootRoute({
-  head: () => ({
-    meta: [
-      { charSet: 'utf-8' },
-      { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: DEFAULT_SITE_TITLE },
-      { name: 'description', content: DEFAULT_SITE_DESCRIPTION },
-    ],
-    links: [
-      { rel: 'alternate', type: 'application/rss+xml', title: `${DEFAULT_SITE_TITLE} · RSS`, href: '/rss.xml' },
-    ],
-  }),
+  head: ({ loaderData }) => {
+    const siteTitle = loaderData?.settings?.siteTitle || DEFAULT_SITE_TITLE
+    const siteDescription = loaderData?.settings?.siteDescription || DEFAULT_SITE_DESCRIPTION
+    const origin = getPublicOrigin()
+    // 结构化数据：WebSite（全站唯一，供搜索结果使用站点名）
+    const websiteLd = {
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      name: siteTitle,
+      description: siteDescription,
+      ...(origin ? { url: origin } : {}),
+    }
+    return {
+      meta: [
+        { charSet: 'utf-8' },
+        { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
+        { title: DEFAULT_SITE_TITLE },
+        { name: 'description', content: DEFAULT_SITE_DESCRIPTION },
+        // viewport-fit=cover 配合安全区 CSS
+        { name: 'mobile-web-app-capable', content: 'yes' },
+        { name: 'apple-mobile-web-app-capable', content: 'yes' },
+        { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
+        // Open Graph / Twitter Card：默认站点级标签；文章路由以同 property/name
+        // 覆盖标题与描述（TanStack 按 name ?? property 去重，子路由优先）
+        { property: 'og:type', content: 'website' },
+        { property: 'og:site_name', content: DEFAULT_SITE_TITLE },
+        { property: 'og:title', content: DEFAULT_SITE_TITLE },
+        { property: 'og:description', content: DEFAULT_SITE_DESCRIPTION },
+        { property: 'og:locale', content: 'zh_CN' },
+        // 品牌默认分享图（1200x630）；文章路由不覆盖 og:image 时自动继承
+        ...(origin
+          ? [
+              { property: 'og:image', content: `${origin}/og-default.png` },
+              { property: 'og:image:width', content: '1200' },
+              { property: 'og:image:height', content: '630' },
+              { property: 'og:image:type', content: 'image/png' },
+              { property: 'og:image:alt', content: DEFAULT_SITE_TITLE },
+            ]
+          : []),
+        { name: 'twitter:card', content: 'summary_large_image' },
+        { name: 'twitter:title', content: DEFAULT_SITE_TITLE },
+        { name: 'twitter:description', content: DEFAULT_SITE_DESCRIPTION },
+        ...(origin
+          ? [
+              { name: 'twitter:image', content: `${origin}/og-default.png` },
+              { name: 'twitter:image:alt', content: DEFAULT_SITE_TITLE },
+            ]
+          : []),
+      ],
+      links: [
+        { rel: 'manifest', href: '/site.webmanifest' },
+        // iOS 不读 manifest icons，主屏幕图标需单独声明
+        { rel: 'apple-touch-icon', href: '/icon-192.png' },
+        { rel: 'alternate', type: 'application/rss+xml', title: `${DEFAULT_SITE_TITLE} · RSS · 中文`, href: '/rss.xml' },
+        { rel: 'alternate', type: 'application/rss+xml', title: `${DEFAULT_SITE_TITLE} · RSS · English`, href: '/rss.xml?lang=en' },
+        { rel: 'alternate', type: 'application/rss+xml', title: `${DEFAULT_SITE_TITLE} · RSS · Русский`, href: '/rss.xml?lang=ru' },
+      ],
+      scripts: [{ type: 'application/ld+json', children: JSON.stringify(websiteLd) }],
+    }
+  },
   loader: async () => {
     const staticLabels: CategoryLabel[] = Array.from(new Set(allPosts.flatMap((p: { categories: string[] }) => p.categories)))
       .sort()
@@ -286,7 +336,7 @@ function NavProgressBar({ active }: { active: boolean }) {
 function RootComponent() {
   const { settings, categories } = Route.useLoaderData()
   const loc = useLocation()
-  const inAdmin = loc.pathname.startsWith('/admin')
+  const inAdmin = loc.pathname.startsWith('/admin') || loc.pathname === '/mt-setup'
   // 导航进度条：isLoading 比 status==='pending' 更可靠（pending 状态在某些边缘场景下不会复位）
   const routerLoading = useRouterState({ select: (s) => s.isLoading })
   const [showBar, setShowBar] = useState(false)
@@ -349,7 +399,7 @@ function RootComponent() {
 function HttpCatImage({ code, title }: { code: number; title: string }) {
   return (
     <div className="error-cat">
-      <div className="error-cat-code">{code}</div>
+      <h1 className="error-cat-code">{code}</h1>
       <img
         src={`https://http.cat/${code}.jpg`}
         alt={title}
@@ -415,6 +465,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <script dangerouslySetInnerHTML={{ __html: fontScript }} />
         {import.meta.env.DEV ? <script dangerouslySetInnerHTML={{ __html: clientBootstrapPatch }} /> : null}
+        {/* theme-color 按系统配色给两个变体；head meta 会按 name 去重故直接写此 */}
+        <meta name="theme-color" content="#0d1117" media="(prefers-color-scheme: dark)" />
+        <meta name="theme-color" content="#f4f6f8" media="(prefers-color-scheme: light)" />
         <HeadContent />
       </head>
       <body>

@@ -143,6 +143,16 @@ export function UserPanel() {
     }
   }, [loggedIn, tab])
 
+  // 可访问性：面板打开时 Esc 关闭
+  useEffect(() => {
+    if (!open) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open])
+
   if (!open) return null
 
   return (
@@ -451,7 +461,7 @@ function ProfileTab({ profile, tagDefs, onSaved }: {
       {signature.trim() && (
         <div className="user-sig-preview">
           <span>{t('user.preview')}</span>
-          <div className="comment-signature markdown-body compact" dangerouslySetInnerHTML={{ __html: renderMarkdown(signature) }} />
+          <div className="comment-signature markdown-body compact" dangerouslySetInnerHTML={{ __html: renderMarkdown(signature, 2) }} />
         </div>
       )}
       <button type="button" className="primary-button small" disabled={busySig} onClick={() => void saveSignature()}>
@@ -477,8 +487,32 @@ function ProfileTab({ profile, tagDefs, onSaved }: {
 }
 
 // ----------------------------------------------------------------
-// 我的评论：可搜索正文，点击进入对应文章
+// 我的评论：可搜索正文，点击进入对应文章；长评论默认折叠（与评论区同阈值）
 // ----------------------------------------------------------------
+const MY_COMMENT_LONG_BODY = 600
+
+function MyCommentItem({ c, dateLocale }: { c: Awaited<ReturnType<typeof myCommentsFn>>[number]; dateLocale: string }) {
+  const t = useT()
+  const long = c.body.length > MY_COMMENT_LONG_BODY
+  const [collapsed, setCollapsed] = useState(long)
+  return (
+    <li className="my-comment-item">
+      <Link to="/posts/$slug" params={{ slug: c.postSlug }} className="my-comment-post">
+        {c.postTitle}
+      </Link>
+      <div className={collapsed ? 'comment-collapse collapsed' : 'comment-collapse'}>
+        <p className="my-comment-body">{c.body}</p>
+      </div>
+      {long && (
+        <button type="button" className="comment-expand" onClick={() => setCollapsed((v) => !v)}>
+          {collapsed ? t('comments.expand.full') : t('comments.collapse')}
+        </button>
+      )}
+      <time className="my-comment-date">{new Date(c.createdAt).toLocaleString(dateLocale, { dateStyle: 'medium', timeStyle: 'short' })}</time>
+    </li>
+  )
+}
+
 function MyCommentsTab() {
   const t = useT()
   const lang = useLang()
@@ -513,13 +547,7 @@ function MyCommentsTab() {
       ) : (
         <ul className="my-comments-list">
           {list.map((c) => (
-            <li key={c.id} className="my-comment-item">
-              <Link to="/posts/$slug" params={{ slug: c.postSlug }} className="my-comment-post">
-                {c.postTitle}
-              </Link>
-              <p className="my-comment-body">{c.body}</p>
-              <time className="my-comment-date">{new Date(c.createdAt).toLocaleString(dateLocale, { dateStyle: 'medium', timeStyle: 'short' })}</time>
-            </li>
+            <MyCommentItem key={c.id} c={c} dateLocale={dateLocale} />
           ))}
         </ul>
       )}

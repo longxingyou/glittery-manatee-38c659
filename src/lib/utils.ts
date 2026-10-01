@@ -84,6 +84,8 @@ export type AttachmentPublic = {
   downloads: number
   createdAt: string
   locked: boolean
+  /** true = MTProto 直传附件（服务端单响应窗口仅 16MiB，前端须走 Range 下载器） */
+  stream?: boolean
 }
 
 /** 分类的三语名称：name 为权威中文名，nameEn/nameRu 为可空译名 */

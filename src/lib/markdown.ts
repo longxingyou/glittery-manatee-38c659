@@ -80,6 +80,39 @@ function tokensToText(tokens: Token[]): string {
   }).join('')
 }
 
+export interface MarkdownHeading {
+  id: string
+  text: string
+  level: number
+}
+
+/** 还原 escapeHtml 的常见实体（与浏览器 textContent 解码口径对齐） */
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&')
+}
+
+/**
+ * 从 renderMarkdown 产物中提取 h2-h4 大纲（与 article-outline 的 DOM 提取同口径：
+ * 剔除尾部 # 锚点链接、实体解码）。纯字符串解析，SSR 阶段可用——
+ * 让大纲按钮直接进入首屏 HTML，不依赖客户端水合才出现（弱网下水合可能延迟或失败）。
+ */
+export function extractHeadingsFromHtml(html: string): MarkdownHeading[] {
+  const out: MarkdownHeading[] = []
+  for (const m of html.matchAll(/<h([2-4])\s+id="([^"]+)"[^>]*>([\s\S]*?)<\/h\1>/g)) {
+    // 剥离尾部 <a class="anchor">#</a> 与其余标签，得到纯文本
+    const inner = m[3].replace(/<a[^>]*class="anchor"[^>]*>[\s\S]*?<\/a>/, '')
+    const text = decodeEntities(inner.replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim()
+    out.push({ id: decodeEntities(m[2]), text, level: Number(m[1]) })
+  }
+  return out
+}
+
 /**
  * 月品木子取件卡片：?q= 二字口令链接不是可直连的图片/文件，
  * 渲染为取件卡片；点击行为由 PickupPreviewHost 事件委托接管（站内预览弹层），
@@ -100,7 +133,7 @@ function pickupCardHtml(href: string, code: string, note?: string): string {
 // ──────────────────────────────────────────────
 // 主渲染函数
 // ──────────────────────────────────────────────
-export function renderMarkdown(source: string) {
+export function renderMarkdown(source: string, headingShift = 0) {
   // ── 预处理 0：剥离 Obsidian frontmatter（粘贴即所得；站点元数据走编辑器字段） ──
   source = source.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, (m) => (m.includes(':') ? '' : m))
 
@@ -211,7 +244,9 @@ export function renderMarkdown(source: string) {
         const n = (slugCounts.get(slug) ?? 0) + 1
         slugCounts.set(slug, n)
         const finalSlug = n === 1 ? slug : `${slug}-${n}`
-        return `<h${depth} id="${finalSlug}">${rendered} <a href="#${finalSlug}" class="anchor" aria-hidden="true">#</a></h${depth}>\n`
+        // headingShift：评论等嵌入场景把 # 抬到 h3 起步，避免与宿主页面 h1/h2 冲突
+        const level = Math.min(6, depth + headingShift)
+        return `<h${level} id="${finalSlug}">${rendered} <a href="#${finalSlug}" class="anchor" aria-hidden="true">#</a></h${level}>\n`
       },
 
       code: ({ text, lang }: { text: string; lang?: string }) => {

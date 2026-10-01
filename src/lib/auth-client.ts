@@ -53,6 +53,38 @@ export function getUser(force = false): Promise<AuthUser | null> {
   return inflight.finally(() => { inflight = null }) as Promise<AuthUser | null>
 }
 
+// ── 管理员身份探测（5 分钟模块级缓存；登录态变化时清空）──
+// 供需要"仅管理员强制新鲜数据"的场景（如发文后 SWR 绕过缓存）使用，
+// 避免每个普通访客的水合补拉都直打数据库。
+let adminCached: { at: number; isAdmin: boolean } | null = null
+let adminInflight: Promise<boolean> | null = null
+const ADMIN_TTL_MS = 5 * 60_000
+if (typeof window !== 'undefined') {
+  window.addEventListener('sg-auth-change', () => { adminCached = null })
+}
+
+/** 当前登录用户是否为管理员（未登录/探测失败均为 false） */
+export function isCurrentUserAdmin(): Promise<boolean> {
+  if (adminCached && Date.now() - adminCached.at < ADMIN_TTL_MS) {
+    return Promise.resolve(adminCached.isAdmin)
+  }
+  if (adminInflight) return adminInflight
+  adminInflight = (async () => {
+    try {
+      const res = await fetch('/api/comments?action=adminStatus', { credentials: 'same-origin' })
+      const data = (await res.json().catch(() => ({}))) as { status?: { isAdmin?: boolean } }
+      const isAdmin = !!data.status?.isAdmin
+      adminCached = { at: Date.now(), isAdmin }
+      return isAdmin
+    } catch {
+      return false
+    } finally {
+      adminInflight = null
+    }
+  })()
+  return adminInflight
+}
+
 async function postAuth(body: Record<string, unknown>): Promise<Record<string, unknown>> {
   const res = await fetch('/api/auth', {
     method: 'POST',

@@ -15,3 +15,11 @@ RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxx
 
 # 管理员邮箱白名单（逗号/分号/空格分隔，大小写不敏感）
 ADMIN_EMAILS=you@example.com
+
+# 附件云端存储（Telegram Bot API 代理）：
+# 1) Telegram 里找 @BotFather → /newbot → 得到 token（形如 123456:ABC-xxx）
+# 2) 建一个私有频道/群组，把 bot 拉进去设为管理员
+# 3) chat_id：频道形如 -100xxxxxxxxxx（把频道里任一条消息转发给 @userinfobot 可查；
+#    群组可先发条消息再访问 https://api.telegram.org/bot<TOKEN>/getUpdates 看 chat.id）
+TG_BOT_TOKEN=123456:ABC-xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TG_STORAGE_CHAT_ID=-100xxxxxxxxxx

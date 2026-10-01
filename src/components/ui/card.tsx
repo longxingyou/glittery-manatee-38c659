@@ -36,6 +36,7 @@ import {
   Inbox,
   MessageSquareWarning,
   Eraser,
+  Egg,
   ImageIcon,
   Menu,
   Pencil,
@@ -48,7 +49,6 @@ import { Route as RootRoute } from '@/routes/__root'
 import {
   DEFAULT_SITE_DESCRIPTION,
   DEFAULT_SITE_TITLE,
-  attachmentDownloadUrl,
   attachmentUploadUrl,
   estimateReadingTime,
   feedbackFileUrl,
@@ -83,6 +83,7 @@ import {
 } from '../admin-user-fns'
 import { listUserTagsFn } from '../user-fns'
 import { onAuthChange } from '@/lib/auth-client'
+import { BOT_UPLOAD_CHUNK_BYTES } from '@/lib/attachment-download'
 import { UserTagList } from '../user-tag-badge'
 import type { UserTag } from '../../../db/index.js'
 
@@ -101,6 +102,7 @@ import {
   publishedPostsFn as _pub_publishedPostsFn,
   getPublishedPostFn as _pub_getPublishedPostFn,
   publicServerFns,
+  AttachmentDownloadButton,
 } from '../public-fns'
 
 // 公开 fns 已在 public-fns.tsx 声明；此处仍按原名引用 adminStatusFn / settingsFn
@@ -268,6 +270,37 @@ const saveSiteContentFn = createServerFn({ method: 'POST' })
     return mod.saveSiteContent(data)
   })
 
+// ── 文章彩蛋（后台）────────────────────────────────────────────
+// db 层 savePostEgg/deletePostEgg/getPostEggAdmin 内部均 requireAdmin；
+// zod 字符数上限给 60 万（宽松兜底），精确的 512KB 字节校验在 db 层。
+type PostEggPayload = { postSlug: string; html: string; enabled: boolean; updatedAt: string | null }
+
+const getPostEggFn = createServerFn({ method: 'GET' })
+  .inputValidator((input) => z.object({ slug: z.string().min(1).max(160) }).parse(input))
+  .handler(async ({ data }): Promise<PostEggPayload | null> => {
+    const mod = await import('../../../db/index.js')
+    return mod.getPostEggAdmin(data.slug)
+  })
+
+const savePostEggFn = createServerFn({ method: 'POST' })
+  .inputValidator((input) => z.object({
+    slug: z.string().min(1).max(160),
+    html: z.string().min(1).max(600_000),
+    enabled: z.boolean(),
+  }).parse(input))
+  .handler(async ({ data }): Promise<PostEggPayload> => {
+    const mod = await import('../../../db/index.js')
+    return mod.savePostEgg(data)
+  })
+
+const deletePostEggFn = createServerFn({ method: 'POST' })
+  .inputValidator((input) => z.object({ slug: z.string().min(1).max(160) }).parse(input))
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const mod = await import('../../../db/index.js')
+    await mod.deletePostEgg(data.slug)
+    return { ok: true }
+  })
+
 // 保证公开别名不会因 noUnusedLocals 告警（实际已通过同名 const 引用）
 void _pub_adminStatusFn; void _pub_settingsFn; void _pub_allCategoriesFn
 void _pub_publishedPostsFn; void _pub_getPublishedPostFn
@@ -289,21 +322,25 @@ function useAdminStatus(initial?: AdminStatus | null): {
   const [loading, setLoading] = React.useState(!initial)
   const [error, setError] = React.useState('')
   const refresh = React.useCallback(async () => {
-    console.info('[sg-debug] refresh:start')
     setLoading(true); setError('')
     try {
       const next = await adminStatusFn()
-      console.info('[sg-debug] refresh:resolved', JSON.stringify(next))
       setStatus(next)
     } catch (e) {
-      console.info('[sg-debug] refresh:error', e instanceof Error ? e.message : String(e))
       setError(e instanceof Error ? e.message : t('admin.auth.fail'))
     }
-    finally { setLoading(false); console.info('[sg-debug] refresh:done') }
+    finally { setLoading(false) }
   }, [t])
-  React.useEffect(() => { if (!initial) void refresh() }, [initial, refresh])
+  // 挂载后对账：本 hook 在多个层级各有实例（外层门禁、AdminLayout、子路由的
+  // 内层门禁）。后挂载的实例会【错过登录时已派发的 onAuthChange】，若 SSR
+  // initialStatus 是未登录、又跳过首次刷新，就会永远显示"请先登录"。
+  // 仅当初始非"已鉴权"时刷新（SSR authed=true 可信，避免已登录管理员每次
+  // 进页面都闪一次加载/重挂子树）。首帧仍用 initial，随后对账。
+  React.useEffect(() => {
+    if (!initial || !initial.authed) void refresh()
+  }, [initial, refresh])
   // 登录/登出后自动重新鉴权：门禁页通过弹框登录成功后，无需手动刷新即可进入后台
-  React.useEffect(() => onAuthChange((u) => { console.info('[sg-debug] onAuthChange', u?.email ?? null); void refresh() }), [refresh])
+  React.useEffect(() => onAuthChange(() => { void refresh() }), [refresh])
   return { loading, status, error, refresh }
 }
 
@@ -313,13 +350,12 @@ function useAdminStatus(initial?: AdminStatus | null): {
 export function AdminGateWrap({ children, initialStatus }: { children: React.ReactNode; initialStatus?: AdminStatus | null }) {
   const t = useT()
   const { loading, status, error, refresh } = useAdminStatus(initialStatus)
-  console.info('[sg-debug] gate:render', { loading, error, authed: status?.authed ?? null, isAdmin: status?.isAdmin ?? null })
   if (loading) return <div className="admin-loading">{t('admin.gate.checking')}</div>
   if (error) return <div className="admin-error">{t('admin.gate.fail')}{error} <button onClick={() => void refresh()}>{t('admin.retry')}</button></div>
   if (!status) return null
   if (!status.authed) {
     return (
-      <div className="admin-gate-card">
+      <main className="admin-gate-card">
         <div className="gate-icon"><UserRound size={48} /></div>
         <h2>{t('admin.gate.login.title')}</h2>
         <p>{t('admin.gate.login.p')}</p>
@@ -330,12 +366,12 @@ export function AdminGateWrap({ children, initialStatus }: { children: React.Rea
           {t('admin.gate.login.btn')}
         </button>
         {status.email ? <small>{t('admin.gate.login.current', { email: status.email })}</small> : null}
-      </div>
+      </main>
     )
   }
   if (!status.isAdmin) {
     return (
-      <div className="admin-gate-card">
+      <main className="admin-gate-card">
         <div className="gate-icon alert"><ShieldAlert size={48} /></div>
         <h2>{t('admin.gate.deny.title')}</h2>
         <p>{t('admin.gate.deny.pre')}<b>{status.email}</b>{t('admin.gate.deny.post')}</p>
@@ -345,7 +381,7 @@ export function AdminGateWrap({ children, initialStatus }: { children: React.Rea
           </p>
         )}
         <button className="text-button" onClick={() => void refresh()}>{t('admin.gate.refresh')}</button>
-      </div>
+      </main>
     )
   }
   return <>{children}</>
@@ -398,7 +434,7 @@ export function AdminLayout() {
           </button>
         </div>
       </aside>
-      <section className="admin-main">
+      <main className="admin-main">
         <header className="admin-topbar">
           <button className="admin-menu-toggle" onClick={() => setSideOpen((v) => !v)} aria-label={t('admin.toggle.aria')} aria-expanded={sideOpen} title={t('admin.toggle.title')}>
             {sideOpen ? <X size={18} /> : <Menu size={18} />}
@@ -413,7 +449,7 @@ export function AdminLayout() {
         <div className="admin-content">
           <Outlet />
         </div>
-      </section>
+      </main>
     </div>
   )
 }
@@ -556,7 +592,7 @@ export function AdminDashboard() {
                           >{t('admin.act.translate')}</button>
                         ) : null
                       })()}
-                      <a className="row-action" target="_blank" rel="noreferrer" href={`/posts/${encodeURIComponent(post.slug)}`}>{t('admin.act.preview')}</a>
+                      <a className="row-action" target="_blank" rel="noreferrer" href={`/posts/${encodeURIComponent(post.slug)}?preview=1`}>{t('admin.act.preview')}</a>
                       {confirmDelete === post.id ? (
                         <>
                           <button className="row-action danger" disabled={deleting === post.id} onClick={() => void remove(post.id!)}>
@@ -1183,11 +1219,14 @@ export function PostEditorPage() {
       </div>
 
       {bootstrap.id ? (
-        <AttachmentManager
-          postSlug={bootstrap.slug}
-          attachments={bootstrap.attachments}
-          onChange={(next) => setBootstrap((b) => ({ ...b, attachments: next }))}
-        />
+        <>
+          <AttachmentManager
+            postSlug={bootstrap.slug}
+            attachments={bootstrap.attachments}
+            onChange={(next) => setBootstrap((b) => ({ ...b, attachments: next }))}
+          />
+          <EggManager postSlug={bootstrap.slug} />
+        </>
       ) : (
         <div className="panel muted small muted-pad">
           <FileDown size={16} /> {t('admin.editor.attach.hint')}
@@ -1214,30 +1253,217 @@ function AttachmentManager({
   const dateLocale = lang === 'zh' ? 'zh-CN' : lang === 'ru' ? 'ru-RU' : 'en-US'
   const fileRef = React.useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = React.useState(false)
+  const [mpPct, setMpPct] = React.useState<number | null>(null)
   const [upError, setUpError] = React.useState('')
   const [upPassword, setUpPassword] = React.useState('')
   const [passwordEdits, setPasswordEdits] = React.useState<Record<number, string>>({})
   const [busyId, setBusyId] = React.useState<number | null>(null)
+  const [dlPct, setDlPct] = React.useState<Record<number, number>>({})
+  // MTProto 用户会话直传是否已配置（>47MiB 大文件走此通道，单文件可达 2GB）
+  const [mtReady, setMtReady] = React.useState<boolean | null>(null)
+
+  React.useEffect(() => {
+    let cancelled = false
+    fetch('/api/comments?action=mt-status')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s: { configured?: boolean } | null) => { if (!cancelled) setMtReady(!!s?.configured) })
+      .catch(() => { if (!cancelled) setMtReady(false) })
+    return () => { cancelled = true }
+  }, [])
 
   const triggerPick = () => fileRef.current?.click()
+
+  // 大文件（>47MiB，超过单请求上限）：浏览器分片，经 Worker 代理转发到
+  // Telegram 云端存储（每片 47MiB，贴近 bot 上传 50MB 限流，1.2GB 仅 26 片；
+  // 下载时由 MTProto 用户会话 256KiB 窗口回源）。并行 2 片 + 每片重试。
+  const uploadLargeDirect = async (
+    file: File,
+    password: string,
+    onPct: (pct: number) => void,
+  ): Promise<AttachmentPublic> => {
+    const postJson = (action: string, body: unknown) =>
+      fetch(`/api/comments?action=${action}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }).then(async (r) => ({ ok: r.ok, data: await r.json().catch(() => ({})) }))
+
+    const start = await postJson('mp-start', {
+      postSlug, filename: file.name, size: file.size, contentType: file.type || 'application/octet-stream',
+    })
+    if (!start.ok) throw new Error(start.data.error || t('admin.upload.fail'))
+    const { partSize, maxBytes } = start.data as { partSize: number; maxBytes: number }
+    if (file.size > maxBytes) throw new Error(t('admin.upload.too.big'))
+
+    const total = Math.ceil(file.size / partSize)
+    const parts: Array<{ m: number; f: string; s: number } | null> = new Array(total).fill(null)
+    let cursor = 0
+    let done = 0
+    const worker = async () => {
+      for (;;) {
+        const n = cursor++
+        if (n >= total) return
+        const from = n * partSize
+        const to = Math.min(file.size, from + partSize)
+        let lastErr: unknown = null
+        // 分片上传韧性：按错误类别分别限额。
+        // 503/502 多来自前置代理网关限速（窗口常 30~60s），短退避重试风暴只会加深
+        // 限流——故 5xx 用长退避并给足 15 次；429 按服务端 retryAfterMs 等待，最多 10 次。
+        let rateLimits = 0
+        let serverErrs = 0
+        for (let attempt = 0; attempt < 6 && lastErr === null; attempt++) {
+          try {
+            const form = new FormData()
+            form.append('file', file.slice(from, to))
+            form.append('filename', `${file.name}.part${n + 1}`)
+            const pr = await fetch('/api/comments?action=mp-part', { method: 'POST', body: form })
+            const pd = await pr.json().catch(() => ({})) as { part?: { m: number; f: string; s: number }; error?: string; retryAfterMs?: number }
+            if (pr.status === 429) {
+              if (++rateLimits > 10) throw new Error(pd.error || 'rate limited')
+              attempt-- // 限流不占普通重试预算
+              await new Promise((r) => setTimeout(r, (pd.retryAfterMs || 3000) + Math.random() * 500))
+              continue
+            }
+            if (pr.status >= 500) {
+              if (++serverErrs > 15) throw new Error(pd.error || `part HTTP ${pr.status}`)
+              attempt-- // 5xx（多为代理网关限速）单独预算，长退避
+              await new Promise((r) => setTimeout(r, Math.min(30000, 2000 * serverErrs) + Math.random() * 500))
+              continue
+            }
+            if (!pr.ok || !pd.part) throw new Error(pd.error || `part HTTP ${pr.status}`)
+            parts[n] = pd.part
+            done += 1
+            onPct(Math.round((done / total) * 96))
+            lastErr = null
+            break
+          } catch (e) {
+            lastErr = e
+            await new Promise((r) => setTimeout(r, 800 * (attempt + 1)))
+          }
+        }
+        if (lastErr) {
+          // 放弃：删除已上传到 Telegram 云端的分片消息
+          const uploaded = parts.filter(Boolean) as Array<{ m: number; f: string; s: number }>
+          await postJson('mp-abort', { parts: uploaded.map((x) => ({ m: x.m })) }).catch(() => undefined)
+          throw lastErr instanceof Error ? lastErr : new Error('part failed')
+        }
+      }
+    }
+    await Promise.all([worker(), worker()])
+
+    onPct(98)
+    const complete = await postJson('mp-complete', {
+      postSlug, filename: file.name, size: file.size,
+      contentType: file.type || 'application/octet-stream',
+      password: password || undefined,
+      parts: parts.filter(Boolean),
+    })
+    if (!complete.ok) throw new Error(complete.data.error || t('admin.upload.fail'))
+    onPct(100)
+    return complete.data.attachment as AttachmentPublic
+  }
+
+  // 大文件通道二（优先）：浏览器经 MTProto 用户会话直传私有频道，单文件 2GB，
+  // 不经过 Worker 请求体（绕开 100MB 限制与 503 网关）；Worker 只负责下载回源。
+  const uploadViaMt = async (
+    file: File,
+    password: string,
+    onPct: (pct: number) => void,
+  ): Promise<AttachmentPublic> => {
+    const postJson = (action: string, body: unknown) =>
+      fetch(`/api/comments?action=${action}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }).then(async (r) => ({ ok: r.ok, data: await r.json().catch(() => ({})) as { error?: string; attachment?: AttachmentPublic } }))
+
+    const credsRes = await fetch('/api/comments?action=mt-creds')
+    const credsData = await credsRes.json().catch(() => ({})) as {
+      apiId?: number; apiHash?: string; session?: string
+      chat?: { id: string; accessHash: string } | null
+      error?: string
+    }
+    if (!credsRes.ok || !credsData.chat) throw new Error(credsData.error || t('attach.mt.fail'))
+
+    onPct(1)
+    const [{ Api }, { default: bigInt }, mtb] = await Promise.all([
+      import('telegram'),
+      import('big-integer'),
+      import('@/lib/mtproto-browser'),
+    ])
+    const mc = await mtb.createMtBrowserClient(
+      credsData.apiId as number,
+      credsData.apiHash as string,
+      credsData.session as string,
+    )
+    try {
+      const rawId = String(credsData.chat.id).replace(/^-100/, '')
+      const entity = new Api.InputChannel({
+        channelId: bigInt(rawId),
+        accessHash: bigInt(credsData.chat.accessHash || '0'),
+      })
+      const message = await mc.client.sendFile(entity, {
+        file,
+        forceDocument: true,
+        workers: 2,
+        progressCallback: (progress: number) => {
+          if (progress > 0) onPct(Math.max(1, Math.min(98, Math.round(progress * 98))))
+        },
+      })
+      const media = message.media
+      if (!(media instanceof Api.MessageMediaDocument) || !(media.document instanceof Api.Document)) {
+        throw new Error(t('attach.mt.fail'))
+      }
+      const doc = media.document
+      onPct(99)
+      const complete = await postJson('mt-complete', {
+        postSlug,
+        filename: file.name,
+        size: file.size,
+        contentType: file.type || 'application/octet-stream',
+        password: password || undefined,
+        chat: { id: credsData.chat.id, accessHash: credsData.chat.accessHash },
+        part: {
+          m: message.id,
+          id: doc.id.toString(),
+          a: doc.accessHash.toString(),
+          d: doc.dcId,
+          s: Number(doc.size.toString()),
+        },
+      })
+      if (!complete.ok || !complete.data.attachment) throw new Error(complete.data.error || t('attach.mt.fail'))
+      onPct(100)
+      return complete.data.attachment
+    } finally {
+      await mc.destroy().catch(() => undefined)
+    }
+  }
+
   const doUpload = async () => {
     const file = fileRef.current?.files?.[0]
     if (!file) return
-    setUploading(true); setUpError('')
-    const form = new FormData()
-    form.append('file', file)
-    form.append('postSlug', postSlug)
-    if (upPassword) form.append('password', upPassword)
+    setUploading(true); setUpError(''); setMpPct(null)
     try {
-      const response = await fetch(attachmentUploadUrl(), { method: 'POST', body: form })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || t('admin.upload.fail'))
-      const row = data.attachment as AttachmentPublic
+      let row: AttachmentPublic
+      if (file.size > BOT_UPLOAD_CHUNK_BYTES && mtReady) {
+        row = await uploadViaMt(file, upPassword, setMpPct)
+      } else if (file.size > BOT_UPLOAD_CHUNK_BYTES) {
+        row = await uploadLargeDirect(file, upPassword, setMpPct)
+      } else {
+        const form = new FormData()
+        form.append('file', file)
+        form.append('postSlug', postSlug)
+        if (upPassword) form.append('password', upPassword)
+        const response = await fetch(attachmentUploadUrl(), { method: 'POST', body: form })
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error || t('admin.upload.fail'))
+        row = data.attachment as AttachmentPublic
+      }
       onChange([...initial, row])
       if (fileRef.current) fileRef.current.value = ''
       setUpPassword('')
     } catch (e) { setUpError(e instanceof Error ? e.message : t('admin.upload.fail')) }
-    finally { setUploading(false) }
+    finally { setUploading(false); setMpPct(null) }
   }
   const setPassword = async (att: AttachmentPublic) => {
     const pwd = passwordEdits[att.id] ?? ''
@@ -1272,9 +1498,31 @@ function AttachmentManager({
         </label>
         <span className="spacer" />
         <button className="ghost-button" onClick={triggerPick} disabled={uploading}>
-          <Upload size={15} /> {uploading ? t('admin.busy.uploading') : t('admin.am.upload')}
+          <Upload size={15} /> {mpPct !== null
+            ? t('admin.am.uploading.pct', { pct: mpPct })
+            : uploading ? t('admin.busy.uploading') : t('admin.am.upload')}
         </button>
       </div>
+      {mpPct !== null && (
+        <div
+          style={{
+            height: 6, borderRadius: 3, background: 'var(--border, #88888844)',
+            overflow: 'hidden', margin: '6px 0',
+          }}
+        >
+          <div
+            style={{
+              width: `${mpPct}%`, height: '100%',
+              background: 'var(--accent, #4a9eff)', transition: 'width .2s ease',
+            }}
+          />
+        </div>
+      )}
+      {mtReady === false && (
+        <div className="banner small" style={{ margin: '4px 0' }}>
+          <span dangerouslySetInnerHTML={{ __html: t('attach.mt.setup.hint') }} />
+        </div>
+      )}
       {upError && <div className="banner error small">{upError}</div>}
       <ul className="attach-list">
         {initial.length === 0 && <li className="empty-row small">{t('admin.am.empty')}</li>}
@@ -1305,7 +1553,14 @@ function AttachmentManager({
               <button className="row-action primary" disabled={busyId === att.id} onClick={() => setPassword(att)}>
                 {busyId === att.id ? t('admin.busy.processing') : att.locked ? t('admin.am.unlock') : t('admin.am.lock')}
               </button>
-              <a className="row-action" href={attachmentDownloadUrl(att.id)} target="_blank" rel="noreferrer"><FileDown size={13} />{t('admin.am.download')}</a>
+              <AttachmentDownloadButton
+                att={att}
+                className="row-action"
+                label={t('admin.am.download')}
+                pct={dlPct[att.id]}
+                onPct={(id, p) => setDlPct((m) => { const n = { ...m }; if (p < 0) delete n[id]; else n[id] = p; return n })}
+                onError={(msg) => setUpError(msg)}
+              />
               <button className="row-action danger" disabled={busyId === att.id} onClick={() => remove(att)}>
                 <Trash2 size={13} />{t('admin.act.delete')}
               </button>
@@ -1313,6 +1568,191 @@ function AttachmentManager({
           </li>
         ))}
       </ul>
+    </div>
+  )
+}
+
+// =================================================================
+// 后台：文章彩蛋管理（整页静态 HTML 的上传/自动审查/预览/启用/移除）
+// =================================================================
+// 彩蛋 HTML 字节上限（与 db 层 POST_EGG_MAX_BYTES 一致；权威校验在 db 层）
+const EGG_MAX_BYTES = 512 * 1024
+
+function EggManager({ postSlug }: { postSlug: string }) {
+  const t = useT()
+  const lang = useLang()
+  const dateLocale = lang === 'zh' ? 'zh-CN' : lang === 'ru' ? 'ru-RU' : 'en-US'
+  const fileRef = React.useRef<HTMLInputElement>(null)
+  const [loaded, setLoaded] = React.useState(false)
+  const [existing, setExisting] = React.useState<PostEggPayload | null>(null)
+  const [html, setHtml] = React.useState('')
+  const [busy, setBusy] = React.useState<null | 'save' | 'saveOn' | 'delete' | 'preview'>(null)
+  const [msg, setMsg] = React.useState('')
+
+  React.useEffect(() => {
+    let alive = true
+    getPostEggFn({ data: { slug: postSlug } })
+      .then((egg) => {
+        if (!alive) return
+        setExisting(egg)
+        setHtml(egg?.html ?? '')
+        setLoaded(true)
+      })
+      .catch((e) => {
+        if (!alive) return
+        setMsg(e instanceof Error ? e.message : t('admin.egg.err'))
+        setLoaded(true)
+      })
+    return () => { alive = false }
+  }, [postSlug, t])
+
+  // 本地文件 → textarea（彩蛋接受整页 .html 文档）
+  const pickFile = (file: File) => {
+    const reader = new FileReader()
+    reader.onload = () => { setHtml(String(reader.result ?? '')); setMsg('') }
+    reader.onerror = () => setMsg(t('admin.egg.err'))
+    reader.readAsText(file)
+  }
+
+  // 自动审查：列出脚本/事件属性/iframe/外链域名/体积，供保存前人工核对。
+  // 安全边界不靠剥离 HTML（交互脚本允许存在），靠 /egg/ 的 CSP sandbox + iframe sandbox。
+  const scan = React.useMemo(() => {
+    const bytes = new TextEncoder().encode(html).length
+    const scripts = (html.match(/<script[\s>]/gi) || []).length
+    const handlers = (html.match(/\son[a-z][a-z0-9-]*\s*=/gi) || []).length
+    const iframes = (html.match(/<iframe[\s>]/gi) || []).length
+    const hostSet = new Set<string>()
+    const re = /(?:src|href)\s*=\s*["']?\s*(?:https?:)?\/\/([a-z0-9][a-z0-9.-]*)/gi
+    let m: RegExpExecArray | null
+    while ((m = re.exec(html))) { if (m[1]) hostSet.add(m[1].toLowerCase()) }
+    return { bytes, scripts, handlers, iframes, hosts: [...hostSet].sort(), oversize: bytes > EGG_MAX_BYTES }
+  }, [html])
+
+  const dirty = html !== (existing?.html ?? '')
+
+  const save = async (enabled: boolean) => {
+    if (!html.trim()) { setMsg(t('admin.egg.empty')); return }
+    setBusy(enabled ? 'saveOn' : 'save'); setMsg('')
+    try {
+      const saved = await savePostEggFn({ data: { slug: postSlug, html, enabled } })
+      setExisting(saved)
+      setMsg(t(enabled ? 'admin.egg.saved.on' : 'admin.egg.saved.ok'))
+    } catch (e) { setMsg(e instanceof Error ? e.message : t('admin.egg.err')) }
+    finally { setBusy(null) }
+  }
+
+  // 预览的是"已保存版本"：有未保存修改时先按当前启用状态静默保存再开新窗口
+  const preview = async () => {
+    if (!html.trim()) { setMsg(t('admin.egg.empty')); return }
+    setBusy('preview'); setMsg('')
+    try {
+      if (dirty) {
+        const saved = await savePostEggFn({ data: { slug: postSlug, html, enabled: existing?.enabled ?? false } })
+        setExisting(saved)
+      }
+      window.open(`/egg/${encodeURIComponent(postSlug)}?preview=1`, '_blank', 'noopener')
+    } catch (e) { setMsg(e instanceof Error ? e.message : t('admin.egg.err')) }
+    finally { setBusy(null) }
+  }
+
+  const remove = async () => {
+    if (!window.confirm(t('admin.egg.remove.confirm'))) return
+    setBusy('delete'); setMsg('')
+    try {
+      await deletePostEggFn({ data: { slug: postSlug } })
+      setExisting(null)
+      setHtml('')
+      setMsg(t('admin.egg.removed'))
+    } catch (e) { setMsg(e instanceof Error ? e.message : t('admin.egg.err')) }
+    finally { setBusy(null) }
+  }
+
+  const canSubmit = loaded && busy === null && html.trim().length > 0 && !scan.oversize
+
+  return (
+    <div className="panel egg-manager">
+      <div className="egg-head">
+        <h3 className="panel-title egg-title"><Egg size={15} />{t('admin.egg.title')}</h3>
+        {existing && (
+          <span className={existing.enabled ? 'chip unlock' : 'chip lock'}>
+            {existing.enabled ? t('admin.egg.state.on') : t('admin.egg.state.off')}
+          </span>
+        )}
+      </div>
+      <p className="muted small">{t('admin.egg.desc')}</p>
+      {existing ? (
+        <p className="muted small egg-meta">
+          {t('admin.egg.meta', {
+            size: formatBytes(new TextEncoder().encode(existing.html).length),
+            date: existing.updatedAt ? new Date(existing.updatedAt).toLocaleString(dateLocale) : '—',
+          })}
+        </p>
+      ) : loaded ? (
+        <p className="muted small">{t('admin.egg.state.none')}</p>
+      ) : null}
+
+      <div className="egg-upload-row">
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".html,.htm,text/html"
+          hidden
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) pickFile(f)
+            e.target.value = ''
+          }}
+        />
+        <button type="button" className="ghost-button" onClick={() => fileRef.current?.click()}>
+          <Upload size={14} />{t('admin.egg.file')}
+        </button>
+        <button type="button" className="ghost-button" disabled={busy !== null || !html.trim()} onClick={() => void preview()}>
+          <Eye size={14} />{busy === 'preview' ? t('admin.busy.processing') : t('admin.egg.preview')}
+        </button>
+      </div>
+
+      <textarea
+        className="egg-textarea"
+        value={html}
+        onChange={(e) => setHtml(e.target.value)}
+        placeholder={t('admin.egg.ph')}
+        spellCheck={false}
+        rows={9}
+      />
+
+      {html.trim() && (
+        <div className="egg-scan">
+          <strong>{t('admin.egg.scan.title')}</strong>
+          <ul>
+            <li className={scan.oversize ? 'bad' : ''}>
+              {t('admin.egg.scan.bytes')}: {formatBytes(scan.bytes)}
+              {scan.oversize && <> — {t('admin.egg.scan.oversize')}</>}
+            </li>
+            <li className={scan.scripts > 0 ? 'warn' : ''}>{'<script>'}: {scan.scripts}</li>
+            <li className={scan.handlers > 0 ? 'warn' : ''}>{t('admin.egg.scan.handlers')}: {scan.handlers}</li>
+            <li className={scan.iframes > 0 ? 'warn' : ''}>{'<iframe>'}: {scan.iframes}</li>
+            <li className={scan.hosts.length > 0 ? 'warn' : ''}>
+              {t('admin.egg.scan.links')}: {scan.hosts.length ? scan.hosts.join(', ') : t('admin.egg.scan.links.none')}
+            </li>
+          </ul>
+        </div>
+      )}
+
+      {msg && <div className="banner small">{msg}</div>}
+
+      <div className="cat-form-actions">
+        <button type="button" className="ghost-button" disabled={!canSubmit || busy !== null} onClick={() => void save(false)}>
+          {busy === 'save' ? t('admin.busy.saving') : t('admin.egg.save')}
+        </button>
+        <button type="button" className="primary-button" disabled={!canSubmit || busy !== null} onClick={() => void save(true)}>
+          {busy === 'saveOn' ? t('admin.busy.saving') : t('admin.egg.save.on')}
+        </button>
+        {existing && (
+          <button type="button" className="ghost-button small danger" disabled={busy !== null} onClick={() => void remove()}>
+            <Trash2 size={13} />{busy === 'delete' ? t('admin.busy.processing') : t('admin.egg.remove')}
+          </button>
+        )}
+      </div>
     </div>
   )
 }
@@ -1722,7 +2162,7 @@ export function UserManager() {
                     <div className="commenter-sig-preview">
                       <span>{t('admin.users.preview')}</span>
                       <div className="comment-signature markdown-body compact"
-                        dangerouslySetInnerHTML={{ __html: renderMarkdown(sigDrafts[row.userId] ?? row.signature) }} />
+                        dangerouslySetInnerHTML={{ __html: renderMarkdown(sigDrafts[row.userId] ?? row.signature, 2) }} />
                     </div>
                   )}
                   <div className="commenter-actions">
@@ -1971,7 +2411,7 @@ export function FeedbackManager() {
                   <time>{new Date(row.createdAt).toLocaleString(dateLocale, { dateStyle: 'medium', timeStyle: 'short' })}</time>
                 </div>
                 <div className="feedback-from">{t('admin.fb.from')}{row.email}</div>
-                <div className="feedback-body markdown-body compact" dangerouslySetInnerHTML={{ __html: renderMarkdown(row.body) }} />
+                <div className="feedback-body markdown-body compact" dangerouslySetInnerHTML={{ __html: renderMarkdown(row.body, 2) }} />
                 {row.attachments.length > 0 && (
                   <ul className="feedback-attachments">
                     {row.attachments.map((a) => (

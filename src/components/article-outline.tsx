@@ -24,13 +24,17 @@ function headingText(el: HTMLElement): string {
  * 平滑跳转），窄屏为底部玻璃抽屉（选中后自动收起）。
  * 收起：Esc / 点击抽屉外 / 再点按钮。仅在文章 ≥2 个标题时渲染。
  * 实际滚动容器可能是 window 或某个内层容器（每次计算时探测），二者通吃。
+ *
+ * SSR 直出：initialHeadings 由服务端从 markdown 产物提取，按钮进入首屏 HTML，
+ * 弱网下水合延迟/失败时按钮依然可见；水合后以 DOM 提取结果为准。
  */
-export function ArticleOutline({ containerRef, slug }: {
+export function ArticleOutline({ containerRef, slug, initialHeadings }: {
   containerRef: RefObject<HTMLDivElement | null>
   slug: string
+  initialHeadings?: OutlineHeading[]
 }) {
   const t = useT()
-  const [headings, setHeadings] = useState<OutlineHeading[]>([])
+  const [headings, setHeadings] = useState<OutlineHeading[]>(initialHeadings ?? [])
   const [open, setOpen] = useState(false)
   const [activeId, setActiveId] = useState('')
   const [docked, setDocked] = useState(false)
@@ -38,13 +42,35 @@ export function ArticleOutline({ containerRef, slug }: {
   const btnRef = useRef<HTMLButtonElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
-  // 提取 h2-h4（renderMarkdown 同步注入，mount 后 DOM 已就绪；slug 变化时重提取）
+  // 提取 h2-h4（renderMarkdown 同步注入，mount 后 DOM 已就绪；slug 变化时重提取）。
+  // 自愈：首次提取不足 2 个标题时监听 DOM 变化补提取（内容偶发延迟挂载），
+  // 凑齐 ≥2 个后停止观察；本身标题就少的文章随组件卸载一并清理。
   useEffect(() => {
     const root = containerRef.current
     if (!root) return
-    const els = Array.from(root.querySelectorAll<HTMLElement>('h2[id], h3[id], h4[id]'))
-    setHeadings(els.map((el) => ({ id: el.id, text: headingText(el), level: Number(el.tagName[1]) })))
+    const extract = (): OutlineHeading[] =>
+      Array.from(root.querySelectorAll<HTMLElement>('h2[id], h3[id], h4[id]'))
+        .map((el) => ({ id: el.id, text: headingText(el), level: Number(el.tagName[1]) }))
+    const same = (a: OutlineHeading[], b: OutlineHeading[]) =>
+      a.length === b.length && a.every((h, i) => h.id === b[i].id && h.text === b[i].text && h.level === b[i].level)
+
+    const first = extract()
+    setHeadings((prev) => (same(prev, first) ? prev : first))
     setActiveId('')
+    if (first.length >= 2) return
+
+    let raf = 0
+    const mo = new MutationObserver(() => {
+      if (raf) return
+      raf = requestAnimationFrame(() => {
+        raf = 0
+        const next = extract()
+        setHeadings((prev) => (same(prev, next) ? prev : next))
+        if (next.length >= 2) mo.disconnect()
+      })
+    })
+    mo.observe(root, { childList: true, subtree: true })
+    return () => { mo.disconnect(); if (raf) cancelAnimationFrame(raf) }
   }, [containerRef, slug])
 
   // 停靠模式跟随视口（CSS 断点一致）

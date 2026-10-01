@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { createServerFn } from '@tanstack/react-start'
+import { setResponseHeader } from '@tanstack/react-start/server'
 import { onAuthChange } from '@/lib/auth-client'
 import { z } from 'zod'
 import { FileDown, Lock, LockOpen } from 'lucide-react'
@@ -18,6 +19,68 @@ import {
   type PostData,
   type SiteSettings,
 } from '@/lib/utils'
+import {
+  ATTACHMENT_DIRECT_LINK_MAX_BYTES,
+  canStreamDownload,
+  downloadAttachmentLarge,
+} from '@/lib/attachment-download'
+
+/** 附件下载入口：>380MiB 且浏览器支持 FS API 时走 Range 分段续传下载器（带进度），
+ *  否则退化为普通链接（服务端窗口内的小文件不受影响；超大文件在不支持的浏览器
+ *  上由服务端截断并附提示，建议换 Chrome/Edge）。 */
+export function AttachmentDownloadButton({
+  att,
+  token,
+  className,
+  label,
+  pct,
+  onPct,
+  onError,
+}: {
+  att: AttachmentPublic
+  token?: string
+  className?: string
+  label: string
+  pct?: number
+  onPct?: (id: number, pct: number) => void
+  onError?: (msg: string) => void
+}) {
+  const t = useT()
+  // MTProto 直传（stream）单响应窗口仅 16MiB，任何大小都必须走 Range 下载器；
+  // tg1 bot 附件窗口 380MiB，仅超大文件需要
+  const needStream = att.stream === true || att.sizeBytes > ATTACHMENT_DIRECT_LINK_MAX_BYTES
+  if (!needStream || !canStreamDownload()) {
+    return (
+      <a className={className} href={attachmentDownloadUrl(att.id, token)} target="_blank" rel="noreferrer"
+        title={needStream ? t('attach.dl.big.hint') : undefined}>
+        <FileDown size={13} />{label}
+      </a>
+    )
+  }
+  const running = pct !== undefined
+  return (
+    <button
+      className={className}
+      disabled={running}
+      onClick={() => {
+        void downloadAttachmentLarge({
+          id: att.id,
+          token,
+          filename: att.filename,
+          sizeBytes: att.sizeBytes,
+          onPct: (p) => onPct?.(att.id, p),
+        }).then((r) => {
+          if (r === 'done' || r === 'cancelled') onPct?.(att.id, -1)
+        }).catch((e) => {
+          onPct?.(att.id, -1)
+          onError?.(t('attach.dl.fail', { msg: e instanceof Error ? e.message : String(e) }))
+        })
+      }}
+    >
+      <FileDown size={13} />{running ? t('attach.dl.progress', { pct }) : label}
+    </button>
+  )
+}
 
 // =================================================================
 // 公开 Server Functions（前台三条路由 + __root loader + 附件面板使用）
@@ -87,12 +150,28 @@ export const allCategoriesFn = createServerFn({ method: 'GET' }).handler(
   },
 )
 
-export const publishedPostsFn = createServerFn({ method: 'GET' }).handler(
-  async (): Promise<PostData[]> => {
+export const publishedPostsFn = createServerFn({ method: 'GET' })
+  .inputValidator((input) =>
+    z.object({
+      timeoutMs: z.number().optional(),
+      includeContent: z.boolean().optional(),
+      // 管理员发文/改稿后的客户端补拉：绕过内存/KV 直查 Neon，
+      // 避免跨 colo 5 分钟内存缓存导致"发完看不到"。普通访客不传，继续走缓存。
+      fresh: z.boolean().optional(),
+    }).parse(input ?? {}),
+  )
+  .handler(async ({ data }): Promise<PostData[]> => {
     const mod = await import('../../db/index.js')
-    return mod.listPublishedPosts()
-  },
-)
+    const { posts, dbOk } = await mod.listPublishedPostsDetailed(
+      data?.timeoutMs ?? 15_000,
+      data?.includeContent,
+      data?.fresh === true,
+    )
+    if (!dbOk) {
+      try { setResponseHeader('X-DB-Degraded', '1') } catch { /* 非 SSR 上下文忽略 */ }
+    }
+    return posts
+  })
 
 export const getPublishedPostFn = createServerFn({ method: 'GET' })
   .inputValidator((input) => z.object({ slug: z.string().min(1).max(160) }).parse(input))
@@ -101,14 +180,19 @@ export const getPublishedPostFn = createServerFn({ method: 'GET' })
     return mod.getPublishedPost(data.slug)
   })
 
-// 草稿预览（仅管理员）：后台仪表盘"预览"跳转 /posts/{slug} 时，
-// 未发布文章不在 publishedPostsFn 结果里，由本 fn 兜底；requireAdmin 拦截非管理员
+// 草稿/改稿预览（仅管理员）：?preview=1 时 loader 优先调用本 fn，
+// 返回 DB 中最新保存版本（无论 published/draft、无论是否已发布缓存），requireAdmin 拦截非管理员。
+// X-Preview 头让 worker 对该响应绕过全部 HTML 缓存并标记 no-store（改稿即时可见、不被 CDN 固化）。
 export const adminPostPreviewFn = createServerFn({ method: 'GET' })
   .inputValidator((input) => z.object({ slug: z.string().min(1).max(160) }).parse(input))
   .handler(async ({ data }): Promise<PostData | null> => {
     const mod = await import('../../db/index.js')
     await mod.requireAdmin()
-    return mod.getDbPostBySlug(data.slug)
+    const post = await mod.getDbPostBySlug(data.slug)
+    if (post) {
+      try { setResponseHeader('X-Preview', '1') } catch { /* 非 SSR 上下文忽略 */ }
+    }
+    return post
   })
 
 export const postAttachmentsFn = createServerFn({ method: 'GET' })
@@ -129,6 +213,14 @@ export const siteContentFn = createServerFn({ method: 'GET' }).handler(
   },
 )
 
+// 文章彩蛋开关（公开）：仅返回 {enabled}，不泄露 HTML 内容；正文页 loader 用它决定是否渲染 🥚
+export const postEggMetaFn = createServerFn({ method: 'GET' })
+  .inputValidator((input) => z.object({ slug: z.string().min(1).max(160) }).parse(input))
+  .handler(async ({ data }): Promise<{ enabled: boolean }> => {
+    const mod = await import('../../db/index.js')
+    return mod.getPostEggMeta(data.slug)
+  })
+
 export const publicServerFns = {
   settingsFn,
   allCategoriesFn,
@@ -138,6 +230,7 @@ export const publicServerFns = {
   postAttachmentsFn,
   adminStatusFn,
   siteContentFn,
+  postEggMetaFn,
 }
 
 // 保留 DEFAULT_SITE_* 以让调用方仍然从这里 import（未使用时不影响）
@@ -153,6 +246,8 @@ export function AttachmentPanel({ postSlug }: { postSlug: string }) {
   const [tokens, setTokens] = React.useState<Record<number, string>>({})
   const [passwordInputs, setPasswordInputs] = React.useState<Record<number, string>>({})
   const [busy, setBusy] = React.useState<number | null>(null)
+  // 大文件 JS 下载器进度（>380MiB 走 Range 分段 + File System Access 直写磁盘）
+  const [dlPct, setDlPct] = React.useState<Record<number, number>>({})
   // 附件登录门禁：guest 时仅展示引导登录面板，不拉取附件列表
   const [auth, setAuth] = React.useState<'checking' | 'authed' | 'guest'>('checking')
 
@@ -240,7 +335,15 @@ export function AttachmentPanel({ postSlug }: { postSlug: string }) {
                   tokens[att.id] ? (
                     <>
                       <span className="chip unlock"><LockOpen size={10} />{t('attach.unlocked')}</span>
-                      <a className="row-action primary" href={attachmentDownloadUrl(att.id, tokens[att.id])} target="_blank" rel="noreferrer"><FileDown size={13} />{t('attach.download')}</a>
+                      <AttachmentDownloadButton
+                        att={att}
+                        token={tokens[att.id]}
+                        className="row-action primary"
+                        label={t('attach.download')}
+                        pct={dlPct[att.id]}
+                        onPct={(id, p) => setDlPct((m) => { const n = { ...m }; if (p < 0) delete n[id]; else n[id] = p; return n })}
+                        onError={(msg) => setError(msg)}
+                      />
                     </>
                   ) : (
                     <>
@@ -257,12 +360,54 @@ export function AttachmentPanel({ postSlug }: { postSlug: string }) {
                     </>
                   )
                 ) : (
-                  <a className="row-action primary" href={attachmentDownloadUrl(att.id)} target="_blank" rel="noreferrer"><FileDown size={13} />{t('attach.download')}</a>
+                  <AttachmentDownloadButton
+                    att={att}
+                    className="row-action primary"
+                    label={t('attach.download')}
+                    pct={dlPct[att.id]}
+                    onPct={(id, p) => setDlPct((m) => { const n = { ...m }; if (p < 0) delete n[id]; else n[id] = p; return n })}
+                    onError={(msg) => setError(msg)}
+                  />
                 )}
               </div>
             </li>
           ))}
         </ul>
+      )}
+    </section>
+  )
+}
+
+// =================================================================
+// 前台：文章彩蛋入口（🥚 折叠按钮 + sandbox iframe 加载 /egg/:slug）
+// enabled 由正文页 loader 的 postEggMetaFn 提供；未启用时完全不渲染。
+// iframe sandbox 与 /egg/ 响应的 CSP sandbox 双重隔离：脚本可运行但
+// 处于不透明源，拿不到站点 cookie/存储；allow-same-origin 刻意不加。
+// =================================================================
+export function EggPanel({ postSlug, enabled }: { postSlug: string; enabled: boolean }) {
+  const t = useT()
+  const [open, setOpen] = React.useState(false)
+  if (!enabled) return null
+  return (
+    <section className={`egg-panel${open ? ' open' : ''}`}>
+      <button
+        type="button"
+        className="egg-trigger"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="egg-icon" aria-hidden="true">🥚</span>
+        <span>{open ? t('egg.collapse') : t('egg.reveal')}</span>
+        <span className="egg-hint">{t('egg.hint')}</span>
+      </button>
+      {open && (
+        <iframe
+          className="egg-frame"
+          src={`/egg/${encodeURIComponent(postSlug)}`}
+          title={t('egg.frame.title')}
+          loading="lazy"
+          sandbox="allow-scripts allow-modals allow-popups allow-popups-to-escape-sandbox allow-downloads"
+        />
       )}
     </section>
   )

@@ -1,17 +1,27 @@
 import { getUser, onAuthChange, type AuthUser } from '@/lib/auth-client'
 import {
+  Bold,
   CheckCircle2,
+  Code,
+  Code2,
   Eye,
+  HelpCircle,
+  Italic,
+  Link2,
+  List,
   MessageSquareText,
   Package,
   Pencil,
+  Quote,
   Search,
   Send,
+  Sigma,
   ShieldCheck,
   Trash2,
   X,
+  type LucideIcon,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { renderMarkdown } from '@/lib/markdown'
 import { useMermaidLazy } from '@/lib/use-mermaid'
 import { listUserTagsFn } from '@/components/user-fns'
@@ -69,6 +79,223 @@ function escapeRegExp(s: string) {
 
 const openAuth = () => window.dispatchEvent(new Event('open-auth'))
 
+// ── Markdown 评论编辑器：主编辑器 / 回复 / 编辑共用 ──
+const COMMENT_MAX = 4000
+
+type MdOp = 'bold' | 'italic' | 'code' | 'codeblock' | 'link' | 'list' | 'quote' | 'math'
+
+const MD_OPS: { op: MdOp; icon: LucideIcon; titleKey: string; sampleKey: string }[] = [
+  { op: 'bold', icon: Bold, titleKey: 'comments.md.bold', sampleKey: 'comments.sample.bold' },
+  { op: 'italic', icon: Italic, titleKey: 'comments.md.italic', sampleKey: 'comments.sample.italic' },
+  { op: 'code', icon: Code2, titleKey: 'comments.md.code', sampleKey: 'comments.sample.code' },
+  { op: 'codeblock', icon: Code, titleKey: 'comments.md.codeblock', sampleKey: 'comments.sample.codeblock' },
+  { op: 'link', icon: Link2, titleKey: 'comments.md.link', sampleKey: 'comments.sample.link' },
+  { op: 'list', icon: List, titleKey: 'comments.md.list', sampleKey: 'comments.sample.list' },
+  { op: 'quote', icon: Quote, titleKey: 'comments.md.quote', sampleKey: 'comments.sample.quote' },
+  { op: 'math', icon: Sigma, titleKey: 'comments.md.math', sampleKey: 'comments.sample.math' },
+]
+
+type MdSamples = { bold: string; italic: string; link: string }
+
+/** 在光标处包裹 / 插入 Markdown 语法；无选中文本时插入占位词并选中，打字即可替换 */
+function applyMdOp(
+  ta: HTMLTextAreaElement | null,
+  op: MdOp,
+  setter: (v: string) => void,
+  samples: MdSamples,
+) {
+  if (!ta) return
+  const { value } = ta
+  const start = ta.selectionStart
+  const end = ta.selectionEnd
+  const selected = value.slice(start, end)
+  let next = value
+  let selStart = start
+  let selEnd = end
+  const wrap = (left: string, right: string, placeholder: string) => {
+    const inner = selected || placeholder
+    next = value.slice(0, start) + left + inner + right + value.slice(end)
+    selStart = start + left.length
+    selEnd = selStart + inner.length
+  }
+  const prefixLines = (prefix: string, placeholder: string) => {
+    if (selected) {
+      const inner = selected.split('\n').map((line) => prefix + line).join('\n')
+      next = value.slice(0, start) + inner + value.slice(end)
+      selStart = start
+      selEnd = start + inner.length
+    } else {
+      // 无选区：在行首另起一行插入，避免拼接到半句话中间
+      const lineStart = value.lastIndexOf('\n', start - 1) + 1
+      const lead = lineStart === start ? '' : '\n'
+      const insert = `${lead}${prefix}${placeholder}\n`
+      next = value.slice(0, start) + insert + value.slice(end)
+      selStart = start + lead.length + prefix.length
+      selEnd = selStart + placeholder.length
+    }
+  }
+  switch (op) {
+    case 'bold': wrap('**', '**', samples.bold.replace(/\*\*/g, '')); break
+    case 'italic': wrap('*', '*', samples.italic.replace(/\*/g, '')); break
+    case 'code': wrap('`', '`', 'code'); break
+    case 'math': wrap('$', '$', 'E=mc^2'); break
+    case 'link': wrap('[', '](https://)', samples.link.replace(/[[\]]/g, '').replace('(https://)', '')); break
+    case 'list': prefixLines('- ', 'item'); break
+    case 'quote': prefixLines('> ', 'quote'); break
+    case 'codeblock': {
+      const inner = selected || '// code'
+      const lead = start > 0 && value[start - 1] !== '\n' ? '\n' : ''
+      const block = `${lead}\`\`\`\n${inner}\n\`\`\`\n`
+      next = value.slice(0, start) + block + value.slice(end)
+      selStart = start + lead.length + 4
+      selEnd = selStart + inner.length
+      break
+    }
+  }
+  setter(next)
+  requestAnimationFrame(() => {
+    ta.focus()
+    ta.setSelectionRange(selStart, selEnd)
+  })
+}
+
+type ComposerProps = {
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
+  ariaLabel: string
+  rows?: number
+  autoFocus?: boolean
+  variant?: 'main' | 'inline'
+  /** 文本区与底部操作行之间的提示（主编辑器的网盘口令提示） */
+  beforeFoot?: ReactNode
+  /** 底部右侧操作按钮（发布 / 取消 / 保存） */
+  actions?: ReactNode
+  /** Ctrl/Cmd+Enter 回调（通常等于点主按钮） */
+  onSubmit?: () => void
+}
+
+function MarkdownComposer({ value, onChange, placeholder, ariaLabel, rows = 5, autoFocus, variant = 'main', beforeFoot, actions, onSubmit }: ComposerProps) {
+  const t = useT()
+  const taRef = useRef<HTMLTextAreaElement>(null)
+  const [showPreview, setShowPreview] = useState(false)
+  const [showHelp, setShowHelp] = useState(false)
+  // 发表后内容清空时自动退出预览，回到编辑态
+  useEffect(() => {
+    if (!value) setShowPreview(false)
+  }, [value])
+
+  const samples: MdSamples = {
+    bold: t('comments.sample.bold'),
+    italic: t('comments.sample.italic'),
+    link: t('comments.sample.link'),
+  }
+  const run = (op: MdOp) => applyMdOp(taRef.current, op, onChange, samples)
+
+  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (!(event.metaKey || event.ctrlKey)) return
+    const key = event.key.toLowerCase()
+    // stopPropagation：Ctrl+K 同时是站内搜索面板的全局快捷键，输入框内优先插入链接
+    if (key === 'b' || key === 'i' || key === 'k' || (key === 'enter' && onSubmit && value.trim().length >= 2)) {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+    if (key === 'b') run('bold')
+    else if (key === 'i') run('italic')
+    else if (key === 'k') run('link')
+    else if (key === 'enter' && onSubmit && value.trim().length >= 2) onSubmit()
+  }
+
+  const len = value.length
+  const counterClass = len >= COMMENT_MAX ? 'full' : len >= COMMENT_MAX - 400 ? 'near' : ''
+
+  return (
+    <div className={`composer composer--${variant}`}>
+      <div className="composer-toolbar" role="toolbar" aria-label={t('comments.md.toolbar')}>
+        {MD_OPS.map(({ op, icon: Icon, titleKey }) => (
+          <button
+            key={op}
+            type="button"
+            className="composer-toolbar-btn"
+            title={t(titleKey)}
+            aria-label={t(titleKey)}
+            onClick={() => run(op)}
+          >
+            <Icon size={14} />
+          </button>
+        ))}
+        <span className="composer-toolbar-sep" aria-hidden="true" />
+        <StickerTrigger onInsert={(code) => insertAtCursor(taRef.current, code, onChange)} />
+        <button
+          type="button"
+          className={`composer-toolbar-btn${showHelp ? ' active' : ''}`}
+          title={t('comments.md.help')}
+          aria-label={t('comments.md.help')}
+          aria-pressed={showHelp}
+          onClick={() => setShowHelp((v) => !v)}
+        >
+          <HelpCircle size={14} />
+        </button>
+        <button
+          type="button"
+          className="composer-toolbar-btn composer-toolbar-text"
+          aria-pressed={showPreview}
+          onClick={() => setShowPreview((v) => !v)}
+        >
+          {showPreview ? <><Pencil size={13} />{t('comments.edit.tab')}</> : <><Eye size={13} />{t('comments.preview')}</>}
+        </button>
+      </div>
+
+      {showPreview ? (
+        <div
+          className="comment-preview markdown-body compact"
+          dangerouslySetInnerHTML={{ __html: renderMarkdown(value || `*${t('comments.preview.body')}*`, 2) }}
+        />
+      ) : (
+        <textarea
+          ref={taRef}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          onKeyDown={onKeyDown}
+          placeholder={placeholder}
+          aria-label={ariaLabel}
+          rows={rows}
+          autoFocus={autoFocus}
+          maxLength={COMMENT_MAX}
+        />
+      )}
+
+      {showHelp && !showPreview && (
+        <div className="composer-help">
+          <div className="composer-help-title">{t('comments.md.help.title')}</div>
+          <div className="composer-help-grid">
+            {MD_OPS.map(({ op, titleKey, sampleKey }) => (
+              <button key={op} type="button" className="composer-help-item" title={t(titleKey)} onClick={() => run(op)}>
+                <code>{t(sampleKey)}</code>
+                <span>{t(titleKey)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {beforeFoot}
+
+      <div className="composer-foot">
+        <span
+          className={`composer-counter ${counterClass}`.trim()}
+          title={counterClass === 'near' ? t('comments.counter.near') : undefined}
+          aria-live="polite"
+        >
+          {t('comments.counter', { n: len })}
+        </span>
+        <span className="composer-hint" aria-hidden="true">{t('comments.submit.hint')}</span>
+        {actions}
+      </div>
+    </div>
+  )
+}
+
 export function CommentSection({ postSlug }: { postSlug: string }) {
   const t = useT()
   const [comments, setComments] = useState<CommentItem[]>([])
@@ -78,9 +305,7 @@ export function CommentSection({ postSlug }: { postSlug: string }) {
   // 身份标签定义（评论昵称右侧外显装饰；所有视角可见）
   const [tags, setTags] = useState<UserTag[]>([])
   const [body, setBody] = useState('')
-  const bodyRef = useRef<HTMLTextAreaElement>(null)
   const sectionRef = useRef<HTMLElement>(null)
-  const [preview, setPreview] = useState(false)
   const [notice, setNotice] = useState('')
   const [sending, setSending] = useState(false)
   const [loaded, setLoaded] = useState(false)
@@ -100,9 +325,17 @@ export function CommentSection({ postSlug }: { postSlug: string }) {
   const [collapsedMap, setCollapsedMap] = useState<Record<number, boolean>>({})
   const [dateModeMap, setDateModeMap] = useState<Record<number, 'created' | 'edited'>>({})
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (forceFresh = false) => {
     try {
-      const response = await fetch(`/api/comments?post=${encodeURIComponent(postSlug)}`)
+      const response = await fetch(
+        `/api/comments?post=${encodeURIComponent(postSlug)}${forceFresh ? '&fresh=1' : ''}`,
+        {
+          // 首屏允许 stale-while-revalidate（旧列表秒出，后台刷新）；
+          // 发/编/删后强制 no-store + fresh=1：浏览器与服务端缓存（跨 colo 的
+          // 60s 内存层）双双绕过，保证自己的操作立即可见。
+          cache: forceFresh ? 'no-store' : 'default',
+        },
+      )
       const data = await response.json()
       setComments(data.comments || [])
       setLoaded(true)
@@ -138,7 +371,7 @@ export function CommentSection({ postSlug }: { postSlug: string }) {
   }
 
   const reload = async (msg?: string) => {
-    await load()
+    await load(true)
     if (msg) flash(msg)
   }
 
@@ -154,7 +387,7 @@ export function CommentSection({ postSlug }: { postSlug: string }) {
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || t('comments.err.submit'))
-      setBody(''); setPreview(false)
+      setBody('')
       await reload(t('comments.published'))
     } catch (error) { setNotice(error instanceof Error ? error.message : t('comments.err.submit')) }
     finally { setSending(false) }
@@ -358,10 +591,22 @@ export function CommentSection({ postSlug }: { postSlug: string }) {
       </div>
 
       <div className="comment-editor">
-        <div className="comment-editor-head"><span>{me.email || user ? `${me.email || user?.email} · ${t('comments.verified.suffix')}` : t('comments.guest.verification')}</span><div className="comment-editor-tools"><StickerTrigger onInsert={(code) => insertAtCursor(bodyRef.current, code, setBody)} /><button onClick={() => setPreview(!preview)}><Eye size={14} />{preview ? t('comments.edit.tab') : t('comments.preview')}</button></div></div>
-        {preview ? <div className="comment-preview markdown-body compact" dangerouslySetInnerHTML={{ __html: renderMarkdown(body || `*${t('comments.preview.body')}*`) }} /> : <textarea ref={bodyRef} value={body} onChange={(event) => setBody(event.target.value)} placeholder={t('comments.editor.ph')} rows={6} />}
-        <div className="comment-pickup-tip"><Package size={12} /><span>{t('comments.pickup.tip')}</span></div>
-        <div className="comment-editor-foot"><span>{t('comments.foot')}</span><button onClick={submit} disabled={sending || body.trim().length < 2}>{me.email || user ? <><Send size={14} />{sending ? t('comments.publishing') : t('comments.publish')}</> : t('comments.verify')}</button></div>
+        <div className="comment-editor-head"><span>{me.email || user ? `${me.email || user?.email} · ${t('comments.verified.suffix')}` : t('comments.guest.verification')}</span></div>
+        <MarkdownComposer
+          variant="main"
+          value={body}
+          onChange={setBody}
+          placeholder={t('comments.editor.ph')}
+          ariaLabel={t('comments.editor.aria')}
+          rows={6}
+          onSubmit={submit}
+          beforeFoot={<div className="composer-tip"><Package size={12} /><span>{t('comments.pickup.tip')}</span></div>}
+          actions={
+            <button type="button" className="primary" onClick={submit} disabled={sending || body.trim().length < 2}>
+              {me.email || user ? <><Send size={14} />{sending ? t('comments.publishing') : t('comments.publish')}</> : t('comments.verify')}
+            </button>
+          }
+        />
       </div>
     </section>
   )
@@ -401,12 +646,10 @@ function CommentCard({ comment: c, replies, me, tags, isCollapsed, toggleCollaps
   const [replyOpen, setReplyOpen] = useState(false)
   const [replyBody, setReplyBody] = useState('')
   const [replyBusy, setReplyBusy] = useState(false)
-  const replyRef = useRef<HTMLTextAreaElement>(null)
   const [actionError, setActionError] = useState('')
   const [editing, setEditing] = useState(false)
   const [editBody, setEditBody] = useState('')
   const [editBusy, setEditBusy] = useState(false)
-  const editRef = useRef<HTMLTextAreaElement>(null)
 
   const submitReply = async () => {
     if (!me.email) { openAuth(); return }
@@ -466,7 +709,7 @@ function CommentCard({ comment: c, replies, me, tags, isCollapsed, toggleCollaps
           <div
             className="comment-signature markdown-body compact"
             title={c.signature}
-            dangerouslySetInnerHTML={{ __html: renderMarkdown(c.signature) }}
+            dangerouslySetInnerHTML={{ __html: renderMarkdown(c.signature, 2) }}
           />
         )}
 
@@ -475,17 +718,26 @@ function CommentCard({ comment: c, replies, me, tags, isCollapsed, toggleCollaps
         ) : (
           <>
             <div className={collapsed ? 'comment-collapse collapsed' : 'comment-collapse'}>
-              <div className="markdown-body compact" dangerouslySetInnerHTML={{ __html: renderMarkdown(c.body) }} />
+              <div className="markdown-body compact" dangerouslySetInnerHTML={{ __html: renderMarkdown(c.body, 2) }} />
             </div>
             {long && <button className="comment-expand" onClick={() => toggleCollapse(c)}>{collapsed ? t('comments.expand.full') : t('comments.collapse')}</button>}
             {editing ? (
               <div className="comment-inline-editor">
-                <textarea ref={editRef} value={editBody} onChange={(event) => setEditBody(event.target.value)} rows={5} autoFocus />
-                <div className="comment-inline-editor-foot">
-                  <StickerTrigger onInsert={(code) => insertAtCursor(editRef.current, code, setEditBody)} />
-                  <button type="button" className="ghost" onClick={() => { setEditing(false); setEditBody('') }}>{t('common.cancel')}</button>
-                  <button type="button" className="primary" disabled={editBusy || editBody.trim().length < 2} onClick={() => void saveEdit()}>{editBusy ? t('comments.saving') : t('comments.save.edit')}</button>
-                </div>
+                <MarkdownComposer
+                  variant="inline"
+                  value={editBody}
+                  onChange={setEditBody}
+                  ariaLabel={t('comments.edit.aria')}
+                  rows={5}
+                  autoFocus
+                  onSubmit={() => void saveEdit()}
+                  actions={
+                    <>
+                      <button type="button" onClick={() => { setEditing(false); setEditBody('') }}>{t('common.cancel')}</button>
+                      <button type="button" className="primary" disabled={editBusy || editBody.trim().length < 2} onClick={() => void saveEdit()}>{editBusy ? t('comments.saving') : t('comments.save.edit')}</button>
+                    </>
+                  }
+                />
               </div>
             ) : (
               <div className="comment-actions">
@@ -503,12 +755,22 @@ function CommentCard({ comment: c, replies, me, tags, isCollapsed, toggleCollaps
             {replyOpen && !editing && (
               <div className="comment-inline-editor">
                 <div className="comment-inline-hint">{t('comments.reply.hint', { name: c.userName })}</div>
-                <textarea ref={replyRef} value={replyBody} onChange={(event) => setReplyBody(event.target.value)} rows={4} placeholder={t('comments.reply.ph')} autoFocus />
-                <div className="comment-inline-editor-foot">
-                  <StickerTrigger onInsert={(code) => insertAtCursor(replyRef.current, code, setReplyBody)} />
-                  <button type="button" className="ghost" onClick={() => { setReplyOpen(false); setReplyBody(''); setActionError('') }}>{t('common.cancel')}</button>
-                  <button type="button" className="primary" disabled={replyBusy || replyBody.trim().length < 2} onClick={() => void submitReply()}><Send size={12} />{replyBusy ? t('comments.publishing.reply') : me.email ? t('comments.reply.pub') : t('comments.reply.login')}</button>
-                </div>
+                <MarkdownComposer
+                  variant="inline"
+                  value={replyBody}
+                  onChange={setReplyBody}
+                  placeholder={t('comments.reply.ph')}
+                  ariaLabel={t('comments.reply.aria')}
+                  rows={4}
+                  autoFocus
+                  onSubmit={() => void submitReply()}
+                  actions={
+                    <>
+                      <button type="button" onClick={() => { setReplyOpen(false); setReplyBody(''); setActionError('') }}>{t('common.cancel')}</button>
+                      <button type="button" className="primary" disabled={replyBusy || replyBody.trim().length < 2} onClick={() => void submitReply()}><Send size={12} />{replyBusy ? t('comments.publishing.reply') : me.email ? t('comments.reply.pub') : t('comments.reply.login')}</button>
+                    </>
+                  }
+                />
               </div>
             )}
           </>

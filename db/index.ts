@@ -5,7 +5,9 @@ import { getCookie } from '@tanstack/react-start/server'
 import { allPosts } from 'content-collections'
 
 import * as schema from './schema.js'
-import { getEnv } from '../src/lib/server-env.js'
+import { getEnv, getWorkerOrigin } from '../src/lib/server-env.js'
+import { TtlCache, safeKvGet, safeKvPut, safeKvDelete, edgeCacheDelete } from '../src/lib/cache.js'
+import { deleteAttachmentFiles } from '../src/lib/attachment-store.js'
 import {
   DEFAULT_SITE_DESCRIPTION,
   DEFAULT_SITE_TITLE,
@@ -67,6 +69,34 @@ function isUndefinedTableError(e: unknown): boolean {
   return /42P01|relation "[^"]+" does not exist|undefined_table/.test(msg)
 }
 
+/**
+ * 查询韧性包装：每次尝试带硬超时，超时/失败后短暂等待再重试。
+ *
+ * 背景（实测 2026-09）：CF Workers（美西/美东 colos）到 Neon 新加坡端点的
+ * 单请求时延在 232ms～90s+ 之间剧烈抖动，偶发整个 fetch failed / 永久挂起；
+ * 同一时刻本机直连同一端点稳定 <1.5s。底层 fetch 不主动失败时，整个 Worker
+ * 请求会被拖到 60-90s（边缘 522/用户看到 Failed query）。
+ * 因此读查询必须主动超时并重试——实测两次尝试中通常有一次快速成功。
+ */
+export async function withDbRetry<T>(
+  fn: () => Promise<T>,
+  opts?: { timeoutMs?: number; retries?: number; delayMs?: number },
+): Promise<T> {
+  const timeoutMs = opts?.timeoutMs ?? 8000
+  const retries = opts?.retries ?? 1
+  const delayMs = opts?.delayMs ?? 300
+  let lastError: unknown
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await withDbTimeout(fn(), timeoutMs, 'DB 查询')
+    } catch (e) {
+      lastError = e
+      if (attempt < retries) await new Promise((r) => setTimeout(r, delayMs))
+    }
+  }
+  throw lastError
+}
+
 // 旧名称兼容（探测脚本等外部引用）
 export const netlifyDbConfigured = isDbConfigured
 
@@ -90,8 +120,11 @@ function buildClient(): Db {
     throw new Error('数据库未配置：缺少 DATABASE_URL（Neon 连接串）。')
   }
   try {
-    // neon() 构造无 I/O；每条查询走一个 HTTPS POST
-    const sqlClient = neon(connectionString)
+    // neon() 构造无 I/O；每条查询走一个 HTTPS POST（或 WebSocket，若已配置）
+    // cf.keepalive: 启用 CF 内部连接复用，减少 TLS 握手
+    const sqlClient = neon(connectionString, {
+      fetchOptions: { cf: { keepalive: true } },
+    })
     // drizzle 1.0 beta：client 放在配置对象中（neon-http 驱动）
     return drizzle({ client: sqlClient, schema })
   } catch (e) {
@@ -117,6 +150,29 @@ export function useDb(): Db {
   // 不能在此 fire-and-forget（会触发 workerd 跨请求 Promise 上下文取消 → Worker hung）
   if (!_db) _db = buildClient()
   return _db
+}
+
+/**
+ * 预热 Neon compute 并刷新 KV 缓存。
+ * 由 Workers Cron 每 5 分钟调用，确保：
+ *   1. Neon compute 保持活跃（避免冷启动 5~10s 唤醒延迟）——每次都执行
+ *   2. 文章列表 KV 每 20 分钟刷新一次（refreshCache=true 时），
+ *      前台永远从 KV 读（<50ms），不查 Neon，同时把 KV 写入压到 72 次/天。
+ */
+export async function warmupDb(refreshCache = true): Promise<void> {
+  if (!isDbConfigured()) return
+  try {
+    // 1. SELECT 1 唤醒/维持 compute（8s 超时）——每次 cron 都跑，无 KV 开销
+    await withDbTimeout(useDb().execute(sql`SELECT 1`), 8_000, 'DB 预热')
+  } catch { /* 预热失败静默忽略 */ }
+
+  if (!refreshCache) return
+  try {
+    // 2. 每 20 分钟刷新一次文章列表 KV（forceRefresh 跳过内存/KV，查 DB 并写 KV）。
+    // cron 有 30s 执行预算：SELECT 1 占 8s，留给文章查询 ~20s。
+    // 用 10s 超时 + 1 次重试（10s+0.3s+10s=20.3s），确保在预算内完成并写入 KV。
+    await listPublishedPostsDetailed(10_000, false, true)
+  } catch { /* KV 刷新失败不影响下次 cron */ }
 }
 
 // 幂等建表（内部版，传入客户端调用；之前导出的 ensureSchema 保持兼容）
@@ -173,6 +229,8 @@ const schemaStatements = [
     sql`ALTER TABLE comments ADD COLUMN IF NOT EXISTS edited_at TIMESTAMPTZ`,
     sql`ALTER TABLE comments ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'published'`,
     sql`CREATE INDEX IF NOT EXISTS comments_parent_id_idx ON comments (parent_id)`,
+    // 评论搜索（我的评论/管理员按人搜索）高频过滤列
+    sql`CREATE INDEX IF NOT EXISTS comments_user_id_idx ON comments (user_id, status, created_at DESC)`,
     sql`CREATE TABLE IF NOT EXISTS posts (
       id SERIAL PRIMARY KEY,
       slug TEXT NOT NULL UNIQUE,
@@ -207,6 +265,7 @@ const schemaStatements = [
       post_slug TEXT NOT NULL,
       filename TEXT NOT NULL,
       content TEXT NOT NULL DEFAULT '',
+      storage_key TEXT,
       mime_type TEXT NOT NULL DEFAULT 'application/octet-stream',
       size_bytes INTEGER NOT NULL DEFAULT 0,
       password_hash TEXT,
@@ -214,7 +273,15 @@ const schemaStatements = [
       downloads INTEGER NOT NULL DEFAULT 0,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`,
+    sql`ALTER TABLE attachments ADD COLUMN IF NOT EXISTS storage_key TEXT`,
     sql`CREATE INDEX IF NOT EXISTS attachments_post_slug_idx ON attachments (post_slug)`,
+    // 文章彩蛋（整页静态 HTML，公开访问仅当 enabled 且文章已发布）
+    sql`CREATE TABLE IF NOT EXISTS post_eggs (
+      post_slug TEXT PRIMARY KEY,
+      html TEXT NOT NULL DEFAULT '',
+      enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
     sql`CREATE TABLE IF NOT EXISTS settings (
       id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
       site_title TEXT,
@@ -724,7 +791,7 @@ type DbPostRow = {
   slug: string
   title: string
   summary: string
-  content: string
+  content?: string
   categories: string[]
   status: string
   date: string
@@ -734,15 +801,16 @@ type DbPostRow = {
   updatedAt: Date | string | null
 }
 function mapDbPost(row: DbPostRow): PostData {
+  const content = row.content || ''
   return {
     id: row.id,
     slug: row.slug,
     title: row.title,
     summary: row.summary,
-    content: row.content,
+    content,
     categories: [...row.categories],
     date: row.date,
-    readingTime: readingTime(row.content),
+    readingTime: readingTime(content),
     status: (row.status === 'draft' ? 'draft' : 'published') as PostStatus,
     source: 'db',
     updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
@@ -751,31 +819,160 @@ function mapDbPost(row: DbPostRow): PostData {
   }
 }
 
-export async function listDbPosts(includeDrafts = true): Promise<PostData[]> {
+export async function listDbPosts(includeDrafts = true, includeContent = false, timeoutMs = 12_000): Promise<PostData[]> {
   // 本地无 DB：仅静态文章（listPublishedPosts 会自动合并 allPosts）
   if (!isDbConfigured()) return []
   // 读优先：直接 SELECT，表不存在才建表重试（稳态零 DDL）
+  // withDbRetry：CF→Neon 长尾挂起/偶发失败时主动超时并重试（仪表盘核心查询）
+  // 列表查询默认不取 content 大字段：首页卡片只用 summary + readingTime，
+  // 减少 CF→Neon 传输量（content 可能很大，是列表查询慢的主因之一）。
+  // 搜索面板需要全文搜索时传 includeContent=true。
+  const baseCols = {
+    id: schema.posts.id,
+    slug: schema.posts.slug,
+    title: schema.posts.title,
+    summary: schema.posts.summary,
+    ...(includeContent ? { content: schema.posts.content } : {}),
+    categories: schema.posts.categories,
+    status: schema.posts.status,
+    date: schema.posts.date,
+    language: schema.posts.language,
+    translationKey: schema.posts.translationKey,
+    createdAt: schema.posts.createdAt,
+    updatedAt: schema.posts.updatedAt,
+  }
   return readWithSchemaFallback(() =>
-    (includeDrafts
-      ? useDb().select().from(schema.posts).orderBy(desc(schema.posts.date), desc(schema.posts.id))
-      : useDb()
-          .select()
-          .from(schema.posts)
-          .where(eq(schema.posts.status, 'published'))
-          .orderBy(desc(schema.posts.date), desc(schema.posts.id)))
-      .then((rows) => rows.map(mapDbPost)))
+    withDbRetry(
+      () =>
+        (includeDrafts
+          ? useDb().select(baseCols).from(schema.posts).orderBy(desc(schema.posts.date), desc(schema.posts.id))
+          : useDb()
+              .select(baseCols)
+              .from(schema.posts)
+              .where(eq(schema.posts.status, 'published'))
+              .orderBy(desc(schema.posts.date), desc(schema.posts.id)))
+          .then((rows) => rows.map(mapDbPost)),
+      { timeoutMs },
+    ))
 }
 
-export async function listPublishedPosts(): Promise<PostData[]> {
-  // DB 部分 9s 超时：冷启动超时后降级为仅静态文章，页面仍可正常渲染
-  const dbPosts = await withDbTimeout(listDbPosts(false), 9_000, '读取文章列表').catch(() => [])
-  const seen = new Set(dbPosts.map((p) => p.slug))
+// 已发布列表缓存：悬停预取（翻译组 siblings 会调 publishedPostsFn）
+// 可能在首页卡片上连续触发，避免每次都打 Neon 全表。发布/改稿/删除时主动失效。
+// 省 KV 额度：内存与 KV 使用不同 TTL——
+//   内存 5 分钟（同 isolate 零成本）；KV 30 分钟，cron 每 20 分钟刷新一次，
+//   KV key 永不过期但内容持续更新。文章变更走主动失效，不受 TTL 影响。
+const PUBLISHED_MEM_TTL = 300_000 // 进程内存：5 分钟
+const PUBLISHED_KV_TTL = 1_800_000 // KV：30 分钟（cron 20 分钟刷新，key 持续存活）
+// 降级结果的缓存 TTL 更短：SSR 降级后客户端补拉通常在几秒内发起，
+// 若仍命中降级缓存，用户会持续看不到 DB 文章。3s 后强制重查 Neon。
+const PUBLISHED_DEGRADED_TTL = 3_000
+let publishedCache: { at: number; data: PostData[]; dbOk: boolean; ttl: number } | null = null
+/**
+ * 文章写入/删除后主动失效全部相关缓存。
+ * @param slug       变更文章的 slug（清单篇页 + 单篇缓存）
+ * @param categories 变更后的分类名列表（清对应分类页；不传则无法精确清分类页）
+ *
+ * 覆盖：进程内存（本 isolate）→ KV（跨 colo，html:* / posts:published / post:*）
+ *      → caches.default（当前 colo 的边缘 HTML）。其它 colo 的边缘副本只能等
+ *      s-maxage（10 分钟）自然过期；朋友代理账号的 CDN 缓存同理。
+ */
+export function invalidatePublishedCache(slug?: string, categories?: string[]) {
+  publishedCache = null
+  singlePostCache.clear()
+  const kv = getEnv().SG_CACHE
+  // KV 删除经熔断器：写额度用尽时静默跳过，旧键按 TTL 自然过期，不影响发文
+  void safeKvDelete(kv, 'posts:published')
+  void safeKvDelete(kv, 'html:/')
+  void safeKvDelete(kv, 'html:/archive')
+  const paths = ['/', '/archive']
+  if (slug) {
+    void safeKvDelete(kv, `html:/posts/${slug}`)
+    void safeKvDelete(kv, `post:${slug}`)
+    paths.push(`/posts/${slug}`)
+  }
+  for (const name of categories ?? []) {
+    const enc = encodeURIComponent(name)
+    void safeKvDelete(kv, `html:/category/${enc}`)
+    paths.push(`/category/${enc}`)
+  }
+  // 当前 colo 边缘 HTML（键与 worker.ts edgeCacheUrl 同口径：origin + pathname）
+  const origin = getWorkerOrigin()
+  if (origin) {
+    for (const p of paths) void edgeCacheDelete(`${origin}${p}`)
+  }
+}
+
+// 单篇文章内存缓存（同 isolate 5 分钟，零 KV 成本；容量 40 防止长文 content 撑大内存）；
+// HTML 边缘缓存命中时根本不会走到这里，这里只兜 SSR 场景（冷 colo/HTML KV 也 miss）。
+const SINGLE_POST_MEM_TTL = 300_000
+const singlePostCache = new TtlCache<PostData>(40)
+
+/**
+ * 已发布文章列表（DB + 静态合并）。
+ *
+ * 三级缓存策略（应对 CF→Neon 高延迟 8~15s）：
+ *   1. 进程内存缓存（15~60s）：同一 Worker 实例内零延迟
+ *   2. Cloudflare KV（60s）：跨 colo 共享，读延迟 <50ms，绕过 Neon
+ *   3. Neon DB：miss 时查询并回填 KV + 内存
+ *
+ * @param timeoutMs DB 部分的硬超时；客户端补拉可传更长预算（20~30s），
+ *                  SSR 保持 12s 在快速降级与容忍 Neon 抖动间取平衡。
+ * @returns dbOk=false 表示 DB 部分超时/失败，data 仅含静态文章（降级结果）。
+ */
+export async function listPublishedPostsDetailed(timeoutMs = 15_000, includeContent = false, forceRefresh = false): Promise<{ posts: PostData[]; dbOk: boolean }> {
+  const kv = getEnv().SG_CACHE
+  const kvKey = 'posts:published'
+  // 1. 进程内存缓存（forceRefresh 时跳过，强制查 DB 并刷新 KV）
+  if (!forceRefresh && publishedCache && Date.now() - publishedCache.at < publishedCache.ttl) {
+    // 内存缓存始终不含 content；若请求需要 content，跳过缓存查 DB
+    if (!includeContent) {
+      return { posts: publishedCache.data, dbOk: publishedCache.dbOk }
+    }
+  }
+
+  // 2. Cloudflare KV 缓存（跨 colo 共享，绕过 CF→Neon 高延迟链路）
+  // KV 中只存不含 content 的版本；需要 content 时跳过 KV 直接查 DB
+  // forceRefresh 时跳过 KV 读取，强制查 DB 刷新
+  // safeKvGet 带熔断器：KV 日限额用尽时直接返回 null，无感降级到 DB
+  if (!includeContent && !forceRefresh) {
+    const cached = await safeKvGet(kv, kvKey)
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached) as { posts: PostData[]; dbOk: boolean; at: number }
+        if (parsed.dbOk && Date.now() - parsed.at < PUBLISHED_KV_TTL) {
+          publishedCache = { at: parsed.at, data: parsed.posts, dbOk: true, ttl: PUBLISHED_MEM_TTL }
+          return { posts: parsed.posts, dbOk: true }
+        }
+      } catch { /* 缓存内容损坏则忽略，降级 DB 查询 */ }
+    }
+  }
+
+  // 3. Neon DB 查询（由 withDbRetry 控制超时 + 重试，不再套外层 withDbTimeout）
+  const dbPosts = await listDbPosts(false, includeContent, timeoutMs)
+    .then((rows) => ({ rows, ok: true as const }))
+    .catch(() => ({ rows: [] as PostData[], ok: false as const }))
+  const seen = new Set(dbPosts.rows.map((p) => p.slug))
   const merged = [
-    ...dbPosts,
+    ...dbPosts.rows,
     ...allPosts.filter((p) => !seen.has(p.slug)).map(mapStaticPost),
   ]
   merged.sort((a, b) => b.date.localeCompare(a.date))
-  return merged
+  const ttl = dbPosts.ok ? PUBLISHED_MEM_TTL : PUBLISHED_DEGRADED_TTL
+  publishedCache = { at: Date.now(), data: merged, dbOk: dbPosts.ok, ttl }
+
+  // 成功结果回填 KV（仅不含 content 的版本，跨 colo 共享）
+  // 正常情况下该分支几乎只由 cron（每 20 分钟）走到：用户请求在第 2 步即命中 KV。
+  // safeKvPut 带熔断器 + 限额错误识别，写额度用尽时静默跳过，不影响响应。
+  if (dbPosts.ok && !includeContent) {
+    await safeKvPut(kv, kvKey, JSON.stringify({ posts: merged, dbOk: true, at: Date.now() }),
+      Math.ceil(PUBLISHED_KV_TTL / 1000))
+  }
+
+  return { posts: merged, dbOk: dbPosts.ok }
+}
+
+export async function listPublishedPosts(): Promise<PostData[]> {
+  return (await listPublishedPostsDetailed()).posts
 }
 
 export async function getPublishedPost(slug: string): Promise<PostData | null> {
@@ -784,30 +981,74 @@ export async function getPublishedPost(slug: string): Promise<PostData | null> {
   if (staticHit) return mapStaticPost(staticHit)
   // 静态未命中再查库（仅按 slug + status='published' 单条查询，不拉全表）
   if (!isDbConfigured()) return null
-  // 读优先：直接 SELECT，表不存在才建表重试
-  return readWithSchemaFallback(async () => {
-    const rows = await useDb()
-      .select()
-      .from(schema.posts)
-      .where(and(eq(schema.posts.slug, slug), eq(schema.posts.status, 'published')))
-      .limit(1)
+
+  // L1：进程内存（同 isolate 5 分钟，零 KV 成本）
+  const memHit = singlePostCache.get(slug)
+  if (memHit) return memHit
+
+  // L2：KV 单篇文章缓存（跨 colo，熔断时 safeKvGet 返回 null → 直接查 DB）
+  const kv = getEnv().SG_CACHE
+  const postKvKey = `post:${slug}`
+  const cached = await safeKvGet(kv, postKvKey)
+  if (cached) {
+    try {
+      const post = JSON.parse(cached) as PostData
+      singlePostCache.set(slug, post, SINGLE_POST_MEM_TTL)
+      return post
+    } catch { /* 缓存内容损坏则忽略 */ }
+  }
+
+  // L3：直接 SELECT，表不存在才建表重试
+  // 单条主键查询：cron 保活下暖态 <500ms，8s 超时 + 1 次重试（最坏 16.3s）已极宽容，
+  // 避免冷 colo 文章页 SSR 被长尾查询拖到 30s+（HTML 边缘缓存会兜住后续访问）
+  const post = await readWithSchemaFallback(async () => {
+    const rows = await withDbRetry(
+      () => useDb()
+        .select()
+        .from(schema.posts)
+        .where(and(eq(schema.posts.slug, slug), eq(schema.posts.status, 'published')))
+        .limit(1),
+      { timeoutMs: 8_000 },
+    )
     return rows[0] ? mapDbPost(rows[0]) : null
+  }).catch(async () => {
+    // DB 超时/故障：强制读一次 KV 过期快照（stale-while-error）。
+    // force=true 即使读熔断器打开也尝试，这是数据层最后防线（失败不产生费用）。
+    const stale = await safeKvGet(kv, postKvKey, true)
+    if (stale) {
+      try { return JSON.parse(stale) as PostData } catch { /* ignore */ }
+    }
+    return null
   })
+  // 回填内存 + KV（仅成功结果；KV 写经熔断器，限额用尽时静默跳过）
+  if (post) {
+    singlePostCache.set(slug, post, SINGLE_POST_MEM_TTL)
+    await safeKvPut(kv, postKvKey, JSON.stringify(post), 3600)
+  }
+  return post
 }
 
 export async function getDbPostById(id: number): Promise<PostData | null> {
   if (!isDbConfigured()) return null
-  await ensureSchema()
-  const rows = await useDb().select().from(schema.posts).where(eq(schema.posts.id, id)).limit(1)
-  return rows[0] ? mapDbPost(rows[0]) : null
+  return readWithSchemaFallback(async () => {
+    const rows = await withDbRetry(
+      () => useDb().select().from(schema.posts).where(eq(schema.posts.id, id)).limit(1),
+      { timeoutMs: 7000 },
+    )
+    return rows[0] ? mapDbPost(rows[0]) : null
+  })
 }
 
 /** 按 slug 取库内文章（含草稿）；调用方自行做管理员鉴权 */
 export async function getDbPostBySlug(slug: string): Promise<PostData | null> {
   if (!isDbConfigured()) return null
-  await ensureSchema()
-  const rows = await useDb().select().from(schema.posts).where(eq(schema.posts.slug, slug)).limit(1)
-  return rows[0] ? mapDbPost(rows[0]) : null
+  return readWithSchemaFallback(async () => {
+    const rows = await withDbRetry(
+      () => useDb().select().from(schema.posts).where(eq(schema.posts.slug, slug)).limit(1),
+      { timeoutMs: 7000 },
+    )
+    return rows[0] ? mapDbPost(rows[0]) : null
+  })
 }
 
 export function staticSlugs(): Set<string> {
@@ -888,6 +1129,13 @@ export async function savePost(input: PostSaveInput): Promise<{ id: number; slug
         .where(and(eq(schema.posts.slug, translationKey), isNull(schema.posts.translationKey)))
     : Promise.resolve()
   if (input.id) {
+    // 带出旧分类：编辑时被移除的分类页同样要失效（否则该页仍留旧文章条目）
+    const oldRows = await useDb()
+      .select({ categories: schema.posts.categories })
+      .from(schema.posts)
+      .where(eq(schema.posts.id, input.id))
+      .limit(1)
+    const allCats = Array.from(new Set([...categories, ...(oldRows[0]?.categories ?? [])]))
     await Promise.all([
       useDb()
         .update(schema.posts)
@@ -906,6 +1154,7 @@ export async function savePost(input: PostSaveInput): Promise<{ id: number; slug
         .where(eq(schema.posts.id, input.id)),
       anchorPromise,
     ])
+    invalidatePublishedCache(slug, allCats)
     return { id: input.id, slug }
   }
   const [ins] = await useDb()
@@ -923,21 +1172,131 @@ export async function savePost(input: PostSaveInput): Promise<{ id: number; slug
     })
     .returning({ id: schema.posts.id, slug: schema.posts.slug })
   await anchorPromise
+  invalidatePublishedCache(ins.slug, categories)
   return { id: ins.id, slug: ins.slug }
 }
 
 export async function deletePost(id: number): Promise<void> {
   await requireAdmin()
   await ensureSchema()
-  const rows = await useDb().select({ postSlug: schema.posts.slug }).from(schema.posts).where(eq(schema.posts.id, id)).limit(1)
+  const rows = await useDb()
+    .select({
+      postSlug: schema.posts.slug,
+      categories: schema.posts.categories,
+    })
+    .from(schema.posts)
+    .where(eq(schema.posts.id, id))
+    .limit(1)
   if (!rows.length) return
-  // 删除附件
+  // 删除附件（R2 对象 + DB 元数据）
   const atts = await useDb()
-    .select({ id: schema.attachments.id })
+    .select({ id: schema.attachments.id, storageKey: schema.attachments.storageKey })
     .from(schema.attachments)
     .where(eq(schema.attachments.postSlug, rows[0]!.postSlug))
-  for (const a of atts) await useDb().delete(schema.attachments).where(eq(schema.attachments.id, a.id))
+  for (const a of atts) {
+    await deleteAttachmentFiles(a.storageKey)
+    await useDb().delete(schema.attachments).where(eq(schema.attachments.id, a.id))
+  }
   await useDb().delete(schema.posts).where(eq(schema.posts.id, id))
+  // 彩蛋随文章一并删除（表可能尚未建立，忽略错误）
+  await useDb().delete(schema.postEggs).where(eq(schema.postEggs.postSlug, rows[0]!.postSlug)).catch(() => undefined)
+  invalidatePublishedCache(rows[0]!.postSlug, rows[0]!.categories)
+}
+
+// ============================================================
+// 文章彩蛋（单篇文章的整页静态 HTML；管理员写入，公开读取受
+// enabled + 文章已发布双重门控，/egg/:slug 路由以此为数据源）
+// ============================================================
+
+export type PostEgg = { postSlug: string; html: string; enabled: boolean; updatedAt: string | null }
+
+/** 彩蛋 HTML 体积上限：512KB（约 10 倍于典型单页攻略，超出说明塞入了应走附件的资源） */
+export const POST_EGG_MAX_BYTES = 512 * 1024
+
+export async function savePostEgg(input: { slug: string; html: string; enabled: boolean }): Promise<PostEgg> {
+  await requireAdmin()
+  await ensureSchema()
+  const slug = input.slug.trim()
+  if (!slug) throw new Error('路径（slug）不能为空。')
+  const html = input.html
+  if (!html.trim()) throw new Error('彩蛋 HTML 不能为空。')
+  if (new TextEncoder().encode(html).byteLength > POST_EGG_MAX_BYTES) {
+    throw new Error('彩蛋 HTML 超过 512KB 上限，请精简或改走附件。')
+  }
+  // 目标文章必须存在于 DB（彩蛋依附于已保存的文章）
+  const post = await useDb()
+    .select({ id: schema.posts.id })
+    .from(schema.posts)
+    .where(eq(schema.posts.slug, slug))
+    .limit(1)
+  if (!post.length) throw new Error('文章不存在，请先保存文章再设置彩蛋。')
+  const now = new Date()
+  await useDb()
+    .insert(schema.postEggs)
+    .values({ postSlug: slug, html, enabled: input.enabled, updatedAt: now })
+    .onConflictDoUpdate({
+      target: schema.postEggs.postSlug,
+      set: { html, enabled: input.enabled, updatedAt: now },
+    })
+  return { postSlug: slug, html, enabled: input.enabled, updatedAt: now.toISOString() }
+}
+
+export async function deletePostEgg(slug: string): Promise<void> {
+  await requireAdmin()
+  await ensureSchema()
+  await useDb().delete(schema.postEggs).where(eq(schema.postEggs.postSlug, slug))
+}
+
+/** 后台编辑器读取（含未启用版本）；仅管理员 */
+export async function getPostEggAdmin(slug: string): Promise<PostEgg | null> {
+  await requireAdmin()
+  if (!isDbConfigured()) return null
+  return readWithSchemaFallback(async () => {
+    const rows = await withDbRetry(
+      () => useDb().select().from(schema.postEggs).where(eq(schema.postEggs.postSlug, slug)).limit(1),
+      { timeoutMs: 7000 },
+    )
+    const r = rows[0]
+    return r ? { postSlug: r.postSlug, html: r.html, enabled: r.enabled, updatedAt: r.updatedAt?.toISOString() ?? null } : null
+  })
+}
+
+/** 文章页用轻量元信息（不含 html 本体）：彩蛋是否对访客可见 */
+export async function getPostEggMeta(slug: string): Promise<{ enabled: boolean }> {
+  if (!isDbConfigured()) return { enabled: false }
+  try {
+    return await readWithSchemaFallback(async () => {
+      const rows = await withDbRetry(
+        () => useDb()
+          .select({ enabled: schema.postEggs.enabled })
+          .from(schema.postEggs)
+          .where(eq(schema.postEggs.postSlug, slug))
+          .limit(1),
+        { timeoutMs: 5000 },
+      )
+      return { enabled: rows[0]?.enabled === true }
+    })
+  } catch {
+    return { enabled: false }
+  }
+}
+
+/** /egg/:slug 公开输出：仅当彩蛋已启用且对应文章已发布；返回 null 表示不可见 */
+export async function getPublicPostEgg(slug: string): Promise<string | null> {
+  if (!isDbConfigured()) return null
+  return readWithSchemaFallback(async () => {
+    const rows = await withDbRetry(
+      () => useDb()
+        .select({ html: schema.postEggs.html, postStatus: schema.posts.status })
+        .from(schema.postEggs)
+        .innerJoin(schema.posts, eq(schema.posts.slug, schema.postEggs.postSlug))
+        .where(and(eq(schema.postEggs.postSlug, slug), eq(schema.postEggs.enabled, true)))
+        .limit(1),
+      { timeoutMs: 7000 },
+    )
+    const r = rows[0]
+    return r && r.postStatus === 'published' ? r.html : null
+  })
 }
 
 // ============================================================
@@ -1120,9 +1479,28 @@ export async function deleteCategory(id: number): Promise<void> {
 }
 
 // ============================================================
-// 附件（二进制以 base64 存 attachments.content）
+// 附件（二进制对象存 R2；storage_key 为空的旧记录走 content 列 base64）
 // ============================================================
-export const MAX_ATTACHMENT_BYTES = 4 * 1024 * 1024 // 4MB
+export const MAX_ATTACHMENT_BYTES = 4 * 1024 * 1024 // 4MB（反馈附件 / 无 R2 时的旧路径上限）
+
+/**
+ * 是否必须走前端 Range 并发下载器：
+ * - mt1 直传：Worker 单响应只回 256KiB 窗口；
+ * - tg1 bot 分片：任一分片 >20MB（bot getFile 硬顶），下载须经 MTProto 窗口。
+ */
+function attachmentNeedsStream(storageKey?: string | null): boolean {
+  if (!storageKey) return false
+  if (storageKey.startsWith('mt1:')) return true
+  if (storageKey.startsWith('tg1:')) {
+    try {
+      const j = JSON.parse(storageKey.slice(4)) as { p?: Array<{ s?: number }> }
+      return !!j.p?.some((p) => typeof p.s === 'number' && p.s > 20 * 1000 * 1000)
+    } catch {
+      return false
+    }
+  }
+  return false
+}
 
 function toPublic(row: {
   id: number
@@ -1133,6 +1511,7 @@ function toPublic(row: {
   downloads: number
   createdAt: Date | string
   passwordHash: string | null
+  storageKey?: string | null
 }): AttachmentPublic {
   return {
     id: row.id,
@@ -1143,27 +1522,36 @@ function toPublic(row: {
     downloads: row.downloads,
     createdAt: new Date(row.createdAt).toISOString(),
     locked: !!row.passwordHash,
+    // 大窗口/小窗口回源都由前端 Range 下载器拼接（见 attachment-download.ts）
+    ...(attachmentNeedsStream(row.storageKey) ? { stream: true as const } : {}),
   }
 }
 
 export async function listAttachmentsPublic(postSlug: string): Promise<AttachmentPublic[]> {
   // 本地无 DB：附件面板隐藏
   if (!isDbConfigured()) return []
-  await ensureSchema()
-  const rows = await useDb()
-    .select({
-      id: schema.attachments.id,
-      postSlug: schema.attachments.postSlug,
-      filename: schema.attachments.filename,
-      mimeType: schema.attachments.mimeType,
-      sizeBytes: schema.attachments.sizeBytes,
-      downloads: schema.attachments.downloads,
-      createdAt: schema.attachments.createdAt,
-      passwordHash: schema.attachments.passwordHash,
-    })
-    .from(schema.attachments)
-    .where(eq(schema.attachments.postSlug, postSlug))
-    .orderBy(schema.attachments.id)
+  // 读优先（稳态零 DDL）+ 超时重试
+  const rows = await readWithSchemaFallback(() =>
+    withDbRetry(
+      () =>
+        useDb()
+          .select({
+            id: schema.attachments.id,
+            postSlug: schema.attachments.postSlug,
+            filename: schema.attachments.filename,
+            mimeType: schema.attachments.mimeType,
+            sizeBytes: schema.attachments.sizeBytes,
+            downloads: schema.attachments.downloads,
+            createdAt: schema.attachments.createdAt,
+            passwordHash: schema.attachments.passwordHash,
+            storageKey: schema.attachments.storageKey,
+          })
+          .from(schema.attachments)
+          .where(eq(schema.attachments.postSlug, postSlug))
+          .orderBy(schema.attachments.id),
+      { timeoutMs: 7000 },
+    ),
+  )
   return rows.map(toPublic)
 }
 
@@ -1181,6 +1569,7 @@ export async function listAttachmentsAdmin(postSlug?: string): Promise<Attachmen
         downloads: schema.attachments.downloads,
         createdAt: schema.attachments.createdAt,
         passwordHash: schema.attachments.passwordHash,
+        storageKey: schema.attachments.storageKey,
       })
       .from(schema.attachments)
     return (postSlug
@@ -1188,16 +1577,9 @@ export async function listAttachmentsAdmin(postSlug?: string): Promise<Attachmen
       : q.orderBy(desc(schema.attachments.id)))
   }
 
-  return readWithSchemaFallback(async () => {
-    try {
-      return (await query()).map(toPublic)
-    } catch (e) {
-      // Neon 冷启动/瞬时网络错误：等待 600ms 重试一次，避免偶发失败直接抛给仪表盘
-      if (isUndefinedTableError(e)) throw e
-      await new Promise((r) => setTimeout(r, 600))
-      return (await query()).map(toPublic)
-    }
-  })
+  return readWithSchemaFallback(() =>
+    // 每次尝试带 7s 硬超时：原来"先等失败再重试"在首查挂起 90s 时重试永不启动
+    withDbRetry(() => query().then((rows) => rows.map(toPublic)), { timeoutMs: 7000 }))
 }
 
 export async function insertAttachment(params: {
@@ -1205,7 +1587,10 @@ export async function insertAttachment(params: {
   filename: string
   mimeType: string
   sizeBytes: number
-  base64Content: string
+  /** R2 对象键；提供时 content 留空（二进制在 R2） */
+  storageKey?: string | null
+  /** 无 R2 绑定时的降级路径：base64 直接入库 */
+  base64Content?: string
   password?: string
 }): Promise<AttachmentPublic> {
   await requireAdmin()
@@ -1218,7 +1603,8 @@ export async function insertAttachment(params: {
       filename: params.filename,
       mimeType: params.mimeType || 'application/octet-stream',
       sizeBytes: params.sizeBytes,
-      content: params.base64Content,
+      content: params.storageKey ? '' : params.base64Content ?? '',
+      storageKey: params.storageKey || null,
       passwordHash: passwordRow?.hash || null,
       passwordSalt: passwordRow?.salt || null,
     })
@@ -1231,8 +1617,35 @@ export async function insertAttachment(params: {
       downloads: schema.attachments.downloads,
       createdAt: schema.attachments.createdAt,
       passwordHash: schema.attachments.passwordHash,
+      storageKey: schema.attachments.storageKey,
     })
   return toPublic(row!)
+}
+
+/** 按 R2 对象键查已登记附件（multipart complete 防重放/重复落库） */
+export async function getAttachmentByStorageKey(storageKey: string): Promise<AttachmentPublic | null> {
+  return readWithSchemaFallback(() =>
+    withDbRetry(
+      () =>
+        useDb()
+          .select({
+            id: schema.attachments.id,
+            postSlug: schema.attachments.postSlug,
+            filename: schema.attachments.filename,
+            mimeType: schema.attachments.mimeType,
+            sizeBytes: schema.attachments.sizeBytes,
+            downloads: schema.attachments.downloads,
+            createdAt: schema.attachments.createdAt,
+            passwordHash: schema.attachments.passwordHash,
+            storageKey: schema.attachments.storageKey,
+          })
+          .from(schema.attachments)
+          .where(eq(schema.attachments.storageKey, storageKey))
+          .limit(1)
+          .then((rows) => (rows[0] ? toPublic(rows[0]) : null)),
+      { timeoutMs: 7000 },
+    ),
+  )
 }
 
 export async function getAttachmentFullRow(id: number): Promise<{
@@ -1240,27 +1653,35 @@ export async function getAttachmentFullRow(id: number): Promise<{
   postSlug: string
   filename: string
   content: string
+  storageKey: string | null
   mimeType: string
   sizeBytes: number
   passwordHash: string | null
   passwordSalt: string | null
 } | null> {
-  await ensureSchema()
-  const rows = await useDb()
-    .select({
-      id: schema.attachments.id,
-      postSlug: schema.attachments.postSlug,
-      filename: schema.attachments.filename,
-      content: schema.attachments.content,
-      mimeType: schema.attachments.mimeType,
-      sizeBytes: schema.attachments.sizeBytes,
-      passwordHash: schema.attachments.passwordHash,
-      passwordSalt: schema.attachments.passwordSalt,
-    })
-    .from(schema.attachments)
-    .where(eq(schema.attachments.id, id))
-    .limit(1)
-  return rows[0] || null
+  // 读优先（稳态零 DDL）；content 为 base64 大字段，超时给足 9s
+  return readWithSchemaFallback(() =>
+    withDbRetry(
+      () =>
+        useDb()
+          .select({
+            id: schema.attachments.id,
+            postSlug: schema.attachments.postSlug,
+            filename: schema.attachments.filename,
+            content: schema.attachments.content,
+            storageKey: schema.attachments.storageKey,
+            mimeType: schema.attachments.mimeType,
+            sizeBytes: schema.attachments.sizeBytes,
+            passwordHash: schema.attachments.passwordHash,
+            passwordSalt: schema.attachments.passwordSalt,
+          })
+          .from(schema.attachments)
+          .where(eq(schema.attachments.id, id))
+          .limit(1)
+          .then((rows) => rows[0] || null),
+      { timeoutMs: 9000 },
+    ),
+  )
 }
 
 export async function setAttachmentPassword(id: number, password: string | null): Promise<void> {
@@ -1282,7 +1703,14 @@ export async function setAttachmentPassword(id: number, password: string | null)
 export async function deleteAttachment(id: number): Promise<void> {
   await requireAdmin()
   await ensureSchema()
+  // 先取 R2 对象键，删元数据后同步删对象（对象存储失败由后台重试/生命周期兜底）
+  const rows = await useDb()
+    .select({ storageKey: schema.attachments.storageKey })
+    .from(schema.attachments)
+    .where(eq(schema.attachments.id, id))
+    .limit(1)
   await useDb().delete(schema.attachments).where(eq(schema.attachments.id, id))
+  if (rows[0]?.storageKey) await deleteAttachmentFiles(rows[0].storageKey)
 }
 
 export async function recordDownload(id: number) {
@@ -1395,25 +1823,57 @@ async function upsertProfile(user: { id: string; email: string; name: string }, 
     })
 }
 
-/** 当前用户的资料面板数据（含未读警告数等） */
+/**
+ * 当前用户的资料面板数据（含未读警告数等）。
+ * 性能：原实现 = ensureSchema DDL + 一次 upsert 写入 + 4 个串行 SELECT（≈6 个 Neon 往返）。
+ * 现在：① 三个计数合并为一条 SQL（子查询），与资料行查询并行（≈1 个往返）；
+ * ② 仅当资料行不存在（首次打开面板）才走 ensureSchema + upsert 写路径。
+ */
 export async function getMyProfile(): Promise<MyProfileView> {
   const user = await getCurrentUser()
   if (!user?.email) throw new Error('请先登录。')
-  await ensureSchema()
-  await upsertProfile(user)
-  const [profile] = await useDb().select().from(schema.profiles).where(eq(schema.profiles.userId, user.id)).limit(1)
-  const [commentAgg] = await useDb()
-    .select({ n: sql<number>`count(*)::int` })
-    .from(schema.comments)
-    .where(and(eq(schema.comments.userId, user.id), eq(schema.comments.status, 'published')))
-  const [feedbackAgg] = await useDb()
-    .select({ n: sql<number>`count(*)::int` })
-    .from(schema.feedback)
-    .where(eq(schema.feedback.userId, user.id))
-  const [warnAgg] = await useDb()
-    .select({ n: sql<number>`count(*)::int` })
-    .from(schema.warnings)
-    .where(and(eq(schema.warnings.userId, user.id), isNull(schema.warnings.readAt)))
+
+  const profileQuery = () =>
+    withDbRetry(
+      () => useDb().select().from(schema.profiles).where(eq(schema.profiles.userId, user.id)).limit(1),
+      { timeoutMs: 7000 },
+    )
+  // 三个 count 合并为单条 SQL（一次往返；各子查询互不相关，PG 内部可并行扫）
+  const countsQuery = () =>
+    withDbRetry(
+      () =>
+        useDb()
+          .select({
+            commentsCount: sql<number>`(SELECT count(*)::int FROM comments WHERE user_id = ${user.id} AND status = 'published')`,
+            feedbackCount: sql<number>`(SELECT count(*)::int FROM feedback WHERE user_id = ${user.id})`,
+            unreadWarnings: sql<number>`(SELECT count(*)::int FROM warnings WHERE user_id = ${user.id} AND read_at IS NULL)`,
+          })
+          .from(sql`(VALUES (1)) AS v(x)`),
+      { timeoutMs: 7000 },
+    )
+
+  let profileRows
+  let counts: { commentsCount: number; feedbackCount: number; unreadWarnings: number }[]
+  try {
+    ;[profileRows, counts] = await Promise.all([
+      readWithSchemaFallback(profileQuery),
+      readWithSchemaFallback(countsQuery),
+    ])
+  } catch {
+    // 极端情况下（如全新库刚部署）读优先重试仍失败：走建表写路径兜底一次
+    await ensureSchema()
+    await upsertProfile(user)
+    ;[profileRows, counts] = await Promise.all([profileQuery(), countsQuery()])
+  }
+  let profile = profileRows[0]
+  if (!profile) {
+    // 首次打开面板：创建资料行（写路径，含幂等建表）
+    await ensureSchema()
+    await upsertProfile(user)
+    ;[profile] = await profileQuery()
+  }
+  const agg = counts[0] ?? { commentsCount: 0, feedbackCount: 0, unreadWarnings: 0 }
+
   return {
     userId: user.id,
     email: user.email,
@@ -1422,9 +1882,9 @@ export async function getMyProfile(): Promise<MyProfileView> {
     signatureUpdatedBy: profile?.signatureUpdatedBy ?? null,
     tags: parseTagIds(profile?.tags || ''),
     fontPref: profile?.fontPref || '',
-    unreadWarnings: warnAgg?.n ?? 0,
-    commentsCount: commentAgg?.n ?? 0,
-    feedbackCount: feedbackAgg?.n ?? 0,
+    unreadWarnings: agg.unreadWarnings ?? 0,
+    commentsCount: agg.commentsCount ?? 0,
+    feedbackCount: agg.feedbackCount ?? 0,
   }
 }
 
@@ -1500,18 +1960,39 @@ export async function syncDisplayName(displayName?: string): Promise<{ displayNa
   return { displayName: name, updatedComments: updated.rowCount ?? 0 }
 }
 
-/** 评论列表批量取个签：userId → signature（只取有个签的行） */
-export async function getSignatureMap(userIds: string[]): Promise<Record<string, string>> {
+/**
+ * 评论者资料注入：个签 + 身份标签合并为【单条】profiles 查询。
+ * 此前评论列表/发表/编辑各发两条串行 SQL（getSignatureMap + getTagsMap），
+ * CF→Neon 每个串行往返 200ms+，合并后省下一整次往返。
+ * 读优先（稳态零 DDL）+ 硬超时重试。
+ */
+export async function getCommenterMaps(userIds: string[]): Promise<{
+  signatureMap: Record<string, string>
+  tagsMap: Record<string, number[]>
+}> {
   const ids = [...new Set(userIds.filter((id) => id && !id.startsWith('deleted')))]
-  if (ids.length === 0) return {}
-  await ensureSchema()
-  const rows = await useDb()
-    .select({ userId: schema.profiles.userId, signature: schema.profiles.signature })
-    .from(schema.profiles)
-    .where(inArray(schema.profiles.userId, ids))
-  const map: Record<string, string> = {}
-  for (const r of rows) if (r.signature) map[r.userId] = r.signature
-  return map
+  if (ids.length === 0) return { signatureMap: {}, tagsMap: {} }
+  const rows = await readWithSchemaFallback(() =>
+    withDbRetry(
+      () =>
+        useDb()
+          .select({ userId: schema.profiles.userId, signature: schema.profiles.signature, tags: schema.profiles.tags })
+          .from(schema.profiles)
+          .where(inArray(schema.profiles.userId, ids)),
+      { timeoutMs: 7000 },
+    ),
+  )
+  const signatureMap: Record<string, string> = {}
+  const tagsMap: Record<string, number[]> = {}
+  for (const r of rows) {
+    if (r.signature) signatureMap[r.userId] = r.signature
+    tagsMap[r.userId] = parseTagIds(r.tags)
+  }
+  return { signatureMap, tagsMap }
+}
+
+export async function getSignatureMap(userIds: string[]): Promise<Record<string, string>> {
+  return (await getCommenterMaps(userIds)).signatureMap
 }
 
 // ---------- 警告 ----------
@@ -1519,13 +2000,18 @@ export async function getSignatureMap(userIds: string[]): Promise<Record<string,
 export async function listMyWarnings(): Promise<WarningItem[]> {
   const user = await getCurrentUser()
   if (!user?.email) throw new Error('请先登录。')
-  await ensureSchema()
-  const rows = await useDb()
-    .select()
-    .from(schema.warnings)
-    .where(eq(schema.warnings.userId, user.id))
-    .orderBy(desc(schema.warnings.createdAt))
-    .limit(100)
+  const rows = await readWithSchemaFallback(() =>
+    withDbRetry(
+      () =>
+        useDb()
+          .select()
+          .from(schema.warnings)
+          .where(eq(schema.warnings.userId, user.id))
+          .orderBy(desc(schema.warnings.createdAt))
+          .limit(100),
+      { timeoutMs: 7000 },
+    ),
+  )
   return rows.map((r) => ({
     id: r.id,
     message: r.message,
@@ -1679,29 +2165,36 @@ export async function anonymizeAccount(): Promise<{
 
 export async function adminListCommenters(): Promise<CommenterAdminView[]> {
   await requireAdmin()
-  await ensureSchema()
-  const agg = await useDb()
-    .select({
-      userId: schema.comments.userId,
-      userName: sql<string>`max(${schema.comments.userName})`,
-      email: sql<string>`max(${schema.comments.userEmail})`,
-      commentCount: sql<number>`count(*)::int`,
-    })
-    .from(schema.comments)
-    .where(and(eq(schema.comments.status, 'published'), sql`${schema.comments.userId} NOT LIKE 'deleted%'`))
-    .groupBy(schema.comments.userId)
+  // 读优先（稳态零 DDL）+ 超时重试
+  const agg = await readWithSchemaFallback(() =>
+    withDbRetry(
+      () =>
+        useDb()
+          .select({
+            userId: schema.comments.userId,
+            userName: sql<string>`max(${schema.comments.userName})`,
+            email: sql<string>`max(${schema.comments.userEmail})`,
+            commentCount: sql<number>`count(*)::int`,
+          })
+          .from(schema.comments)
+          .where(and(eq(schema.comments.status, 'published'), sql`${schema.comments.userId} NOT LIKE 'deleted%'`))
+          .groupBy(schema.comments.userId),
+      { timeoutMs: 8000 },
+    ),
+  )
   const ids = agg.map((r) => r.userId)
-  const profileRows = ids.length
-    ? await useDb().select().from(schema.profiles).where(inArray(schema.profiles.userId, ids))
-    : []
+  // 资料行与警告聚合计数互相独立：并行发出，省一个串行往返
+  const [profileRows, warnRows] = ids.length
+    ? await Promise.all([
+        useDb().select().from(schema.profiles).where(inArray(schema.profiles.userId, ids)),
+        useDb()
+          .select({ userId: schema.warnings.userId, n: sql<number>`count(*)::int` })
+          .from(schema.warnings)
+          .where(inArray(schema.warnings.userId, ids))
+          .groupBy(schema.warnings.userId),
+      ])
+    : [[], []]
   const profileMap = new Map(profileRows.map((p) => [p.userId, p]))
-  const warnRows = ids.length
-    ? await useDb()
-        .select({ userId: schema.warnings.userId, n: sql<number>`count(*)::int` })
-        .from(schema.warnings)
-        .where(inArray(schema.warnings.userId, ids))
-        .groupBy(schema.warnings.userId)
-    : []
   const warnMap = new Map(warnRows.map((w) => [w.userId, w.n]))
   return agg.map((r) => {
     const p = profileMap.get(r.userId)
@@ -1761,18 +2254,37 @@ export async function adminIssueWarning(input: { userId: string; message: string
 
 export async function adminListFeedback(): Promise<FeedbackAdminItem[]> {
   await requireAdmin()
-  await ensureSchema()
-  const rows = await useDb()
-    .select()
-    .from(schema.feedback)
-    .orderBy(desc(schema.feedback.createdAt))
-    .limit(200)
+  // 读优先（稳态零 DDL）+ 超时重试
+  const rows = await readWithSchemaFallback(() =>
+    withDbRetry(
+      () =>
+        useDb()
+          .select()
+          .from(schema.feedback)
+          .orderBy(desc(schema.feedback.createdAt))
+          .limit(200),
+      { timeoutMs: 8000 },
+    ),
+  )
   if (rows.length === 0) return []
   const fbIds = rows.map((r) => r.id)
-  const atts = await useDb()
-    .select()
-    .from(schema.feedbackAttachments)
-    .where(inArray(schema.feedbackAttachments.feedbackId, fbIds))
+  // 只取元数据列：content 是 base64 大字段，列表不需要（原 .select() 会把附件内容全量拉回）
+  const atts = await readWithSchemaFallback(() =>
+    withDbRetry(
+      () =>
+        useDb()
+          .select({
+            id: schema.feedbackAttachments.id,
+            feedbackId: schema.feedbackAttachments.feedbackId,
+            filename: schema.feedbackAttachments.filename,
+            mimeType: schema.feedbackAttachments.mimeType,
+            sizeBytes: schema.feedbackAttachments.sizeBytes,
+          })
+          .from(schema.feedbackAttachments)
+          .where(inArray(schema.feedbackAttachments.feedbackId, fbIds)),
+      { timeoutMs: 7000 },
+    ),
+  )
   return rows.map((r) => ({
     id: r.id,
     userId: r.userId,
@@ -1816,8 +2328,10 @@ function parseTagIds(raw: string): number[] {
 
 /** 全部标签定义（公开：评论区/用户中心渲染标签时需要） */
 export async function listUserTags(): Promise<UserTag[]> {
-  await ensureSchema()
-  const rows = await useDb().select().from(schema.userTags).orderBy(schema.userTags.id)
+  if (!isDbConfigured()) return []
+  const rows = await readWithSchemaFallback(() =>
+    withDbRetry(() => useDb().select().from(schema.userTags).orderBy(schema.userTags.id), { timeoutMs: 7000 }),
+  ).catch(() => [])
   return rows.map((r) => ({ id: r.id, name: r.name, color: r.color, effect: (r.effect as UserTag['effect']) || 'solid' }))
 }
 
@@ -1884,17 +2398,10 @@ export async function setUserTags(userId: string, tagIds: number[]): Promise<{ t
   return { tags: valid }
 }
 
-/** 批量取用户的标签 id 列表（评论注入用） */
+/** 批量取用户的标签 id 列表（评论注入用；走合并后的单查询 getCommenterMaps） */
 export async function getTagsMap(userIds: string[]): Promise<Record<string, number[]>> {
   if (userIds.length === 0) return {}
-  await ensureSchema()
-  const rows = await useDb()
-    .select({ userId: schema.profiles.userId, tags: schema.profiles.tags })
-    .from(schema.profiles)
-    .where(inArray(schema.profiles.userId, userIds))
-  const map: Record<string, number[]> = {}
-  for (const r of rows) map[r.userId] = parseTagIds(r.tags)
-  return map
+  return (await getCommenterMaps(userIds)).tagsMap
 }
 
 // ============================================================
@@ -1913,12 +2420,38 @@ export type UserComment = {
   userId: string
 }
 
-/** 批量取文章标题（静态 + 数据库） */
+/** 静态文章标题表（构建时常量，零 DB 往返） */
+const STATIC_TITLE_MAP: Record<string, string> = Object.fromEntries(allPosts.map((p) => [p.slug, p.title]))
+
+/**
+ * 批量取文章标题（静态 + 数据库）。
+ * 性能：此前每次都调 listPublishedPosts() 拉全量文章（含 content 正文大字段，
+ * 实测 payload 166～480ms），而评论搜索只需要 slug→title。
+ * 现在静态标题直接命中内存；DB 仅对缺失 slug 做一次两列 inArray 查询。
+ */
 async function getPostTitleMap(slugs: string[]): Promise<Record<string, string>> {
   const map: Record<string, string> = {}
-  if (slugs.length === 0) return map
-  const all = await listPublishedPosts()
-  for (const p of all) map[p.slug] = p.title
+  const uniq = [...new Set(slugs.filter(Boolean))]
+  if (uniq.length === 0) return map
+  const missing: string[] = []
+  for (const s of uniq) {
+    if (STATIC_TITLE_MAP[s]) map[s] = STATIC_TITLE_MAP[s]
+    else missing.push(s)
+  }
+  if (missing.length > 0 && isDbConfigured()) {
+    const rows = await readWithSchemaFallback(() =>
+      withDbRetry(
+        () =>
+          useDb()
+            .select({ slug: schema.posts.slug, title: schema.posts.title })
+            .from(schema.posts)
+            .where(and(eq(schema.posts.status, 'published'), inArray(schema.posts.slug, missing)))
+            .limit(500),
+        { timeoutMs: 7000 },
+      ),
+    ).catch(() => [])
+    for (const r of rows) map[r.slug] = r.title
+  }
   return map
 }
 
@@ -1926,16 +2459,23 @@ async function getPostTitleMap(slugs: string[]): Promise<Record<string, string>>
 export async function listMyComments(keyword = ''): Promise<UserComment[]> {
   const user = await getCurrentUser()
   if (!user?.email) throw new Error('请先登录。')
-  await ensureSchema()
   const kw = keyword.trim()
-  const conds = [eq(schema.comments.userId, user.id), eq(schema.comments.status, 'published')]
-  if (kw) conds.push(ilike(schema.comments.body, `%${kw}%`))
-  const rows = await useDb()
-    .select()
-    .from(schema.comments)
-    .where(and(...conds))
-    .orderBy(desc(schema.comments.createdAt))
-    .limit(200)
+  // 读优先（稳态零 DDL）+ 硬超时重试：搜索面板每次击键防抖后都会打一次，不能挂死
+  const rows = await readWithSchemaFallback(() =>
+    withDbRetry(
+      () => {
+        const conds = [eq(schema.comments.userId, user.id), eq(schema.comments.status, 'published')]
+        if (kw) conds.push(ilike(schema.comments.body, `%${kw}%`))
+        return useDb()
+          .select()
+          .from(schema.comments)
+          .where(and(...conds))
+          .orderBy(desc(schema.comments.createdAt))
+          .limit(200)
+      },
+      { timeoutMs: 8000 },
+    ),
+  )
   const titleMap = await getPostTitleMap(rows.map((r) => r.postSlug))
   return rows.map((r) => ({
     id: r.id,
@@ -1957,18 +2497,24 @@ export async function adminListComments(input: {
   keyword?: string
 }): Promise<UserComment[]> {
   const admin = await requireAdmin()
-  await ensureSchema()
   const kw = (input.keyword || '').trim()
-  const conds = [eq(schema.comments.status, 'published')]
-  if (input.scope === 'mine') conds.push(eq(schema.comments.userId, admin.id))
-  else if (input.scope === 'user' && input.userId) conds.push(eq(schema.comments.userId, input.userId))
-  if (kw) conds.push(ilike(schema.comments.body, `%${kw}%`))
-  const rows = await useDb()
-    .select()
-    .from(schema.comments)
-    .where(and(...conds))
-    .orderBy(desc(schema.comments.createdAt))
-    .limit(300)
+  const rows = await readWithSchemaFallback(() =>
+    withDbRetry(
+      () => {
+        const conds = [eq(schema.comments.status, 'published')]
+        if (input.scope === 'mine') conds.push(eq(schema.comments.userId, admin.id))
+        else if (input.scope === 'user' && input.userId) conds.push(eq(schema.comments.userId, input.userId))
+        if (kw) conds.push(ilike(schema.comments.body, `%${kw}%`))
+        return useDb()
+          .select()
+          .from(schema.comments)
+          .where(and(...conds))
+          .orderBy(desc(schema.comments.createdAt))
+          .limit(300)
+      },
+      { timeoutMs: 8000 },
+    ),
+  )
   const titleMap = await getPostTitleMap(rows.map((r) => r.postSlug))
   return rows.map((r) => ({
     id: r.id,
@@ -1981,6 +2527,51 @@ export async function adminListComments(input: {
     userName: r.userName,
     userId: r.userId,
   }))
+}
+
+/**
+ * 页内评论邮箱搜索：单条 SQL 返回命中的评论 id（邮箱绝不下发到前台）。
+ * 此前每次击键都重跑整个评论列表（鉴权 + 评论 + 个签 + 标签 4 个串行往返 + 全量 payload），
+ * 这里短路为 1 次索引查询。正则模式交 Postgres ~* 执行，非法正则（2201B）按无命中处理。
+ */
+export async function matchCommentEmails(input: {
+  postSlug: string
+  q: string
+  isRegex: boolean
+}): Promise<number[]> {
+  if (!isDbConfigured()) return []
+  const needle = input.q.trim()
+  if (!needle) return []
+  // 正则模式：先在 JS 侧快速拒绝非法表达式（Postgres 2201B 不应触发重试/建表）
+  if (input.isRegex) {
+    try { new RegExp(needle) } catch { return [] }
+  }
+  const runQuery = () => {
+    const conds = [
+      eq(schema.comments.postSlug, input.postSlug),
+      eq(schema.comments.status, 'published'),
+      input.isRegex
+        ? sql`${schema.comments.userEmail} ~* ${needle}`
+        : ilike(schema.comments.userEmail, `%${needle}%`),
+    ]
+    return useDb()
+      .select({ id: schema.comments.id })
+      .from(schema.comments)
+      .where(and(...conds))
+      .then((rows) => rows.map((r) => r.id))
+  }
+  try {
+    // 正则模式的错误只可能是表达式本身非法（快速失败，不重试）；
+    // 文本模式保留超时重试以对冲网络长尾
+    return await readWithSchemaFallback(() =>
+      input.isRegex
+        ? withDbTimeout(runQuery(), 7000, 'DB 查询')
+        : withDbRetry(runQuery, { timeoutMs: 7000 }),
+    )
+  } catch {
+    // 非法正则 / DB 不可用：无命中（前台也会同步提示正则无效）
+    return []
+  }
 }
 
 // ============================================================
@@ -1996,8 +2587,10 @@ export type SiteContentRow = { key: string; lang: string; body: string; updatedA
 
 /** 读取全部站点内容块（公开；不存在的块返回空串） */
 export async function listSiteContent(): Promise<SiteContentRow[]> {
-  await ensureSchema()
-  const rows = await useDb().select().from(schema.siteContent)
+  if (!isDbConfigured()) return []
+  const rows = await readWithSchemaFallback(() =>
+    withDbRetry(() => useDb().select().from(schema.siteContent), { timeoutMs: 7000 }),
+  ).catch(() => [])
   return rows.map((r) => ({
     key: r.key,
     lang: r.lang,

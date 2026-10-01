@@ -10,7 +10,7 @@
   --panel-2: #1b222c;
   --text: #d9e1ec;
   --muted: #7f8b9b;
-  --faint: #4c5867;
+  --faint: #5e6979;
   --line: #283241;
   --accent: #5de4c7;
   --accent-2: #82aaff;
@@ -35,8 +35,8 @@
   --panel: #ffffff;
   --panel-2: #f7f8fa;
   --text: #253142;
-  --muted: #687587;
-  --faint: #99a3b1;
+  --muted: #637081;
+  --faint: #7a8798;
   --line: #d6dce4;
   --accent: #087f6d;
   --accent-2: #356fc7;
@@ -48,7 +48,8 @@
 }
 
 * { box-sizing: border-box; }
-html { background: var(--bg); }
+/* 锚点/scrollIntoView 偏移，避免标题被吸顶标题栏（35px）遮挡 */
+html { background: var(--bg); scroll-padding-top: 45px; }
 body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-ui); -webkit-font-smoothing: antialiased; }
 button, input, textarea, select { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
@@ -61,12 +62,41 @@ button { color: inherit; }
   outline-offset: 1px;
   border-radius: 5px;
 }
+/* 输入控件：部分表单只改了边框色、个别无 :focus 样式；统一补键盘焦点环。
+   组件规则里常有 outline:0，:where 零优先级压不过，用 html 前缀抬一档；
+   :focus-visible 不影响鼠标点击的观感 */
+html input:focus-visible,
+html textarea:focus-visible,
+html select:focus-visible {
+  outline: 2px solid var(--accent-2);
+  outline-offset: 1px;
+}
+/* 跳过导航链接：默认视觉隐藏，键盘 Tab 聚焦时浮现在左上角 */
+.skip-link {
+  position: absolute; left: 8px; top: 8px; z-index: 100;
+  background: var(--panel); color: var(--text);
+  padding: 8px 14px; border: 1px solid var(--line); border-radius: 5px;
+  font-size: 12px; transform: translateY(-160%); transition: transform .15s ease;
+}
+.skip-link:focus-visible { transform: translateY(0); outline: 2px solid var(--accent-2); outline-offset: 1px; }
+
+/* 尊重系统「减弱动态效果」：禁用装饰性动画/过渡，仅保留即时状态变化 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 
 /* overflow:clip 与 hidden 裁切效果相同，但不构成滚动容器——
    否则 sticky 停靠面板（大纲索引）会被困在这个从不滚动的容器里随页面滚走 */
 .workbench { min-height: 100vh; display: grid; grid-template: 35px 1fr 22px / 48px 230px minmax(0, 1fr); background: var(--bg); overflow: clip; }
 /* 标题栏属于编辑器 chrome：锁定默认 UI 栈，不随用户字体切换（艺术字体无西里尔/字形也不适合 12px chrome） */
-.titlebar { position: relative; grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; height: 35px; padding: 0 10px; background: var(--chrome); border-bottom: 1px solid var(--line); font-size: 12px; font-family: var(--font-ui-default); user-select: none; z-index: 40; }
+.titlebar { position: sticky; top: 0; grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; height: 35px; padding: 0 10px; background: var(--chrome); border-bottom: 1px solid var(--line); font-size: 12px; font-family: var(--font-ui-default); user-select: none; z-index: 40; }
 .brand-mark { display: flex; align-items: center; gap: 7px; color: var(--accent); font: 600 12px/1 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .02em; }
 /* 「{}」彩蛋按钮与站名拆分：图标可点（小游戏中心），站名仍回首页 */
 .brand-glyph { border: 0; background: none; padding: 2px 3px; border-radius: 5px; cursor: pointer; transition: background .15s; }
@@ -88,12 +118,12 @@ kbd { color: var(--faint); border: 1px solid var(--line); border-radius: 3px; pa
 .auth-chip > span { width: 21px; height: 21px; display: grid; place-items: center; border-radius: 50%; background: var(--accent); color: #072c27; font: 700 9px ui-monospace, monospace; }
 .auth-chip b { font-size: 11px; color: var(--muted); font-weight: 500; }
 
-.activitybar { grid-row: 2; grid-column: 1; background: var(--chrome); border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; padding: 4px 0; }
+.activitybar { grid-row: 2; grid-column: 1; position: sticky; top: 35px; align-self: start; height: calc(100dvh - 57px); background: var(--chrome); border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; padding: 4px 0; }
 .activity { position: relative; border: 0; background: transparent; width: 47px; height: 46px; display: grid; place-items: center; color: var(--muted); cursor: pointer; }
 .activity:hover, .activity.active { color: var(--text); }
 .activity.active::before { content: ""; position: absolute; left: 0; top: 50%; transform: translateY(-50%); height: 27px; width: 2px; border-radius: 0 2px 2px 0; background: var(--accent); }
 .activity-spacer { flex: 1; }
-.sidebar { grid-column: 2; grid-row: 2; background: var(--sidebar); border-right: 1px solid var(--line); min-height: 0; display: flex; flex-direction: column; font-size: 12px; z-index: 35; }
+.sidebar { grid-column: 2; grid-row: 2; position: sticky; top: 35px; align-self: start; height: calc(100dvh - 57px); background: var(--sidebar); border-right: 1px solid var(--line); min-height: 0; overflow-y: auto; display: flex; flex-direction: column; font-size: 12px; z-index: 35; }
 .sidebar-title { height: 36px; padding: 12px 18px 0; color: var(--muted); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
 .tree-section { height: 28px; display: flex; align-items: center; gap: 2px; padding: 0 8px; font-size: 10px; letter-spacing: .04em; }
 .tree-item { height: 29px; display: flex; align-items: center; gap: 7px; padding: 0 12px 0 25px; color: var(--muted); border-left: 2px solid transparent; }
@@ -405,17 +435,12 @@ kbd { color: var(--faint); border: 1px solid var(--line); border-radius: 3px; pa
   .pickup-modal { width: 100vw; height: 100vh; max-height: none; border-radius: 0; border: 0; }
 }
 
-/* 评论区输入框下方的网盘提示 */
-.comment-pickup-tip {
-  display: flex; align-items: center; gap: 6px;
-  margin-top: 6px; color: var(--faint); font-size: 11px;
-}
-.comment-pickup-tip svg { flex: none; color: var(--accent); }
+
 
 .comments-section { margin-top: 70px; padding-top: 31px; border-top: 1px solid var(--line); }
 .comments-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 23px; }.comments-heading > div, .comments-heading p { display: flex; align-items: center; gap: 8px; }.comments-heading h2 { margin: 0; font-size: 18px; }.comments-heading > div > span { color: var(--faint); font: 11px ui-monospace, monospace; }.comments-heading p { color: var(--faint); font: 10px ui-monospace, monospace; }.comments-heading p svg { color: var(--accent); }
 .comment-list { display: grid; gap: 12px; }.comment { display: grid; grid-template-columns: 34px 1fr; gap: 11px; }.comment-avatar { width: 32px; height: 32px; display: grid; place-items: center; background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; color: var(--accent); font: 700 9px ui-monospace, monospace; }.comment-body { padding: 11px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; }.comment-body header { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 7px; min-width: 0; }.comment-body header strong { font-size: 12px; white-space: normal; word-break: break-word; }.comment-date-btn { flex-shrink: 0; margin-left: auto; }.comment-body header svg { color: var(--accent); }.comment-body time { margin-left: auto; color: var(--faint); font: 9px ui-monospace, monospace; }.comment-status { color: var(--muted); padding: 11px 0; font-size: 12px; }
-.comment-editor { margin-top: 22px; border: 1px solid var(--line); background: var(--panel); border-radius: 5px; overflow: hidden; }.comment-editor-head, .comment-editor-foot { display: flex; align-items: center; justify-content: space-between; padding: 0 11px; color: var(--faint); font: 9px ui-monospace, monospace; }.comment-editor-head { height: 31px; border-bottom: 1px solid var(--line); }.comment-editor-head button { border: 0; background: none; display: flex; gap: 5px; align-items: center; color: var(--muted); cursor: pointer; }.comment-editor textarea { width: 100%; resize: vertical; min-height: 135px; border: 0; outline: 0; padding: 15px; color: var(--text); background: var(--bg); font: 12px/1.7 ui-monospace, monospace; }.comment-preview { min-height: 135px; padding: 14px 17px; background: var(--bg); }.comment-editor-foot { min-height: 39px; }.comment-editor-foot button { border: 0; display: flex; align-items: center; gap: 6px; background: var(--accent); color: #07332c; padding: 7px 11px; border-radius: 3px; font-weight: 700; cursor: pointer; }.comment-editor-foot button:disabled { opacity: .45; cursor: not-allowed; }
+.comment-editor { margin-top: 22px; border: 1px solid var(--line); background: var(--panel); border-radius: 5px; overflow: hidden; transition: border-color .15s, box-shadow .15s; }.comment-editor:focus-within { border-color: var(--accent-2); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-2) 12%, transparent); }.comment-editor-head { display: flex; align-items: center; justify-content: space-between; padding: 0 11px; color: var(--faint); font: 9px ui-monospace, monospace; }.comment-editor-head { height: 31px; border-bottom: 1px solid var(--line); }.comment-preview { min-height: 135px; padding: 14px 17px; background: var(--bg); }
 
 .modal-backdrop { position: fixed; inset: 0; z-index: 100; background: rgba(3, 7, 12, .72); backdrop-filter: blur(8px); display: grid; place-items: safe center; padding: 20px; overflow-y: auto; }
 /* 边框/圆角/裁切与顶部装饰条同在 .auth-modal 一个坐标系；内容滚动交给内层，
@@ -659,6 +684,30 @@ kbd { color: var(--faint); border: 1px solid var(--line); border-radius: 3px; pa
 .attachment-panel .attach-row.public { grid-template-columns: minmax(0, 1fr) auto; }
 .attachment-panel .attach-row.public .attach-actions input[type="password"] { min-width: 220px; }
 
+/* --------- 前台文章彩蛋（🥚 折叠入口 + sandbox iframe） --------- */
+.egg-panel { margin-top: 60px; }
+.egg-trigger { display: flex; align-items: center; gap: 9px; width: 100%; padding: 13px 15px; border: 1px dashed var(--line); border-radius: 5px; background: var(--panel); color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer; transition: border-color .15s, background .15s; }
+.egg-trigger:hover { border-color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 6%, var(--panel)); }
+.egg-trigger .egg-icon { font-size: 17px; flex: none; }
+.egg-trigger .egg-hint { margin-left: auto; font-size: 11px; font-weight: 400; color: var(--faint); }
+.egg-panel.open .egg-trigger { border-style: solid; border-color: var(--accent-2); border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom: 0; }
+.egg-frame { display: block; width: 100%; height: 70vh; border: 1px solid var(--accent-2); border-top: 0; border-radius: 0 0 5px 5px; background: #fff; }
+
+/* --------- 后台彩蛋管理面板 --------- */
+.egg-manager .egg-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.egg-manager .egg-title { display: inline-flex; align-items: center; gap: 7px; margin-bottom: 0; }
+.egg-manager .egg-meta { margin-top: 6px; }
+.egg-manager .egg-upload-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 10px; }
+.egg-manager .egg-textarea { width: 100%; min-height: 180px; resize: vertical; padding: 12px 14px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--text); outline: 0; font: 12px/1.6 ui-monospace, Consolas, monospace; }
+.egg-manager .egg-textarea:focus { border-color: var(--accent-2); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-2) 12%, transparent); }
+.egg-scan { margin-top: 12px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel-2); font-size: 12px; }
+.egg-scan strong { display: block; margin-bottom: 6px; font-size: 12px; }
+.egg-scan ul { margin: 0; padding-left: 16px; display: grid; gap: 3px; color: var(--muted); word-break: break-all; }
+.egg-scan li.warn { color: var(--orange); }
+.egg-scan li.bad { color: var(--red); font-weight: 700; }
+.egg-manager .banner { margin-top: 12px; }
+.egg-manager .cat-form-actions { margin-top: 14px; }
+
 /* 骨架屏 */
 .skeleton-table { height: 340px; background: linear-gradient(90deg, var(--panel) 0%, var(--panel-2) 50%, var(--panel) 100%); background-size: 200% 100%; animation: shimmer 1.3s linear infinite; border: 1px solid var(--line); border-radius: 6px; }
 .skeleton-list { height: 240px; background: linear-gradient(90deg, var(--panel) 0%, var(--panel-2) 50%, var(--panel) 100%); background-size: 200% 100%; animation: shimmer 1.3s linear infinite; border: 1px solid var(--line); border-radius: 6px; }
@@ -799,13 +848,90 @@ button.title-command:hover { color: var(--text); border-color: var(--accent-2); 
 .comment-deleted { padding: 5px 0 2px; color: var(--faint); font: italic 11px ui-monospace, SFMono-Regular, Consolas, monospace; }
 .comment-inline-editor { display: grid; gap: 7px; margin-top: 9px; }
 .comment-inline-hint { color: var(--faint); font: 10px ui-monospace, SFMono-Regular, Consolas, monospace; }
-.comment-inline-editor textarea { width: 100%; resize: vertical; min-height: 78px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--text); outline: 0; padding: 9px 11px; font: 12px/1.7 ui-monospace, SFMono-Regular, Consolas, monospace; }
-.comment-inline-editor textarea:focus { border-color: var(--accent-2); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-2) 12%, transparent); }
-.comment-inline-editor-foot { display: flex; justify-content: flex-end; gap: 7px; }
-.comment-inline-editor-foot button { border: 1px solid var(--line); background: var(--panel-2); color: var(--muted); font: 11px ui-monospace, SFMono-Regular, Consolas, monospace; padding: 5px 11px; border-radius: 3px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
-.comment-inline-editor-foot button.primary { border-color: transparent; background: var(--accent); color: #07332c; font-weight: 700; }
-.comment-inline-editor-foot button:disabled { opacity: .5; cursor: not-allowed; }
 .comment-inline-error { margin-top: 6px; color: #e5534b; font: 10.5px ui-monospace, SFMono-Regular, Consolas, monospace; }
+
+/* ── Markdown 评论编辑器（主编辑器 / 回复 / 编辑共用） ──
+   结构：工具栏（语法按钮 + 表情 + 帮助 + 预览）→ 文本区 → 可选速查 → 计数/操作行。
+   默认收起一切引导：工具栏常驻但极薄，语法速查点击 ? 才展开，不干扰阅读观感。 */
+.composer { display: grid; }
+.composer-toolbar {
+  display: flex; align-items: center; gap: 3px;
+  padding: 5px 8px;
+  background: var(--panel-2); border-bottom: 1px solid var(--line);
+}
+.composer-toolbar-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  width: 28px; height: 28px; flex: none;
+  border: 0; border-radius: 4px; background: none; color: var(--muted);
+  font: 10px ui-monospace, SFMono-Regular, Consolas, monospace;
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.composer-toolbar-btn:hover { color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, transparent); }
+.composer-toolbar-btn.active { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.composer-toolbar-btn.composer-toolbar-text { width: auto; padding: 0 8px; }
+.composer-toolbar-sep { width: 1px; height: 16px; flex: none; margin: 0 4px; background: var(--line); }
+.composer-toolbar .sticker-trigger-btn { width: 28px; height: 28px; border-radius: 4px; flex: none; }
+.composer textarea {
+  display: block; width: 100%; max-width: 100%; box-sizing: border-box;
+  resize: vertical; outline: 0; border: 0;
+  color: var(--text); background: var(--bg);
+  padding: 14px 15px; min-height: 132px;
+  font: 12px/1.7 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.composer textarea::placeholder { color: var(--faint); }
+/* 主编辑器嵌在带边框的 .comment-editor 内；行内编辑器自带边框，聚焦时整体高亮 */
+.composer--inline { border: 1px solid var(--line); border-radius: 4px; overflow: hidden; background: var(--bg); transition: border-color .15s, box-shadow .15s; }
+.composer--inline:focus-within { border-color: var(--accent-2); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-2) 12%, transparent); }
+.composer--inline .composer-toolbar { background: var(--panel); padding: 4px 6px; }
+.composer--inline textarea { min-height: 84px; padding: 10px 11px; }
+.composer--inline .comment-preview { min-height: 84px; padding: 10px 11px; }
+/* 主编辑器文本区与网盘提示之间不留突兀背景差 */
+.composer--main .comment-preview { padding: 14px 15px; }
+.composer-tip { display: flex; align-items: center; gap: 6px; padding: 7px 12px 0; color: var(--faint); font-size: 11px; }
+.composer-tip svg { flex: none; color: var(--accent); }
+.composer-foot { display: flex; align-items: center; gap: 8px; padding: 7px 11px; }
+.comment-editor .composer-foot { background: var(--panel-2); border-top: 1px solid var(--line); }
+.composer-counter { margin-right: auto; color: var(--faint); font: 10px ui-monospace, SFMono-Regular, Consolas, monospace; white-space: nowrap; }
+.composer-counter.near { color: color-mix(in srgb, var(--red) 72%, var(--text)); }
+.composer-counter.full { color: var(--red); }
+/* 桌面端在操作按钮左侧提示 Ctrl+Enter；手机端隐藏以省空间 */
+.composer-hint { color: var(--faint); font: 9px ui-monospace, SFMono-Regular, Consolas, monospace; white-space: nowrap; }
+.composer-foot button {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 30px; padding: 6px 12px;
+  border: 1px solid var(--line); border-radius: 3px;
+  background: var(--panel-2); color: var(--muted);
+  font: 11px ui-monospace, SFMono-Regular, Consolas, monospace;
+  cursor: pointer;
+}
+.composer-foot button:hover { color: var(--text); border-color: var(--accent-2); }
+.composer-foot button.primary { border-color: transparent; background: var(--accent); color: #07332c; font-weight: 700; }
+.composer-foot button.primary:hover { color: #07332c; filter: brightness(1.05); }
+.composer-foot button:disabled { opacity: .5; cursor: not-allowed; filter: none; }
+/* 语法速查：默认隐藏，工具栏 ? 切换；点击示例即按该语法包裹光标文本 */
+.composer-help { border-top: 1px solid var(--line); background: var(--panel-2); padding: 9px 11px 10px; display: grid; gap: 7px; }
+.composer--inline .composer-help { background: var(--panel); }
+.composer-help-title { color: var(--faint); font: 9px ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .04em; }
+.composer-help-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 16px; }
+.composer-help-item { display: flex; align-items: center; gap: 9px; min-width: 0; border: 0; background: none; padding: 3px 5px; border-radius: 3px; cursor: pointer; text-align: left; }
+.composer-help-item:hover { background: color-mix(in srgb, var(--accent) 9%, transparent); }
+.composer-help-item code { flex: none; font: 10px ui-monospace, SFMono-Regular, Consolas, monospace; color: var(--accent); }
+.composer-help-item span { color: var(--faint); font: 9px ui-monospace, SFMono-Regular, Consolas, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 平板/手机：工具栏横向滚动（不折行挤压），按钮放大到易点尺寸；速查单列 */
+@media (max-width: 900px) {
+  .composer-toolbar { overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .composer-toolbar::-webkit-scrollbar { display: none; }
+  .composer-toolbar-btn { width: 32px; height: 32px; }
+  .composer-toolbar .sticker-trigger-btn { width: 32px; height: 32px; }
+  .composer-foot button { min-height: 32px; padding: 7px 14px; }
+  .composer-hint { display: none; }
+}
+@media (max-width: 620px) {
+  .composer-help-grid { grid-template-columns: 1fr; }
+  .composer-tip { font-size: 10.5px; line-height: 1.6; }
+  .composer--main textarea { min-height: 120px; }
+}
 .attach-gate { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 17px 15px; border: 1px dashed var(--line); border-radius: 5px; background: var(--panel); color: var(--muted); font-size: 12px; }
 .attach-gate svg { color: var(--faint); flex: none; }
 .attach-gate span { flex: 1; }
@@ -974,6 +1100,8 @@ button.title-command:hover { color: var(--text); border-color: var(--accent-2); 
 .my-comment-post { color: var(--accent); font-size: 12px; font-weight: 600; text-decoration: none; }
 .my-comment-post:hover { text-decoration: underline; }
 .my-comment-body { margin: 0; font-size: 12px; line-height: 1.6; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; }
+/* 折叠遮罩跟随卡片底色（--bg），与评论区 --panel 区分 */
+.my-comment-item .comment-collapse.collapsed::after { background: linear-gradient(transparent, var(--bg)); }
 .my-comment-date { color: var(--faint); font: 10px ui-monospace, monospace; }
 
 /* ===================== 管理后台：标签管理 / 打标 / 评论搜索 ===================== */
@@ -1164,13 +1292,6 @@ button.title-command:hover { color: var(--text); border-color: var(--accent-2); 
   .sticker-preview span { font-size: 14px; }
 }
 
-/* 评论编辑器工具栏（容纳表情按钮和预览按钮） */
-.comment-editor-tools { display: flex; align-items: center; gap: 4px; }
-.comment-editor-tools .sticker-trigger-btn { border: none; background: none; }
-
-/* 行内编辑器中的表情按钮 */
-.comment-inline-editor-foot .sticker-trigger-btn { border: none; background: none; margin-right: auto; }
-
 /* 后台编辑器工具栏中的表情按钮 */
 .editor-toolbar .toolbar-buttons .sticker-trigger-btn { border: none; background: none; width: 30px; height: 30px; color: var(--muted); }
 .editor-toolbar .toolbar-buttons .sticker-trigger-btn:hover { color: var(--accent); }
@@ -1182,6 +1303,7 @@ button.title-command:hover { color: var(--text); border-color: var(--accent-2); 
 }
 .error-cat { display: flex; flex-direction: column; align-items: center; gap: 12px; }
 .error-cat-code {
+  margin: 0;
   font: 800 64px ui-monospace, SFMono-Regular, Consolas, monospace;
   color: var(--accent); letter-spacing: -.04em; line-height: 1;
 }
@@ -1557,8 +1679,24 @@ button.title-command:hover { color: var(--text); border-color: var(--accent-2); 
   --font-prose: var(--font-ui);
 }
 :root[data-font="zh-lisu"] {
-  --font-ui: "LiSu", "STLiti", "Noto Serif SC", ui-serif, "KaiTi", serif;
+  --font-ui: "LiSu", "STKliti", "Noto Serif SC", ui-serif, "KaiTi", serif;
   --font-prose: var(--font-ui);
+}
+
+/* ── 打印：只留文章与讨论文本，隐藏编辑器 chrome / 交互控件 ── */
+@media print {
+  .titlebar, .activitybar, .sidebar, .statusbar, .sidebar-scrim,
+  .tabs-row, .back-link,
+  .modal-backdrop,
+  .article-meta button,
+  .comment-actions, .comment-editor, .comment-sort, .composer-tip,
+  .comment-inline-editor, .comment-expand { display: none !important; }
+  .workbench { display: block; min-height: 0; background: #fff; }
+  .editor-area, .article-scroll { overflow: visible; }
+  .article-shell { padding: 0; max-width: none; }
+  body { background: #fff !important; }
+  a { color: inherit; text-decoration: underline; }
+  pre, code { white-space: pre-wrap; word-break: break-word; }
 }
 
 /* —— 英文 · 一般 —— */
@@ -1605,6 +1743,66 @@ button.title-command:hover { color: var(--text); border-color: var(--accent-2); 
   --font-prose: var(--font-ui);
 }
 :root[data-font="ru-marck"] {
-  --font-ui: "Marck Script", "Noto Sans SC", "Segoe Script", cursive;
+  --font-ui: "Marck Script", "Noto Serif SC", "Segoe Script", cursive;
   --font-prose: var(--font-ui);
+}
+
+/* ============================================================
+   移动端：输入控件字号 ≥16px
+   iOS Safari 在 <16px 的输入框聚焦时会自动放大整个页面且不还原，
+   破坏吸顶布局与阅读位置。手机断点统一抬到 16px（视觉由行高/内边距保持紧凑）。
+   下面元素选择器兜住普通控件；用类选择器覆盖组件里更高优先级的 font 简写规则。
+   ============================================================ */
+@media (max-width: 900px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select,
+  [contenteditable=""],
+  [contenteditable="true"],
+  .comment-editor textarea,
+  .comment-inline-editor textarea,
+  .user-field input,
+  .user-field textarea,
+  .commenter-sig textarea,
+  .commenter-warn textarea {
+    font-size: 16px;
+  }
+  /* 原规则带 !important，只能同级覆盖（后台编辑器，手机端少见但同样防放大） */
+  .mono-textarea {
+    font-size: 16px !important;
+  }
+
+  /* 高频小控件抬到 ≥24px（WCAG 2.5.8），仅手机端、保持紧凑编辑器美学 */
+  .comment-actions button,
+  .comment-expand,
+  .composer-foot button,
+  .comment-sort .chip-toggle,
+  .search-mode,
+  .comment-date-btn.editable,
+  .footnote-back {
+    min-height: 24px;
+  }
+  .comment-actions button,
+  .composer-foot button,
+  .comment-sort .chip-toggle,
+  .search-mode {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+  /* 脚注返回链接原仅 8px 宽 */
+  .footnote-back {
+    min-width: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  /* 文章页“返回知识流”文字链接 15px 高 */
+  .back-link {
+    min-height: 24px;
+  }
+  /* 标题栏图标按钮原 23x21，差 1px 达标 */
+  .titlebar button {
+    min-width: 24px;
+    min-height: 24px;
+  }
 }

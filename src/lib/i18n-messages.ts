@@ -655,6 +655,8 @@ mergeDict('zh', {
 
   // ── admin: 彩蛋模式 ──
   'admin.egg.title': '彩蛋模式',
+  'admin.egg.mode.title': '彩蛋文章',
+  'admin.egg.mode.hint': '开启后本文以整页 HTML 呈现，访客点击进入独立页面（无侧边栏/目录/评论）',
   'admin.egg.desc': '为本文附加一个整页静态 HTML（互动攻略、小游戏页等）。启用后访客在文章底部点击 🥚 即可在沙盒 iframe 中打开：脚本可运行但被隔离，拿不到站点登录态，也不能向外发请求。',
   'admin.egg.state.on': '已启用',
   'admin.egg.state.off': '未启用',
@@ -1461,6 +1463,8 @@ mergeDict('en', {
 
   // ── admin: easter egg ──
   'admin.egg.title': 'Easter egg mode',
+  'admin.egg.mode.title': 'Easter egg article',
+  'admin.egg.mode.hint': 'When enabled, this post renders as a full-page HTML document — visitors enter a standalone page without site chrome',
   'admin.egg.desc': 'Attach a full-page static HTML (interactive guide, mini game, etc.) to this post. Once enabled, visitors open it via the 🥚 button at the bottom of the post in a sandboxed iframe: scripts run isolated, without site credentials or outbound requests.',
   'admin.egg.state.on': 'Enabled',
   'admin.egg.state.off': 'Disabled',
@@ -2266,6 +2270,8 @@ mergeDict('ru', {
 
   // ── admin: пасхалка ──
   'admin.egg.title': 'Режим пасхалки',
+  'admin.egg.mode.title': 'Пасхалка-запись',
+  'admin.egg.mode.hint': 'Когда включено, запись открывается как целая HTML-страница — посетители попадают на отдельную страницу без сайдбара и комментариев',
   'admin.egg.desc': 'Прикрепите к записи целую статическую HTML-страницу (интерактивный гид, мини-игру и т.п.). После включения посетители открывают её кнопкой 🥚 внизу записи в sandbox-iframe: скрипты работают изолированно, без доступа к сессии сайта и внешним запросам.',
   'admin.egg.state.on': 'Включена',
   'admin.egg.state.off': 'Выключена',

@@ -377,38 +377,3 @@ export function AttachmentPanel({ postSlug }: { postSlug: string }) {
     </section>
   )
 }
-
-// =================================================================
-// 前台：文章彩蛋入口（🥚 折叠按钮 + sandbox iframe 加载 /egg/:slug）
-// enabled 由正文页 loader 的 postEggMetaFn 提供；未启用时完全不渲染。
-// iframe sandbox 与 /egg/ 响应的 CSP sandbox 双重隔离：脚本可运行但
-// 处于不透明源，拿不到站点 cookie/存储；allow-same-origin 刻意不加。
-// =================================================================
-export function EggPanel({ postSlug, enabled }: { postSlug: string; enabled: boolean }) {
-  const t = useT()
-  const [open, setOpen] = React.useState(false)
-  if (!enabled) return null
-  return (
-    <section className={`egg-panel${open ? ' open' : ''}`}>
-      <button
-        type="button"
-        className="egg-trigger"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-      >
-        <span className="egg-icon" aria-hidden="true">🥚</span>
-        <span>{open ? t('egg.collapse') : t('egg.reveal')}</span>
-        <span className="egg-hint">{t('egg.hint')}</span>
-      </button>
-      {open && (
-        <iframe
-          className="egg-frame"
-          src={`/egg/${encodeURIComponent(postSlug)}`}
-          title={t('egg.frame.title')}
-          loading="lazy"
-          sandbox="allow-scripts allow-modals allow-popups allow-popups-to-escape-sandbox allow-downloads"
-        />
-      )}
-    </section>
-  )
-}

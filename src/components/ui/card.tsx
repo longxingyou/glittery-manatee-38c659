@@ -301,6 +301,9 @@ const deletePostEggFn = createServerFn({ method: 'POST' })
     return { ok: true }
   })
 
+// 彩蛋 HTML 字节上限（与 db 层 POST_EGG_MAX_BYTES 一致；权威校验在 db 层）
+const EGG_MAX_BYTES = 512 * 1024
+
 // 保证公开别名不会因 noUnusedLocals 告警（实际已通过同名 const 引用）
 void _pub_adminStatusFn; void _pub_settingsFn; void _pub_allCategoriesFn
 void _pub_publishedPostsFn; void _pub_getPublishedPostFn
@@ -855,6 +858,11 @@ export function PostEditorPage() {
   })
   const [preview, setPreview] = React.useState(true)
   const editor = useMarkdownEditor('')
+  // 彩蛋文章模式：开启后正文由整页 HTML 接管，访客点击进入独立页面
+  const [eggMode, setEggMode] = React.useState(false)
+  const [eggHtml, setEggHtml] = React.useState('')
+  const [eggExisting, setEggExisting] = React.useState<PostEggPayload | null>(null)
+  const eggFileRef = React.useRef<HTMLInputElement>(null)
 
   const flashErr = (e: unknown) => setMsg({ kind: 'err', text: e instanceof Error ? e.message : t('admin.op.fail') })
 
@@ -873,6 +881,13 @@ export function PostEditorPage() {
             attachments, categoryOptions: categories, allPosts: posts,
           })
           editor.setValue(post.content)
+          // 已有彩蛋：自动切换到彩蛋编辑模式
+          const egg = await getPostEggFn({ data: { slug: post.slug } }).catch(() => null)
+          if (alive && egg) {
+            setEggExisting(egg)
+            setEggHtml(egg.html)
+            setEggMode(true)
+          }
         } else if (translateFrom && Number.isInteger(translateFrom) && translateFrom > 0) {
           // 新建译本：分类/翻译键预填，语言缺省取组内缺失项，路径自动为「组键-语言」
           const { post, categories, posts } = await getPostForEditFn({ data: { id: translateFrom } })
@@ -945,6 +960,28 @@ export function PostEditorPage() {
     ...b,
     categories: b.categories.includes(name) ? b.categories.filter((c) => c !== name) : [...b.categories, name],
   }))
+
+  // 彩蛋 HTML 本地文件选择
+  const pickEggFile = (file: File) => {
+    const reader = new FileReader()
+    reader.onload = () => { setEggHtml(String(reader.result ?? '')); setMsg(null) }
+    reader.onerror = () => setMsg({ kind: 'err', text: t('admin.egg.err') })
+    reader.readAsText(file)
+  }
+
+  // 彩蛋自动审查：列出脚本/事件属性/iframe/外链域名/体积，供保存前人工核对
+  const eggScan = React.useMemo(() => {
+    const html = eggHtml
+    const bytes = new TextEncoder().encode(html).length
+    const scripts = (html.match(/<script[\s>]/gi) || []).length
+    const handlers = (html.match(/\son[a-z][a-z0-9-]*\s*=/gi) || []).length
+    const iframes = (html.match(/<iframe[\s>]/gi) || []).length
+    const hostSet = new Set<string>()
+    const re = /(?:src|href)\s*=\s*["']?\s*(?:https?:)?\/\/([a-z0-9][a-z0-9.-]*)/gi
+    let m: RegExpExecArray | null
+    while ((m = re.exec(html))) { if (m[1]) hostSet.add(m[1].toLowerCase()) }
+    return { bytes, scripts, handlers, iframes, hosts: [...hostSet].sort(), oversize: bytes > EGG_MAX_BYTES }
+  }, [eggHtml])
   const addNewCategory = () => {
     const name = window.prompt(t('admin.cat.prompt'), '')?.trim()
     if (!name) return
@@ -971,7 +1008,7 @@ export function PostEditorPage() {
           slug: bootstrap.slug || slugify(bootstrap.title),
           title: bootstrap.title,
           summary: bootstrap.summary,
-          content: editor.value,
+          content: eggMode ? (bootstrap.summary || bootstrap.title) : editor.value,
           categories: bootstrap.categories,
           status: nextStatus || bootstrap.status,
           date: bootstrap.date,
@@ -979,6 +1016,16 @@ export function PostEditorPage() {
           translationKey: bootstrap.translationKey,
         },
       })
+      // 彩蛋文章：文章保存成功后，把 HTML 作为彩蛋保存（直接启用）
+      if (eggMode && eggHtml.trim()) {
+        const savedEgg = await savePostEggFn({ data: { slug: result.slug, html: eggHtml, enabled: true } })
+        setEggExisting(savedEgg)
+      } else if (!eggMode && eggExisting) {
+        // 取消彩蛋模式后保存：移除已存彩蛋，文章恢复普通 Markdown 渲染
+        await deletePostEggFn({ data: { slug: result.slug } })
+        setEggExisting(null)
+        setEggHtml('')
+      }
       setMsg({ kind: 'ok', text: nextStatus === 'published' ? t('admin.editor.published') : t('admin.editor.draft.saved') })
       if (!bootstrap.id) navigate({ to: '/admin/posts/$id', params: { id: String(result.id) } })
       // 保存后仅拉取附件（原来调 getPostForEditFn 会多拉 post+categories+allPosts，浪费 4× 查询）
@@ -1218,15 +1265,93 @@ export function PostEditorPage() {
         </div>
       </div>
 
-      {bootstrap.id ? (
-        <>
-          <AttachmentManager
-            postSlug={bootstrap.slug}
-            attachments={bootstrap.attachments}
-            onChange={(next) => setBootstrap((b) => ({ ...b, attachments: next }))}
+      {/* 彩蛋文章模式：整页 HTML 接管正文，无站点 chrome */}
+      <div className={`panel egg-editor${eggMode ? ' active' : ''}`}>
+        <label className="egg-mode-toggle">
+          <input
+            type="checkbox"
+            checked={eggMode}
+            onChange={(e) => setEggMode(e.target.checked)}
           />
-          <EggManager postSlug={bootstrap.slug} />
-        </>
+          <span className="egg-mode-label">
+            <Egg size={15} />{t('admin.egg.mode.title')}
+          </span>
+          <span className="muted small">{t('admin.egg.mode.hint')}</span>
+        </label>
+
+        {eggMode && (
+          <>
+            <div className="egg-upload-row">
+              <input
+                ref={eggFileRef}
+                type="file"
+                accept=".html,.htm,text/html"
+                hidden
+                onChange={(e) => {
+                  const f = e.target.files?.[0]
+                  if (f) pickEggFile(f)
+                  e.target.value = ''
+                }}
+              />
+              <button type="button" className="ghost-button" onClick={() => eggFileRef.current?.click()}>
+                <Upload size={14} />{t('admin.egg.file')}
+              </button>
+              <button
+                type="button"
+                className="ghost-button"
+                disabled={!eggHtml.trim() || !bootstrap.slug}
+                onClick={() => window.open(`/egg/${encodeURIComponent(bootstrap.slug)}?preview=1`, '_blank', 'noopener')}
+              >
+                <Eye size={14} />{t('admin.egg.preview')}
+              </button>
+            </div>
+
+            <textarea
+              className="egg-textarea"
+              value={eggHtml}
+              onChange={(e) => setEggHtml(e.target.value)}
+              placeholder={t('admin.egg.ph')}
+              spellCheck={false}
+              rows={12}
+            />
+
+            {eggHtml.trim() && (
+              <div className="egg-scan">
+                <strong>{t('admin.egg.scan.title')}</strong>
+                <ul>
+                  <li className={eggScan.oversize ? 'bad' : ''}>
+                    {t('admin.egg.scan.bytes')}: {formatBytes(eggScan.bytes)}
+                    {eggScan.oversize && <> — {t('admin.egg.scan.oversize')}</>}
+                  </li>
+                  <li className={eggScan.scripts > 0 ? 'warn' : ''}>{'<script>'}: {eggScan.scripts}</li>
+                  <li className={eggScan.handlers > 0 ? 'warn' : ''}>{t('admin.egg.scan.handlers')}: {eggScan.handlers}</li>
+                  <li className={eggScan.iframes > 0 ? 'warn' : ''}>{'<iframe>'}: {eggScan.iframes}</li>
+                  <li className={eggScan.hosts.length > 0 ? 'warn' : ''}>
+                    {t('admin.egg.scan.links')}: {eggScan.hosts.length ? eggScan.hosts.join(', ') : t('admin.egg.scan.links.none')}
+                  </li>
+                </ul>
+              </div>
+            )}
+
+            {eggExisting && (
+              <p className="muted small egg-meta">
+                {t('admin.egg.meta', {
+                  size: formatBytes(new TextEncoder().encode(eggExisting.html).length),
+                  date: eggExisting.updatedAt ? new Date(eggExisting.updatedAt).toLocaleString(lang === 'zh' ? 'zh-CN' : lang === 'ru' ? 'ru-RU' : 'en-US') : '—',
+                })}
+                {' · '}{eggExisting.enabled ? t('admin.egg.state.on') : t('admin.egg.state.off')}
+              </p>
+            )}
+          </>
+        )}
+      </div>
+
+      {bootstrap.id ? (
+        <AttachmentManager
+          postSlug={bootstrap.slug}
+          attachments={bootstrap.attachments}
+          onChange={(next) => setBootstrap((b) => ({ ...b, attachments: next }))}
+        />
       ) : (
         <div className="panel muted small muted-pad">
           <FileDown size={16} /> {t('admin.editor.attach.hint')}
@@ -1568,191 +1693,6 @@ function AttachmentManager({
           </li>
         ))}
       </ul>
-    </div>
-  )
-}
-
-// =================================================================
-// 后台：文章彩蛋管理（整页静态 HTML 的上传/自动审查/预览/启用/移除）
-// =================================================================
-// 彩蛋 HTML 字节上限（与 db 层 POST_EGG_MAX_BYTES 一致；权威校验在 db 层）
-const EGG_MAX_BYTES = 512 * 1024
-
-function EggManager({ postSlug }: { postSlug: string }) {
-  const t = useT()
-  const lang = useLang()
-  const dateLocale = lang === 'zh' ? 'zh-CN' : lang === 'ru' ? 'ru-RU' : 'en-US'
-  const fileRef = React.useRef<HTMLInputElement>(null)
-  const [loaded, setLoaded] = React.useState(false)
-  const [existing, setExisting] = React.useState<PostEggPayload | null>(null)
-  const [html, setHtml] = React.useState('')
-  const [busy, setBusy] = React.useState<null | 'save' | 'saveOn' | 'delete' | 'preview'>(null)
-  const [msg, setMsg] = React.useState('')
-
-  React.useEffect(() => {
-    let alive = true
-    getPostEggFn({ data: { slug: postSlug } })
-      .then((egg) => {
-        if (!alive) return
-        setExisting(egg)
-        setHtml(egg?.html ?? '')
-        setLoaded(true)
-      })
-      .catch((e) => {
-        if (!alive) return
-        setMsg(e instanceof Error ? e.message : t('admin.egg.err'))
-        setLoaded(true)
-      })
-    return () => { alive = false }
-  }, [postSlug, t])
-
-  // 本地文件 → textarea（彩蛋接受整页 .html 文档）
-  const pickFile = (file: File) => {
-    const reader = new FileReader()
-    reader.onload = () => { setHtml(String(reader.result ?? '')); setMsg('') }
-    reader.onerror = () => setMsg(t('admin.egg.err'))
-    reader.readAsText(file)
-  }
-
-  // 自动审查：列出脚本/事件属性/iframe/外链域名/体积，供保存前人工核对。
-  // 安全边界不靠剥离 HTML（交互脚本允许存在），靠 /egg/ 的 CSP sandbox + iframe sandbox。
-  const scan = React.useMemo(() => {
-    const bytes = new TextEncoder().encode(html).length
-    const scripts = (html.match(/<script[\s>]/gi) || []).length
-    const handlers = (html.match(/\son[a-z][a-z0-9-]*\s*=/gi) || []).length
-    const iframes = (html.match(/<iframe[\s>]/gi) || []).length
-    const hostSet = new Set<string>()
-    const re = /(?:src|href)\s*=\s*["']?\s*(?:https?:)?\/\/([a-z0-9][a-z0-9.-]*)/gi
-    let m: RegExpExecArray | null
-    while ((m = re.exec(html))) { if (m[1]) hostSet.add(m[1].toLowerCase()) }
-    return { bytes, scripts, handlers, iframes, hosts: [...hostSet].sort(), oversize: bytes > EGG_MAX_BYTES }
-  }, [html])
-
-  const dirty = html !== (existing?.html ?? '')
-
-  const save = async (enabled: boolean) => {
-    if (!html.trim()) { setMsg(t('admin.egg.empty')); return }
-    setBusy(enabled ? 'saveOn' : 'save'); setMsg('')
-    try {
-      const saved = await savePostEggFn({ data: { slug: postSlug, html, enabled } })
-      setExisting(saved)
-      setMsg(t(enabled ? 'admin.egg.saved.on' : 'admin.egg.saved.ok'))
-    } catch (e) { setMsg(e instanceof Error ? e.message : t('admin.egg.err')) }
-    finally { setBusy(null) }
-  }
-
-  // 预览的是"已保存版本"：有未保存修改时先按当前启用状态静默保存再开新窗口
-  const preview = async () => {
-    if (!html.trim()) { setMsg(t('admin.egg.empty')); return }
-    setBusy('preview'); setMsg('')
-    try {
-      if (dirty) {
-        const saved = await savePostEggFn({ data: { slug: postSlug, html, enabled: existing?.enabled ?? false } })
-        setExisting(saved)
-      }
-      window.open(`/egg/${encodeURIComponent(postSlug)}?preview=1`, '_blank', 'noopener')
-    } catch (e) { setMsg(e instanceof Error ? e.message : t('admin.egg.err')) }
-    finally { setBusy(null) }
-  }
-
-  const remove = async () => {
-    if (!window.confirm(t('admin.egg.remove.confirm'))) return
-    setBusy('delete'); setMsg('')
-    try {
-      await deletePostEggFn({ data: { slug: postSlug } })
-      setExisting(null)
-      setHtml('')
-      setMsg(t('admin.egg.removed'))
-    } catch (e) { setMsg(e instanceof Error ? e.message : t('admin.egg.err')) }
-    finally { setBusy(null) }
-  }
-
-  const canSubmit = loaded && busy === null && html.trim().length > 0 && !scan.oversize
-
-  return (
-    <div className="panel egg-manager">
-      <div className="egg-head">
-        <h3 className="panel-title egg-title"><Egg size={15} />{t('admin.egg.title')}</h3>
-        {existing && (
-          <span className={existing.enabled ? 'chip unlock' : 'chip lock'}>
-            {existing.enabled ? t('admin.egg.state.on') : t('admin.egg.state.off')}
-          </span>
-        )}
-      </div>
-      <p className="muted small">{t('admin.egg.desc')}</p>
-      {existing ? (
-        <p className="muted small egg-meta">
-          {t('admin.egg.meta', {
-            size: formatBytes(new TextEncoder().encode(existing.html).length),
-            date: existing.updatedAt ? new Date(existing.updatedAt).toLocaleString(dateLocale) : '—',
-          })}
-        </p>
-      ) : loaded ? (
-        <p className="muted small">{t('admin.egg.state.none')}</p>
-      ) : null}
-
-      <div className="egg-upload-row">
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".html,.htm,text/html"
-          hidden
-          onChange={(e) => {
-            const f = e.target.files?.[0]
-            if (f) pickFile(f)
-            e.target.value = ''
-          }}
-        />
-        <button type="button" className="ghost-button" onClick={() => fileRef.current?.click()}>
-          <Upload size={14} />{t('admin.egg.file')}
-        </button>
-        <button type="button" className="ghost-button" disabled={busy !== null || !html.trim()} onClick={() => void preview()}>
-          <Eye size={14} />{busy === 'preview' ? t('admin.busy.processing') : t('admin.egg.preview')}
-        </button>
-      </div>
-
-      <textarea
-        className="egg-textarea"
-        value={html}
-        onChange={(e) => setHtml(e.target.value)}
-        placeholder={t('admin.egg.ph')}
-        spellCheck={false}
-        rows={9}
-      />
-
-      {html.trim() && (
-        <div className="egg-scan">
-          <strong>{t('admin.egg.scan.title')}</strong>
-          <ul>
-            <li className={scan.oversize ? 'bad' : ''}>
-              {t('admin.egg.scan.bytes')}: {formatBytes(scan.bytes)}
-              {scan.oversize && <> — {t('admin.egg.scan.oversize')}</>}
-            </li>
-            <li className={scan.scripts > 0 ? 'warn' : ''}>{'<script>'}: {scan.scripts}</li>
-            <li className={scan.handlers > 0 ? 'warn' : ''}>{t('admin.egg.scan.handlers')}: {scan.handlers}</li>
-            <li className={scan.iframes > 0 ? 'warn' : ''}>{'<iframe>'}: {scan.iframes}</li>
-            <li className={scan.hosts.length > 0 ? 'warn' : ''}>
-              {t('admin.egg.scan.links')}: {scan.hosts.length ? scan.hosts.join(', ') : t('admin.egg.scan.links.none')}
-            </li>
-          </ul>
-        </div>
-      )}
-
-      {msg && <div className="banner small">{msg}</div>}
-
-      <div className="cat-form-actions">
-        <button type="button" className="ghost-button" disabled={!canSubmit || busy !== null} onClick={() => void save(false)}>
-          {busy === 'save' ? t('admin.busy.saving') : t('admin.egg.save')}
-        </button>
-        <button type="button" className="primary-button" disabled={!canSubmit || busy !== null} onClick={() => void save(true)}>
-          {busy === 'saveOn' ? t('admin.busy.saving') : t('admin.egg.save.on')}
-        </button>
-        {existing && (
-          <button type="button" className="ghost-button small danger" disabled={busy !== null} onClick={() => void remove()}>
-            <Trash2 size={13} />{busy === 'delete' ? t('admin.busy.processing') : t('admin.egg.remove')}
-          </button>
-        )}
-      </div>
     </div>
   )
 }

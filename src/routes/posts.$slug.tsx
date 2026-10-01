@@ -1,9 +1,9 @@
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
 import { ArrowLeft, CalendarDays, Check, Clock3, Hash, Share2 } from 'lucide-react'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArticleOutline } from '@/components/article-outline'
 import { CommentSection } from '@/components/comment-section'
-import { AttachmentPanel, EggPanel, publicServerFns } from '@/components/public-fns'
+import { AttachmentPanel, publicServerFns } from '@/components/public-fns'
 import { getPostSiblings, DEFAULT_SITE_TITLE, type PostData } from '@/lib/utils'
 import { renderMarkdown, extractHeadingsFromHtml } from '@/lib/markdown'
 import { useMermaidLazy } from '@/lib/use-mermaid'
@@ -139,6 +139,14 @@ function RouteComponent() {
   const articleHtml = useMemo(() => renderMarkdown(post.content), [post.content])
   const initialHeadings = useMemo(() => extractHeadingsFromHtml(articleHtml), [articleHtml])
 
+  // 彩蛋文章：整页接管，隐藏站点默认 chrome（侧边栏/目录/返回等）
+  const isEggTakeover = egg.enabled
+  useEffect(() => {
+    if (!isEggTakeover) return
+    document.body.classList.add('egg-takeover')
+    return () => document.body.classList.remove('egg-takeover')
+  }, [isEggTakeover])
+
   // 分享：优先系统分享面板（iOS Safari / Android Chrome）；
   // 微信/QQ 等内置浏览器不支持 navigator.share 时降级为复制链接，
   // 避免 `navigator.share?.()` 在不支持的环境下静默无响应。
@@ -161,6 +169,19 @@ function RouteComponent() {
       // 极端兜底：弹窗让用户手动复制
       window.prompt(t('post.share.prompt'), url)
     }
+  }
+
+  if (isEggTakeover) {
+    return (
+      <div className="egg-post-view">
+        <iframe
+          className="egg-post-frame"
+          src={`/egg/${encodeURIComponent(post.slug)}`}
+          title={post.title}
+          sandbox="allow-scripts allow-modals allow-popups allow-popups-to-escape-sandbox allow-downloads"
+        />
+      </div>
+    )
   }
 
   return (
@@ -199,7 +220,6 @@ function RouteComponent() {
             className="markdown-body"
             dangerouslySetInnerHTML={{ __html: articleHtml }}
           />
-          <EggPanel postSlug={post.slug} enabled={egg.enabled} />
           <AttachmentPanel postSlug={post.slug} />
           <CommentSection postSlug={post.slug} />
           </article>

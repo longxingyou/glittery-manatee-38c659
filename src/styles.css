@@ -684,29 +684,38 @@ kbd { color: var(--faint); border: 1px solid var(--line); border-radius: 3px; pa
 .attachment-panel .attach-row.public { grid-template-columns: minmax(0, 1fr) auto; }
 .attachment-panel .attach-row.public .attach-actions input[type="password"] { min-width: 220px; }
 
-/* --------- 前台文章彩蛋（🥚 折叠入口 + sandbox iframe） --------- */
-.egg-panel { margin-top: 60px; }
-.egg-trigger { display: flex; align-items: center; gap: 9px; width: 100%; padding: 13px 15px; border: 1px dashed var(--line); border-radius: 5px; background: var(--panel); color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer; transition: border-color .15s, background .15s; }
-.egg-trigger:hover { border-color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 6%, var(--panel)); }
-.egg-trigger .egg-icon { font-size: 17px; flex: none; }
-.egg-trigger .egg-hint { margin-left: auto; font-size: 11px; font-weight: 400; color: var(--faint); }
-.egg-panel.open .egg-trigger { border-style: solid; border-color: var(--accent-2); border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom: 0; }
-.egg-frame { display: block; width: 100%; height: 70vh; border: 1px solid var(--accent-2); border-top: 0; border-radius: 0 0 5px 5px; background: #fff; }
+/* --------- 前台文章彩蛋（整页接管，无站点 chrome） --------- */
+.egg-post-view { position: fixed; inset: 0; z-index: 999; background: var(--bg); }
+.egg-post-frame { width: 100%; height: 100%; border: 0; display: block; }
 
-/* --------- 后台彩蛋管理面板 --------- */
-.egg-manager .egg-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.egg-manager .egg-title { display: inline-flex; align-items: center; gap: 7px; margin-bottom: 0; }
-.egg-manager .egg-meta { margin-top: 6px; }
-.egg-manager .egg-upload-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 10px; }
-.egg-manager .egg-textarea { width: 100%; min-height: 180px; resize: vertical; padding: 12px 14px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--text); outline: 0; font: 12px/1.6 ui-monospace, Consolas, monospace; }
-.egg-manager .egg-textarea:focus { border-color: var(--accent-2); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-2) 12%, transparent); }
+/* 彩蛋文章模式下隐藏站点默认布局元素 */
+.egg-takeover .sidebar,
+.egg-takeover .mobile-drawer,
+.egg-takeover .mobile-tabbar,
+.egg-takeover .page-view > .tabs-row,
+.egg-takeover .back-link,
+.egg-takeover .article-header,
+.egg-takeover .article-rule,
+.egg-takeover .article-outline,
+.egg-takeover .comment-section,
+.egg-takeover .attachment-panel { display: none !important; }
+
+/* --------- 后台彩蛋文章编辑器 --------- */
+.egg-editor { margin-top: 16px; }
+.egg-editor.active { border-color: color-mix(in srgb, var(--accent-2) 40%, var(--line)); }
+.egg-mode-toggle { display: flex; align-items: center; gap: 10px; cursor: pointer; margin-bottom: 12px; }
+.egg-mode-toggle input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; }
+.egg-mode-label { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; font-size: 14px; }
+.egg-mode-toggle .muted { margin-left: auto; }
+.egg-upload-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+.egg-textarea { width: 100%; min-height: 240px; resize: vertical; padding: 12px 14px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--text); outline: 0; font: 12px/1.6 ui-monospace, Consolas, monospace; }
+.egg-textarea:focus { border-color: var(--accent-2); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-2) 12%, transparent); }
 .egg-scan { margin-top: 12px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel-2); font-size: 12px; }
 .egg-scan strong { display: block; margin-bottom: 6px; font-size: 12px; }
 .egg-scan ul { margin: 0; padding-left: 16px; display: grid; gap: 3px; color: var(--muted); word-break: break-all; }
 .egg-scan li.warn { color: var(--orange); }
 .egg-scan li.bad { color: var(--red); font-weight: 700; }
-.egg-manager .banner { margin-top: 12px; }
-.egg-manager .cat-form-actions { margin-top: 14px; }
+.egg-meta { margin-top: 10px; }
 
 /* 骨架屏 */
 .skeleton-table { height: 340px; background: linear-gradient(90deg, var(--panel) 0%, var(--panel-2) 50%, var(--panel) 100%); background-size: 200% 100%; animation: shimmer 1.3s linear infinite; border: 1px solid var(--line); border-radius: 6px; }

@@ -1,6 +1,6 @@
 # Syntax Garden 附件网关：本地 Telegram Bot API Server（--local）+ 签名 HTTP 网关
-# 目标宿主：Koyeb 免费 Web Service（Dockerfile 构建，监听 $PORT 默认 8080）。
-# 也可在任意支持 Docker 的主机（HF Spaces/VPS）上运行：同一镜像，注入环境变量即可。
+# 宿主无关镜像：Zeabur / VPS / 其他 Docker 平台均可。
+# 网关监听平台注入的 $PORT（默认 8080），需在平台将该端口暴露为 HTTP 服务。
 FROM aiogram/telegram-bot-api:latest
 
 USER root
@@ -14,10 +14,10 @@ RUN chmod +x /app/start.sh && mkdir -p /data && chmod 777 /data
 
 WORKDIR /app
 
-# Koyeb 默认把 HTTP 流量路由到 8080；网关监听 $PORT（默认 8080）
+# 平台（如 Zeabur）通过 $PORT 路由 HTTP 流量；网关默认监听 8080
 EXPOSE 8080
 
-# 容器级健康检查（Koyeb 控制台也可单独配置 HTTP /healthz 检查）
+# 容器级健康检查（平台也可配置 HTTP /healthz 检查）
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
   CMD wget -q -O /dev/null "http://127.0.0.1:${PORT:-8080}/healthz" || exit 1
 

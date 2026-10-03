@@ -1,0 +1,6 @@
+# 网关域名（DNS 需先 A 记录指向本机，且 80/443 入站放行）
+# Caddy 会自动向 Let's Encrypt 申请并续期证书。
+# Caddy 默认不限制请求体大小、不设响应超时，大文件分片（≤2000MB）可直接透传。
+gw.xn--fpr224a.mom {
+	reverse_proxy gateway:8080
+}

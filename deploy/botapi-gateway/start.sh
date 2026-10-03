@@ -1,6 +1,6 @@
 #!/bin/sh
 # 启动本地 Telegram Bot API Server（--local 模式：上传 2000MB / 下载无大小限制），
-# 再启动签名网关（监听 7860，HF Spaces 要求端口）。
+# 再启动签名网关（监听 $PORT，默认 8080；HF Space 部署时设 PORT=7860）。
 set -e
 
 : "${TELEGRAM_API_ID:?需要设置 TELEGRAM_API_ID（my.telegram.org 申请）}"

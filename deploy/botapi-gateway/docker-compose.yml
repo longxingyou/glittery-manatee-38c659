@@ -1,0 +1,36 @@
+# VPS（Azure / 任意 Linux + Docker）部署：网关 + Caddy 自动 HTTPS
+# 用法：
+#   1. cp .env.example .env 并填好
+#   2. 把 caddy/Caddyfile 里的域名改成实际网关域名
+#   3. docker compose up -d --build
+services:
+  gateway:
+    build: .
+    image: sg-bot-gateway:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # 容器内固定监听 8080；对外由 Caddy 反代
+      PORT: "8080"
+    volumes:
+      - tg-data:/data/tg
+    expose:
+      - "8080"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - gateway
+
+volumes:
+  tg-data:
+  caddy-data:
+  caddy-config:

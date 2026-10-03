@@ -61,7 +61,7 @@
   //   TG_BOT_TOKEN        附件存储 bot 的 token（@BotFather 创建）
   //   TG_STORAGE_CHAT_ID  附件存储会话 id（bot 为管理员的私有频道/群组）
   //   TG_GATEWAY_URL      可选，自建本地 Bot API 网关（deploy/botapi-gateway，
-  //                       Koyeb/VPS）；配置后单片 90MiB 浏览器直连、直连下载
+  //                       Zeabur/VPS）；配置后单片 90MiB 浏览器直连、直连下载
   //   TG_GATEWAY_SECRET  网关 HMAC 共享密钥（= 容器的 GATEWAY_SECRET）
   //   TG_LOCAL_PART_BYTES 可选，网关模式单片字节数（默认 94371840=90MiB；
   //                       平台请求超时时可调小，如 41943040=40MiB）

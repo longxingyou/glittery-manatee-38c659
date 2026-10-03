@@ -23,14 +23,17 @@ import {
   ATTACHMENT_DIRECT_LINK_MAX_BYTES,
   canStreamDownload,
   downloadAttachmentLarge,
+  downloadAttachmentViaGateway,
 } from '@/lib/attachment-download'
 
 /** 附件下载入口：>380MiB 且浏览器支持 FS API 时走 Range 分段续传下载器（带进度），
  *  否则退化为普通链接（服务端窗口内的小文件不受影响；超大文件在不支持的浏览器
- *  上由服务端截断并附提示，建议换 Chrome/Edge）。 */
+ *  上由服务端截断并附提示，建议换 Chrome/Edge）。
+ *  配置本地 Bot API 网关时，大文件直连网关签名 URL（不经 Worker），失败回退。 */
 export function AttachmentDownloadButton({
   att,
   token,
+  gateway,
   className,
   label,
   pct,
@@ -39,6 +42,7 @@ export function AttachmentDownloadButton({
 }: {
   att: AttachmentPublic
   token?: string
+  gateway?: boolean
   className?: string
   label: string
   pct?: number
@@ -63,13 +67,24 @@ export function AttachmentDownloadButton({
       className={className}
       disabled={running}
       onClick={() => {
-        void downloadAttachmentLarge({
+        const common = {
           id: att.id,
           token,
           filename: att.filename,
           sizeBytes: att.sizeBytes,
-          onPct: (p) => onPct?.(att.id, p),
-        }).then((r) => {
+          onPct: (p: number) => onPct?.(att.id, p),
+        }
+        void (async () => {
+          // 网关直连优先；清单获取/传输失败则静默回退 Worker 代理通道
+          if (gateway) {
+            try {
+              return await downloadAttachmentViaGateway(common)
+            } catch {
+              /* 网关暂不可用：回退 */
+            }
+          }
+          return downloadAttachmentLarge(common)
+        })().then((r) => {
           if (r === 'done' || r === 'cancelled') onPct?.(att.id, -1)
         }).catch((e) => {
           onPct?.(att.id, -1)
@@ -250,6 +265,8 @@ export function AttachmentPanel({ postSlug }: { postSlug: string }) {
   const [dlPct, setDlPct] = React.useState<Record<number, number>>({})
   // 附件登录门禁：guest 时仅展示引导登录面板，不拉取附件列表
   const [auth, setAuth] = React.useState<'checking' | 'authed' | 'guest'>('checking')
+  // 自建本地 Bot API 网关是否可用（大文件直连网关，不经 Worker）
+  const [gateway, setGateway] = React.useState(false)
 
   React.useEffect(() => {
     let alive = true
@@ -257,7 +274,9 @@ export function AttachmentPanel({ postSlug }: { postSlug: string }) {
       try {
         const res = await fetch('/api/comments?action=adminStatus', { credentials: 'same-origin' })
         const data = await res.json()
-        if (alive) setAuth(data?.status?.authed ? 'authed' : 'guest')
+        if (!alive) return
+        setAuth(data?.status?.authed ? 'authed' : 'guest')
+        setGateway(!!data?.gateway)
       } catch { if (alive) setAuth('guest') }
     }
     void probe()
@@ -338,6 +357,7 @@ export function AttachmentPanel({ postSlug }: { postSlug: string }) {
                       <AttachmentDownloadButton
                         att={att}
                         token={tokens[att.id]}
+                        gateway={gateway}
                         className="row-action primary"
                         label={t('attach.download')}
                         pct={dlPct[att.id]}
@@ -362,6 +382,7 @@ export function AttachmentPanel({ postSlug }: { postSlug: string }) {
                 ) : (
                   <AttachmentDownloadButton
                     att={att}
+                    gateway={gateway}
                     className="row-action primary"
                     label={t('attach.download')}
                     pct={dlPct[att.id]}

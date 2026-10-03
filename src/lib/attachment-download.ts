@@ -74,13 +74,18 @@ function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
 }
 
 /** 读取一块 Range 数据（带退避重试）；4xx 直接抛错终止 */
-async function fetchChunk(url: string, start: number, end: number): Promise<Uint8Array> {
+async function fetchChunk(
+  url: string,
+  start: number,
+  end: number,
+  credentials: RequestCredentials = 'same-origin',
+): Promise<Uint8Array> {
   let last: unknown = null
   for (let attempt = 0; attempt < CHUNK_MAX_RETRIES; attempt++) {
     try {
       const res = await fetch(url, {
         headers: { Range: `bytes=${start}-${end}` },
-        credentials: 'same-origin',
+        credentials,
         signal: AbortSignal.timeout(60_000),
       })
       if (!res.ok || !res.body) {
@@ -234,6 +239,97 @@ export async function downloadAttachmentLarge(opts: {
       }
     }
 
+    if (received < total) throw new Error('incomplete')
+    opts.onPct?.(100)
+    await writable.close()
+    return 'done'
+  } catch (e) {
+    await writable.abort(e).catch(() => undefined)
+    throw e
+  }
+}
+
+// ── 网关直连模式（本地 Bot API Server：file-urls → 每片一个签名 URL）──
+
+/** 网关分片拉取块大小（片内 Range；写盘位置用全局文件偏移） */
+const GW_CHUNK_BYTES = 8 * 1024 * 1024
+const GW_CONCURRENCY = 6
+
+interface GwFileUrls {
+  total: number
+  filename: string
+  mimeType: string
+  parts: Array<{ size: number; url: string }>
+}
+
+/** 拉取 file-urls 清单（登录 + 密码 token 门禁在 Worker 侧） */
+export async function fetchGatewayFileUrls(id: number, token?: string): Promise<GwFileUrls> {
+  const q = new URLSearchParams({ action: 'file-urls', id: String(id) })
+  if (token) q.set('token', token)
+  const res = await fetch(`/api/comments?${q.toString()}`, { credentials: 'same-origin' })
+  const data = (await res.json().catch(() => null)) as (GwFileUrls & { error?: string }) | null
+  if (!res.ok || !data || !Array.isArray(data.parts)) {
+    throw new Error(data?.error || `HTTP ${res.status}`)
+  }
+  return data
+}
+
+/**
+ * 网关直连下载：每片（90MiB/47MiB 都可能）独立签名 URL，Range 是相对单片的，
+ * 这里把片内块映射到全局写盘偏移；6 路并发、断流重试，不占 Worker 带宽/CPU。
+ */
+export async function downloadAttachmentViaGateway(opts: {
+  id: number
+  token?: string
+  filename: string
+  sizeBytes: number
+  onPct?: (pct: number) => void
+}): Promise<DownloadResult> {
+  const picker = window.showSaveFilePicker
+  if (!picker) throw new Error('unsupported')
+
+  const manifest = await fetchGatewayFileUrls(opts.id, opts.token)
+  const total = Math.max(1, manifest.total || opts.sizeBytes)
+
+  let handle: FSFileHandle
+  try {
+    handle = await picker({ suggestedName: manifest.filename || opts.filename })
+  } catch {
+    return 'cancelled'
+  }
+  const writable = await handle.createWritable()
+  let received = 0
+  const reportPct = () => opts.onPct?.(Math.min(99, Math.round((received / total) * 100)))
+
+  try {
+    // 任务表：片内块 → 全局写盘偏移
+    interface Task { url: string; intraStart: number; intraEnd: number; globalPos: number }
+    const tasks: Task[] = []
+    let partOffset = 0
+    for (const part of manifest.parts) {
+      for (let s = 0; s < part.size; s += GW_CHUNK_BYTES) {
+        tasks.push({
+          url: part.url,
+          intraStart: s,
+          intraEnd: Math.min(s + GW_CHUNK_BYTES, part.size) - 1,
+          globalPos: partOffset + s,
+        })
+      }
+      partOffset += part.size
+    }
+    let cursor = 0
+    const worker = async () => {
+      for (;;) {
+        const task = tasks[cursor++]
+        if (!task) return
+        // 网关是跨域签名 URL（无 cookie）；omit 避免触发 CORS 凭据模式
+        const buf = await fetchChunk(task.url, task.intraStart, task.intraEnd, 'omit')
+        await writable.write({ type: 'write', position: task.globalPos, data: buf as BufferSource })
+        received += buf.length
+        reportPct()
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(GW_CONCURRENCY, tasks.length) }, () => worker()))
     if (received < total) throw new Error('incomplete')
     opts.onPct?.(100)
     await writable.close()

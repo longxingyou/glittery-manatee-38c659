@@ -8,11 +8,16 @@ import { renderMarkdown } from '../lib/markdown.js'
 import { getEnv, getPublicOrigin, runInBackground } from '../lib/server-env.js'
 import {
   TG_CHUNK_BYTES,
+  TG_LOCAL_PART_BYTES,
   ATTACHMENT_LEGACY_MAX_BYTES,
   ATTACHMENT_DIRECT_MAX_BYTES,
   isTgConfigured,
   getStorageChatId,
   setStorageChatIdKv,
+  gatewayConfig,
+  gwUploadUrl,
+  gwFileUrl,
+  localPartBytes,
   tgSendChunk,
   tgDeleteMessages,
   tgGetMe,
@@ -222,9 +227,9 @@ export async function handleSitemap(request: Request): Promise<Response> {
   })
 }
 
-// GET /api/comments?action=file&id=ID&token=...
-async function handleFileGet(request: Request, url: URL): Promise<Response> {
-  // 附件登录门禁：访客必须先登录（sg_auth cookie）才能下载
+// 附件下载门禁：登录 + 可选密码令牌。返回附件行或直接可返回的错误 Response。
+type FullAttachmentRow = NonNullable<Awaited<ReturnType<typeof dbApi.getAttachmentFullRow>>>
+async function authorizeAttachment(url: URL): Promise<{ row: FullAttachmentRow } | Response> {
   const user = await dbApi.getCurrentUser()
   if (!user) return Response.json({ authRequired: true, error: '请先登录后查看与下载附件。' }, { status: 401 })
   const id = Number(url.searchParams.get('id'))
@@ -236,8 +241,42 @@ async function handleFileGet(request: Request, url: URL): Promise<Response> {
     if (!token) return Response.json({ locked: true, error: '此附件已加密，请提供密码后下载。' }, { status: 401 })
     const secret = await dbApi.getTokenSecret()
     const payload = await dbApi.verifyToken<{ aid: number }>(token, secret)
-    if (!payload || payload.aid !== id) return Response.json({ locked: true, error: '下载令牌无效或已过期，请重新输入密码。' }, { status: 401 })
+    if (!payload || payload.aid !== id) {
+      return Response.json({ locked: true, error: '下载令牌无效或已过期，请重新输入密码。' }, { status: 401 })
+    }
   }
+  return { row }
+}
+
+// GET /api/comments?action=file-urls&id=ID&token=...
+// 网关模式：鉴权后为每个 tg1 分片签发直连签名 URL（浏览器直接从网关按
+// Range 并发下载，字节完全不经过 Worker）。一次调用记一次下载。
+async function handleFileUrlsGet(url: URL): Promise<Response> {
+  const authz = await authorizeAttachment(url)
+  if (authz instanceof Response) return authz
+  const { row } = authz
+  const manifest = decodeAttachmentManifest(row.storageKey)
+  if (!manifest) return Response.json({ error: '该附件不支持网关直连。' }, { status: 404 })
+  if (!(await isTgConfigured())) {
+    return Response.json({ error: '附件服务暂不可用（尚未配置 Telegram 存储）。' }, { status: 503 })
+  }
+  if (!gatewayConfig()) return Response.json({ error: '附件网关未配置。' }, { status: 503 })
+  const total = row.sizeBytes || manifest.p.reduce((a, b) => a + b.s, 0)
+  const parts = await Promise.all(
+    manifest.p.map(async (p) => ({ size: p.s, url: await gwFileUrl(p.f) })),
+  )
+  dbApi.recordDownload(row.id).catch(() => undefined)
+  return Response.json(
+    { total, filename: row.filename, mimeType: row.mimeType || 'application/octet-stream', parts },
+    { headers: PRIVATE_NO_STORE },
+  )
+}
+
+// GET /api/comments?action=file&id=ID&token=...
+async function handleFileGet(request: Request, url: URL): Promise<Response> {
+  const authz = await authorizeAttachment(url)
+  if (authz instanceof Response) return authz
+  const { row } = authz
   // MTProto 个人会话附件（mt1）：单文件最大 2GB，Worker 经 WSS 拉块流式回源。
   // 免费版 10ms CPU 上限下单响应只回一个 256KiB 窗口，浏览器端 6 路并发
   // Range 拉取并按偏移写盘（见 attachment-download.ts）。
@@ -263,7 +302,7 @@ async function handleFileGet(request: Request, url: URL): Promise<Response> {
     }
     // 下载计数：只在响应从文件头开始时记一次（续传/并发块不计，
     // 否则 1.2GB 会被按 256KiB 块计出数千次"下载"）
-    if (requestedStart === 0) dbApi.recordDownload(id).catch(() => undefined)
+    if (requestedStart === 0) dbApi.recordDownload(row.id).catch(() => undefined)
     return new Response(mt.streamMtManifest(mtm, win.start, total), {
       status: isRange ? 206 : 200,
       headers: {
@@ -315,7 +354,7 @@ async function handleFileGet(request: Request, url: URL): Promise<Response> {
       }
       const parts = manifest.p.map((p) => ({ m: p.m, s: p.s }))
       const win = mtMod.planMtPartsWindow(parts, total, requestedStart)
-      if (requestedStart === 0) dbApi.recordDownload(id).catch(() => undefined)
+      if (requestedStart === 0) dbApi.recordDownload(row.id).catch(() => undefined)
       return new Response(mtMod.streamMtParts(mtChat.id, mtChat.accessHash, parts, win.start, total), {
         status: isRange ? 206 : 200,
         headers: {
@@ -345,7 +384,7 @@ async function handleFileGet(request: Request, url: URL): Promise<Response> {
     if (length <= 0) {
       return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${total}` } })
     }
-    if (requestedStart === 0) dbApi.recordDownload(id).catch(() => undefined)
+    if (requestedStart === 0) dbApi.recordDownload(row.id).catch(() => undefined)
     return new Response(
       streamAttachmentChunks(manifest, { startByte: requestedStart, maxChunks: ATTACHMENT_MAX_CHUNKS_PER_RESPONSE }),
       {
@@ -372,7 +411,7 @@ async function handleFileGet(request: Request, url: URL): Promise<Response> {
   try {
     const bytes = Uint8Array.from(globalThis.atob(row.content), (c) => c.charCodeAt(0))
     // 异步记录下载计数，不阻塞响应
-    dbApi.recordDownload(id).catch(() => undefined)
+    dbApi.recordDownload(row.id).catch(() => undefined)
     return new Response(bytes, {
       status: 200,
       headers: {
@@ -491,7 +530,24 @@ async function handleMpStartPost(request: Request): Promise<Response> {
     contentType: z.string().max(255).optional(),
   }).safeParse(await request.json().catch(() => ({})))
   if (!parsed.success) return Response.json({ error: '上传参数不合法。' }, { status: 400 })
+  // 网关模式：浏览器直连自建本地 Bot API Server（单片 90MiB，不经过 Worker），
+  // Worker 只签发短期上传令牌；未配置网关时回退 Worker 代理（47MiB/片）。
+  const gw = gatewayConfig()
+  if (gw) {
+    const chatId = await getStorageChatId()
+    const { url, token } = await gwUploadUrl(chatId)
+    return Response.json({
+      mode: 'gateway',
+      uploadId: crypto.randomUUID(),
+      partSize: localPartBytes(),
+      maxBytes: ATTACHMENT_DIRECT_MAX_BYTES,
+      chatId,
+      uploadUrl: url,
+      uploadToken: token,
+    })
+  }
   return Response.json({
+    mode: 'worker',
     uploadId: crypto.randomUUID(),
     partSize: TG_CHUNK_BYTES,
     maxBytes: ATTACHMENT_DIRECT_MAX_BYTES,
@@ -543,8 +599,8 @@ async function handleMpCompletePost(request: Request): Promise<Response> {
     parts: z.array(z.object({
       m: z.number().int().positive(),
       f: z.string().min(10).max(256),
-      s: z.number().int().min(0).max(TG_CHUNK_BYTES),
-    })).min(1).max(200),
+      s: z.number().int().min(0).max(TG_LOCAL_PART_BYTES),
+    })).min(1).max(100),
   }).safeParse(await request.json().catch(() => ({})))
   if (!parsed.success) return Response.json({ error: '合并参数不合法。' }, { status: 400 })
   const d = parsed.data
@@ -776,7 +832,7 @@ async function handleTgSelftestGet(): Promise<Response> {
 // GET /api/comments?action=adminStatus → 管理员状态（服务端可读 cookie）
 async function handleAdminStatusGet(): Promise<Response> {
   const status = await dbApi.getAdminStatus()
-  return Response.json({ status }, {
+  return Response.json({ status, gateway: !!gatewayConfig() }, {
     headers: { 'Cache-Control': 'private, no-store, must-revalidate' },
   })
 }
@@ -1245,6 +1301,8 @@ async function handleMtStatusGet(): Promise<Response> {
   const [cfg, session, chat] = await Promise.all([mt.getMtConfig(), mt.getMtSession(), mt.getMtChat()])
   return Response.json({
     configured: !!(cfg && session && chat),
+    // 自建本地 Bot API 网关可用（大文件优先走它，无需 MTProto 个人会话）
+    gateway: !!gatewayConfig(),
     hasConfig: !!cfg,
     hasSession: !!session,
     chat: chat ? { id: chat.id } : null,
@@ -1413,6 +1471,7 @@ export const Route = createFileRoute('/api/comments')({
         const url = new URL(request.url)
         const action = url.searchParams.get('action')
         if (action === 'file') return handleFileGet(request, url)
+        if (action === 'file-urls') return handleFileUrlsGet(url)
         if (action === 'feedbackFile') return handleFeedbackFileGet(url)
         if (action === 'adminStatus') return handleAdminStatusGet()
         if (action === 'tg-probe') return handleTgProbeGet(request, url)

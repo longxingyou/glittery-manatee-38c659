@@ -6,7 +6,7 @@
  */
 import startHandler from '@tanstack/react-start/server-entry'
 
-import { setWorkerCtx, setWorkerEnv, setWorkerRequest, type ServerEnv } from './src/lib/server-env'
+import { setWorkerCtx, setWorkerEnv, setWorkerRequest, getEnv, type ServerEnv } from './src/lib/server-env'
 import { TtlCache, safeKvGet, safeKvPut, edgeCacheGet, edgeCacheSet } from './src/lib/cache'
 
 // Assets 绑定（Cloudflare Workers 静态资源服务接口）
@@ -39,14 +39,54 @@ const CONTENT_SECURITY_POLICY = [
   "img-src 'self' https: data:",
   // Vite 会把小于 4KB 的字体子集内联为 data: URL，需放行
   "font-src 'self' data:",
-  // beacon 上报到 cloudflareinsights.com
-  "connect-src 'self' https://cloudflareinsights.com https://static.cloudflareinsights.com",
+  // beacon 上报到 cloudflareinsights.com；
+  // *.hf.space 是自建附件网关的 HF Space 部署。网关若托管在其他主机
+  // （VPS/Koyeb/Cloudflare Tunnel 域名），其 origin 由 TG_GATEWAY_URL
+  // 动态追加，见 buildSecurityHeaders()。
+  "connect-src 'self' https://cloudflareinsights.com https://static.cloudflareinsights.com https://*.hf.space",
   `frame-src 'self' ${GAME_FRAME_ORIGINS.join(' ')}`,
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
   "object-src 'none'",
-].join('; ')
+]
+
+/** 从 TG_GATEWAY_URL 提取可安全加入 CSP 的 origin（非法值返回空串） */
+function gatewayOrigin(): string {
+  const raw = (getEnv().TG_GATEWAY_URL || '').trim()
+  if (!raw) return ''
+  try {
+    const u = new URL(raw)
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return ''
+    const o = u.origin
+    return o && o !== 'null' ? o : ''
+  } catch {
+    return ''
+  }
+}
+
+/** 组装安全头；connect-src 按运行时网关地址放行（Hugging Face / VPS / 隧道通用） */
+function buildSecurityHeaders(isEgg = false): Record<string, string> {
+  const headers: Record<string, string> = {
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': isEgg ? 'SAMEORIGIN' : 'DENY',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    // HSTS：强制浏览器后续一律走 HTTPS（1 年，含子域）
+    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+  }
+  if (isEgg) {
+    headers['Content-Security-Policy'] = EGG_CONTENT_SECURITY_POLICY
+    return headers
+  }
+  const gw = gatewayOrigin()
+  const csp = gw
+    ? CONTENT_SECURITY_POLICY.map((d) =>
+        d.startsWith('connect-src ') && !d.includes(gw) ? `${d} ${gw}` : d,
+      )
+    : CONTENT_SECURITY_POLICY
+  headers['Content-Security-Policy'] = csp.join('; ')
+  return headers
+}
 
 // 文章彩蛋（/egg/:slug）专用 CSP：
 // - sandbox 指令使文档即使被直接打开（顶层导航）也运行在不透明源中：
@@ -68,27 +108,11 @@ const EGG_CONTENT_SECURITY_POLICY = [
   'sandbox allow-scripts allow-modals allow-popups allow-popups-to-escape-sandbox allow-downloads',
 ].join('; ')
 
-const SECURITY_HEADERS: Record<string, string> = {
-  'X-Content-Type-Options': 'nosniff',
-  'X-Frame-Options': 'DENY',
-  'Referrer-Policy': 'strict-origin-when-cross-origin',
-  'Content-Security-Policy': CONTENT_SECURITY_POLICY,
-  // HSTS：强制浏览器后续一律走 HTTPS（1 年，含子域）
-  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
-}
-
-// 彩蛋路径需要被本站 iframe 嵌入：X-Frame-Options 降级为 SAMEORIGIN + 彩蛋专用 CSP
-const EGG_SECURITY_HEADERS: Record<string, string> = {
-  ...SECURITY_HEADERS,
-  'X-Frame-Options': 'SAMEORIGIN',
-  'Content-Security-Policy': EGG_CONTENT_SECURITY_POLICY,
-}
-
 function withSecurityHeaders(response: Response, request: Request): Response {
   const headers = new Headers(response.headers)
   const url = new URL(request.url)
   const isEgg = url.pathname.startsWith('/egg/')
-  for (const [name, value] of Object.entries(isEgg ? EGG_SECURITY_HEADERS : SECURITY_HEADERS)) {
+  for (const [name, value] of Object.entries(buildSecurityHeaders(isEgg))) {
     headers.set(name, value)
   }
   // 后台（含访客门禁卡）不允许搜索引擎收录
@@ -157,7 +181,7 @@ const htmlKvWriteMark = new TtlCache<1>(200)
 
 /** 用缓存的 HTML body 构造响应（必须重新附加安全头，缓存体里只有 SSR 内容）。 */
 function cachedHtmlResponse(body: string, cacheStatus: string): Response {
-  const headers = new Headers(SECURITY_HEADERS)
+  const headers = new Headers(buildSecurityHeaders())
   headers.set('Content-Type', 'text/html; charset=utf-8')
   headers.set('Cache-Control', 'public, max-age=120, s-maxage=600, stale-while-revalidate=3600, stale-if-error=86400')
   headers.set('Vary', 'Accept-Encoding')
@@ -224,7 +248,7 @@ export default {
             prerendered.status === 200 &&
             (prerendered.headers.get('content-type') || '').includes('text/html')
           if (isHtmlAsset) {
-            const headers = new Headers(SECURITY_HEADERS)
+            const headers = new Headers(buildSecurityHeaders())
             headers.set('Content-Type', 'text/html; charset=utf-8')
             headers.set('Cache-Control', 'public, max-age=120, s-maxage=600, stale-while-revalidate=3600, stale-if-error=86400')
             headers.set('Vary', 'Accept-Encoding')

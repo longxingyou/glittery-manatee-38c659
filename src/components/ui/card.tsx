@@ -1386,13 +1386,19 @@ function AttachmentManager({
   const [dlPct, setDlPct] = React.useState<Record<number, number>>({})
   // MTProto 用户会话直传是否已配置（>47MiB 大文件走此通道，单文件可达 2GB）
   const [mtReady, setMtReady] = React.useState<boolean | null>(null)
+  // 自建本地 Bot API 网关是否可用（大文件优先通道：90MiB/片浏览器直传，不经 Worker）
+  const [gwReady, setGwReady] = React.useState<boolean | null>(null)
 
   React.useEffect(() => {
     let cancelled = false
     fetch('/api/comments?action=mt-status')
       .then((r) => (r.ok ? r.json() : null))
-      .then((s: { configured?: boolean } | null) => { if (!cancelled) setMtReady(!!s?.configured) })
-      .catch(() => { if (!cancelled) setMtReady(false) })
+      .then((s: { configured?: boolean; gateway?: boolean } | null) => {
+        if (cancelled) return
+        setMtReady(!!s?.configured)
+        setGwReady(!!s?.gateway)
+      })
+      .catch(() => { if (!cancelled) { setMtReady(false); setGwReady(false) } })
     return () => { cancelled = true }
   }, [])
 
@@ -1488,7 +1494,117 @@ function AttachmentManager({
     return complete.data.attachment as AttachmentPublic
   }
 
-  // 大文件通道二（优先）：浏览器经 MTProto 用户会话直传私有频道，单文件 2GB，
+  // 大文件通道零（最优先）：自建本地 Telegram Bot API Server（--local）。
+  // 单片 90MiB（本地服务端硬顶 2000MB），浏览器直连网关容器上传，字节完全
+  // 不经过 Worker；4 路并发 + 429/5xx 退避。清单仍是 tg1:{c,p:[{m,f,s}]}，
+  // 与旧通道完全兼容（删除/下载复用）。
+  const uploadViaGateway = async (
+    file: File,
+    password: string,
+    onPct: (pct: number) => void,
+  ): Promise<AttachmentPublic> => {
+    const postJson = (action: string, body: unknown) =>
+      fetch(`/api/comments?action=${action}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }).then(async (r) => ({ ok: r.ok, data: await r.json().catch(() => ({})) }))
+
+    const start = await postJson('mp-start', {
+      postSlug, filename: file.name, size: file.size, contentType: file.type || 'application/octet-stream',
+    })
+    if (!start.ok) throw new Error(start.data.error || t('admin.upload.fail'))
+    const s = start.data as {
+      mode?: string
+      partSize: number
+      maxBytes: number
+      chatId?: string
+      uploadUrl?: string
+      uploadToken?: string
+    }
+    if (s.mode !== 'gateway' || !s.chatId || !s.uploadUrl || !s.uploadToken) {
+      throw new Error(t('attach.gw.unavailable'))
+    }
+    if (file.size > s.maxBytes) throw new Error(t('admin.upload.too.big'))
+
+    const partSize = s.partSize
+    const total = Math.ceil(file.size / partSize)
+    const parts: Array<{ m: number; f: string; s: number } | null> = new Array(total).fill(null)
+    let cursor = 0
+    let done = 0
+    const worker = async () => {
+      for (;;) {
+        const n = cursor++
+        if (n >= total) return
+        const from = n * partSize
+        const to = Math.min(file.size, from + partSize)
+        let lastErr: unknown = null
+        let rateLimits = 0
+        let serverErrs = 0
+        for (let attempt = 0; attempt < 6 && lastErr === null; attempt++) {
+          try {
+            const form = new FormData()
+            form.append('chat_id', s.chatId as string)
+            form.append('document', file.slice(from, to), `${file.name}.part${n + 1}`)
+            const pr = await fetch(s.uploadUrl as string, {
+              method: 'POST',
+              headers: { 'x-sg-token': s.uploadToken as string },
+              body: form,
+            })
+            const pd = await pr.json().catch(() => ({})) as {
+              ok?: boolean
+              description?: string
+              parameters?: { retry_after?: number }
+              result?: { message_id: number; document: { file_id: string; file_size?: number } }
+            }
+            if (pr.status === 429 || (pd.ok === false && typeof pd.parameters?.retry_after === 'number')) {
+              if (++rateLimits > 10) throw new Error(pd.description || 'rate limited')
+              attempt--
+              await new Promise((r) => setTimeout(r, (pd.parameters?.retry_after ?? 2) * 1000 + Math.random() * 500))
+              continue
+            }
+            if (pr.status >= 500) {
+              if (++serverErrs > 15) throw new Error(pd.description || `part HTTP ${pr.status}`)
+              attempt-- // 容器冷启动/前置代理波动：长退避单独预算
+              await new Promise((r) => setTimeout(r, Math.min(30000, 2000 * serverErrs) + Math.random() * 500))
+              continue
+            }
+            if (!pr.ok || !pd.ok || !pd.result) throw new Error(pd.description || `part HTTP ${pr.status}`)
+            parts[n] = {
+              m: pd.result.message_id,
+              f: pd.result.document.file_id,
+              s: pd.result.document.file_size ?? (to - from),
+            }
+            done += 1
+            onPct(Math.round((done / total) * 96))
+            break
+          } catch (e) {
+            lastErr = e
+            await new Promise((r) => setTimeout(r, 800 * (attempt + 1)))
+          }
+        }
+        if (lastErr) {
+          const uploaded = parts.filter(Boolean) as Array<{ m: number; f: string; s: number }>
+          await postJson('mp-abort', { parts: uploaded.map((x) => ({ m: x.m })) }).catch(() => undefined)
+          throw lastErr instanceof Error ? lastErr : new Error('part failed')
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: 4 }, () => worker()))
+
+    onPct(98)
+    const complete = await postJson('mp-complete', {
+      postSlug, filename: file.name, size: file.size,
+      contentType: file.type || 'application/octet-stream',
+      password: password || undefined,
+      parts: parts.filter(Boolean),
+    })
+    if (!complete.ok) throw new Error(complete.data.error || t('admin.upload.fail'))
+    onPct(100)
+    return complete.data.attachment as AttachmentPublic
+  }
+
+  // 大文件通道二：浏览器经 MTProto 用户会话直传私有频道，单文件 2GB，
   // 不经过 Worker 请求体（绕开 100MB 限制与 503 网关）；Worker 只负责下载回源。
   const uploadViaMt = async (
     file: File,
@@ -1570,7 +1686,9 @@ function AttachmentManager({
     setUploading(true); setUpError(''); setMpPct(null)
     try {
       let row: AttachmentPublic
-      if (file.size > BOT_UPLOAD_CHUNK_BYTES && mtReady) {
+      if (file.size > BOT_UPLOAD_CHUNK_BYTES && gwReady) {
+        row = await uploadViaGateway(file, upPassword, setMpPct)
+      } else if (file.size > BOT_UPLOAD_CHUNK_BYTES && mtReady) {
         row = await uploadViaMt(file, upPassword, setMpPct)
       } else if (file.size > BOT_UPLOAD_CHUNK_BYTES) {
         row = await uploadLargeDirect(file, upPassword, setMpPct)
@@ -1643,7 +1761,7 @@ function AttachmentManager({
           />
         </div>
       )}
-      {mtReady === false && (
+      {mtReady === false && gwReady === false && (
         <div className="banner small" style={{ margin: '4px 0' }}>
           <span dangerouslySetInnerHTML={{ __html: t('attach.mt.setup.hint') }} />
         </div>
@@ -1680,6 +1798,7 @@ function AttachmentManager({
               </button>
               <AttachmentDownloadButton
                 att={att}
+                gateway={gwReady === true}
                 className="row-action"
                 label={t('admin.am.download')}
                 pct={dlPct[att.id]}

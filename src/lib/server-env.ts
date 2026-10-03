@@ -33,6 +33,16 @@ export interface ServerEnv {
   /** MTProto 应用凭据（可选；通常存 KV，由 /mt-setup 浏览器登录页写入） */
   TG_API_ID?: string
   TG_API_HASH?: string
+  /**
+   * 自建本地 Bot API 网关地址（可选），如 https://xxx.hf.space。
+   * 配置后所有 bot 方法/分片上传走网关（本地服务端 --local：单片 2000MB、
+   * 下载无 20MB 限制）；未配置则回退云端 api.telegram.org。
+   */
+  TG_GATEWAY_URL?: string
+  /** 网关 HMAC 签名共享密钥（与网关容器 GATEWAY_SECRET 相同） */
+  TG_GATEWAY_SECRET?: string
+  /** 网关模式单片大小（字节，可选，默认 90MiB；平台请求超时时可调小） */
+  TG_LOCAL_PART_BYTES?: string
 }
 
 /** Cloudflare Workers KV 命名空间的最小类型（避免依赖 @cloudflare/workers-types 全局） */

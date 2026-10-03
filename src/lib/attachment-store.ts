@@ -25,11 +25,29 @@ import { getEnv } from './server-env'
  * 单片大小：47 MiB。
  * sendDocument 硬上限 50 MB（十进制 50,000,000 字节），47 MiB ≈ 49.28 MB
  * 留余量；1.2GB 文件从旧方案 64 条消息降到 26 条，显著降低消息频率
- * 限流与多层网关 503 概率。注意 bot getFile 只能下载 ≤20MB 的文件，
- * 47MiB 分片的下载一律走 MTProto 用户会话。
+ * 限流与多层网关 503 概率。云端 bot getFile 只能下载 ≤20MB 的文件，
+ * 大分片下载依赖 MTProto 用户会话或自建本地 Bot API 网关。
  * 47MiB 同时是 256KiB 的整数倍，保证 MTProto 取块偏移天然对齐。
  */
 export const TG_CHUNK_BYTES = 47 * 1024 * 1024
+
+/**
+ * 直连本地 Bot API 网关的单片大小：90 MiB（≈94.4MB，默认值）。
+ * 本地服务端 --local 上限 2000MB；浏览器直传网关（不经过 Worker）。
+ * 托管平台（如 Koyeb 免费层）边缘请求超时较短（120s）时，可用
+ * TG_LOCAL_PART_BYTES（单位：字节）调小，弱网上行更稳，片数相应增多。
+ * 1.2GB 文件按默认 90MiB = 14 条消息。
+ */
+export const TG_LOCAL_PART_BYTES = 90 * 1024 * 1024
+
+/** 网关分片大小（可经 TG_LOCAL_PART_BYTES secret 覆盖，钳制在 5~90 MiB） */
+export function localPartBytes(): number {
+  const raw = Number(getEnv().TG_LOCAL_PART_BYTES)
+  if (Number.isFinite(raw) && raw >= 5 * 1024 * 1024 && raw <= TG_LOCAL_PART_BYTES) {
+    return Math.floor(raw)
+  }
+  return TG_LOCAL_PART_BYTES
+}
 
 /** 单请求直传上限 = 单片上限（更大的文件由前端自动走分片路径） */
 export const ATTACHMENT_MAX_BYTES = TG_CHUNK_BYTES
@@ -85,6 +103,72 @@ export async function isTgConfigured(): Promise<boolean> {
   return !!(await getStorageChatId())
 }
 
+// ── 自建本地 Bot API 网关（Hugging Face Space / VPS 上的 telegram-bot-api --local）──
+
+export interface GatewayConfig {
+  url: string
+  secret: string
+}
+
+/** 网关配置；未配置时返回 null（调用方回退云端 Bot API） */
+export function gatewayConfig(): GatewayConfig | null {
+  const env = getEnv()
+  const url = (env.TG_GATEWAY_URL || '').trim().replace(/\/+$/, '')
+  const secret = env.TG_GATEWAY_SECRET || ''
+  return url && secret ? { url, secret } : null
+}
+
+function b64urlBytes(bytes: Uint8Array): string {
+  let bin = ''
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i])
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+const enc = new TextEncoder()
+
+/**
+ * 签发网关 HMAC 令牌：<exp>.<payloadB64url>.<sigB64url>
+ * 与 deploy/botapi-gateway/gateway/server.mjs 的校验算法保持一致。
+ * - admin：payload=方法名（Worker 服务端调用，15 分钟）
+ * - upload：payload=存储频道 id（浏览器直传，6 小时，覆盖大文件全程）
+ * - file：payload=file_id（游客下载，12 小时）
+ */
+export async function signGwToken(
+  kind: 'admin' | 'upload' | 'file',
+  payload: string,
+  ttlMs: number,
+): Promise<string> {
+  const gw = gatewayConfig()
+  if (!gw) throw new Error('TG_GATEWAY_URL/TG_GATEWAY_SECRET 未配置')
+  const exp = Date.now() + ttlMs
+  const data = `${kind}.${exp}.${payload}`
+  const key = await crypto.subtle.importKey(
+    'raw',
+    enc.encode(gw.secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  )
+  const sig = b64urlBytes(new Uint8Array(await crypto.subtle.sign('HMAC', key, enc.encode(data))))
+  return `${exp}.${b64urlBytes(enc.encode(payload))}.${sig}`
+}
+
+/** 浏览器直传地址：POST multipart（chat_id + document），x-sg-token 鉴权 */
+export async function gwUploadUrl(chatId: string): Promise<{ url: string; token: string }> {
+  const gw = gatewayConfig()
+  if (!gw) throw new Error('网关未配置')
+  const token = await signGwToken('upload', chatId, 6 * 60 * 60 * 1000)
+  return { url: `${gw.url}/upload?chat=${encodeURIComponent(chatId)}`, token }
+}
+
+/** 游客直连下载地址：网关按 file_id 本地 getFile 后 Range 流式回吐 */
+export async function gwFileUrl(fileId: string): Promise<string> {
+  const gw = gatewayConfig()
+  if (!gw) throw new Error('网关未配置')
+  const token = await signGwToken('file', fileId, 12 * 60 * 60 * 1000)
+  return `${gw.url}/file?f=${encodeURIComponent(fileId)}&t=${encodeURIComponent(token)}`
+}
+
 export function encodeAttachmentManifest(m: AttachmentManifest): string {
   return MANIFEST_PREFIX + JSON.stringify({ c: m.c, p: m.p })
 }
@@ -137,8 +221,8 @@ export class TgRateLimitError extends Error {
   }
 }
 
-/** Worker 单次请求内的安全短睡眠（只做 5xx/网络抖动的快速退避，不用于 429） */
-const TG_MAX_WAIT_MS = 2_000
+/** Worker 单次请求内的安全短睡眠（5xx/网络抖动退避；网关冷启动场景允许到 3s） */
+const TG_MAX_WAIT_MS = 3_000
 
 function tgSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, Math.max(0, Math.min(ms, TG_MAX_WAIT_MS))))
@@ -147,24 +231,33 @@ function tgSleep(ms: number): Promise<void> {
 /**
  * 统一 Bot API 调用：429 Flood 立即抛 TgRateLimitError（客户端节奏控制），
  * 5xx/网络抖动快速退避重试。JSON 请求。
+ * 配置网关时透传到自建本地 Bot API Server（x-sg-admin 签名，bot token 不出网关）。
  */
 async function tgApi<T>(method: string, body: unknown, attempts = 2): Promise<T> {
   const token = getEnv().TG_BOT_TOKEN
   if (!token) throw new Error('TG_BOT_TOKEN 未配置')
+  const gw = gatewayConfig()
+  // 免费容器（Koyeb）缩容到零后冷启动需数秒：网关模式给 5 次、最长 3s 退避
+  const maxAttempts = gw ? Math.max(attempts, 5) : attempts
+  const backoff = (attempt: number) =>
+    gw ? Math.min(3000, 500 * 2 ** attempt) : 700 * (attempt + 1)
+  const url = gw ? `${gw.url}/api/${method}` : `https://api.telegram.org/bot${token}/${method}`
   let lastErr = `Telegram ${method} 失败`
-  for (let attempt = 0; attempt < attempts; attempt++) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     let res: Response
     let data: TgResponse<T> | null = null
     try {
-      res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (gw) headers['x-sg-admin'] = await signGwToken('admin', method, 15 * 60 * 1000)
+      res = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(body),
       })
       data = (await res.json().catch(() => null)) as TgResponse<T> | null
     } catch (e) {
       lastErr = `Telegram ${method} 网络错误：${e instanceof Error ? e.message : String(e)}`
-      await tgSleep(700 * (attempt + 1))
+      await tgSleep(backoff(attempt))
       continue
     }
     const retryAfter = data?.parameters?.retry_after
@@ -173,7 +266,7 @@ async function tgApi<T>(method: string, body: unknown, attempts = 2): Promise<T>
     }
     if (res.status >= 500 || (data && data.ok === false && res.status >= 500)) {
       lastErr = `Telegram ${method} 失败：${data?.description || `HTTP ${res.status}`}`
-      await tgSleep(600 * (attempt + 1))
+      await tgSleep(backoff(attempt))
       continue
     }
     if (!data?.ok) throw new Error(`Telegram ${method} 失败：${data?.description || `HTTP ${res.status}`}`)
@@ -193,8 +286,14 @@ export async function tgSendChunk(args: {
 }): Promise<TgPart> {
   const token = getEnv().TG_BOT_TOKEN
   if (!token) throw new Error('TG_BOT_TOKEN 未配置')
+  const gw = gatewayConfig()
+  // 网关模式冷启动容错：5 次、指数退避最长 3s
+  const maxAttempts = gw ? 5 : 2
+  const backoff = (attempt: number) =>
+    gw ? Math.min(3000, 500 * 2 ** attempt) : 700 * (attempt + 1)
+  const url = gw ? `${gw.url}/api/sendDocument` : `https://api.telegram.org/bot${token}/sendDocument`
   let lastErr = 'Telegram sendDocument 失败'
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     // 每次重试重建 FormData（已发送的 body 不可复用）
     const form = new FormData()
     form.append('chat_id', args.chatId)
@@ -207,11 +306,13 @@ export async function tgSendChunk(args: {
     let res: Response
     let data: TgSendDocResponse | null = null
     try {
-      res = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, { method: 'POST', body: form })
+      const headers: Record<string, string> = {}
+      if (gw) headers['x-sg-admin'] = await signGwToken('admin', 'sendDocument', 15 * 60 * 1000)
+      res = await fetch(url, { method: 'POST', headers, body: form })
       data = (await res.json().catch(() => null)) as TgSendDocResponse | null
     } catch (e) {
       lastErr = `Telegram sendDocument 网络错误：${e instanceof Error ? e.message : String(e)}`
-      await tgSleep(700 * (attempt + 1))
+      await tgSleep(backoff(attempt))
       continue
     }
     const retryAfter = data?.parameters?.retry_after
@@ -220,7 +321,7 @@ export async function tgSendChunk(args: {
     }
     if (res.status >= 500) {
       lastErr = `Telegram sendDocument 失败：${data?.description || `HTTP ${res.status}`}`
-      await tgSleep(600 * (attempt + 1))
+      await tgSleep(backoff(attempt))
       continue
     }
     if (!data?.ok || !data.result?.document?.file_id || !data.result.message_id) {

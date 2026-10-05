@@ -147,6 +147,19 @@ function RouteComponent() {
     return () => document.body.classList.remove('egg-takeover')
   }, [isEggTakeover])
 
+  // 读取主站当前字体偏好并随 iframe 传入；监听 data-font 变化（用户可在
+  // 彩蛋接管状态下打开用户面板切换字体，iframe 即时换字体重载）。
+  // undefined = 尚未在客户端完成读取（SSR 安全），此时先不渲染 iframe，
+  // 避免先无 font 加载一次、水合后再带参重载。
+  const [eggFont, setEggFont] = useState<string | null | undefined>(undefined)
+  useEffect(() => {
+    const read = () => document.documentElement.getAttribute('data-font')
+    setEggFont(read())
+    const mo = new MutationObserver(() => setEggFont(read()))
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-font'] })
+    return () => mo.disconnect()
+  }, [])
+
   // 分享：优先系统分享面板（iOS Safari / Android Chrome）；
   // 微信/QQ 等内置浏览器不支持 navigator.share 时降级为复制链接，
   // 避免 `navigator.share?.()` 在不支持的环境下静默无响应。
@@ -172,14 +185,20 @@ function RouteComponent() {
   }
 
   if (isEggTakeover) {
+    // 字体偏好未读取完成（SSR/首帧）时先占位，读完再一次性加载带 font 的彩蛋
+    const eggSrc = eggFont === undefined
+      ? null
+      : `/egg/${encodeURIComponent(post.slug)}${eggFont ? `?font=${encodeURIComponent(eggFont)}` : ''}`
     return (
       <div className="egg-post-view">
-        <iframe
-          className="egg-post-frame"
-          src={`/egg/${encodeURIComponent(post.slug)}`}
-          title={post.title}
-          sandbox="allow-scripts allow-modals allow-popups allow-popups-to-escape-sandbox allow-downloads"
-        />
+        {eggSrc && (
+          <iframe
+            className="egg-post-frame"
+            src={eggSrc}
+            title={post.title}
+            sandbox="allow-scripts allow-modals allow-popups allow-popups-to-escape-sandbox allow-downloads"
+          />
+        )}
       </div>
     )
   }

@@ -97,7 +97,8 @@ function buildSecurityHeaders(isEgg = false): Record<string, string> {
 const EGG_CONTENT_SECURITY_POLICY = [
   "default-src 'none'",
   "script-src 'unsafe-inline'",
-  "style-src 'unsafe-inline'",
+  // 'self'：允许 <link> 加载 /assets/ 下的字体 CSS（与主站同一套字体）
+  "style-src 'self' 'unsafe-inline'",
   "img-src 'self' https: data:",
   "font-src 'self' https: data:",
   "connect-src 'none'",

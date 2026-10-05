@@ -1300,7 +1300,11 @@ export function PostEditorPage() {
                 type="button"
                 className="ghost-button"
                 disabled={!eggHtml.trim() || !bootstrap.slug}
-                onClick={() => window.open(`/egg/${encodeURIComponent(bootstrap.slug)}?preview=1`, '_blank', 'noopener')}
+                onClick={() => {
+                  // 预览与主站当前字体保持一致
+                  const f = document.documentElement.getAttribute('data-font')
+                  window.open(`/egg/${encodeURIComponent(bootstrap.slug)}?preview=1${f ? `&font=${encodeURIComponent(f)}` : ''}`, '_blank', 'noopener')
+                }}
               >
                 <Eye size={14} />{t('admin.egg.preview')}
               </button>

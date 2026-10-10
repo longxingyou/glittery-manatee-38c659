@@ -43,6 +43,7 @@ import {
   Menu,
   Pencil,
   X,
+  Send,
 } from 'lucide-react'
 import { z } from 'zod'
 
@@ -1959,6 +1960,12 @@ export function SettingsPanel() {
           </label>
         </div>
       )}
+      <div className="settings-tools">
+        <Link to="/mt-setup" className="settings-tool-link">
+          <Send size={13} />
+          <span>{t('mts.title')}</span>
+        </Link>
+      </div>
     </div>
   )
 }

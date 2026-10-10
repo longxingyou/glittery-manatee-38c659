@@ -528,6 +528,16 @@ kbd { color: var(--faint); border: 1px solid var(--line); border-radius: 3px; pa
 .panel.settings-grid label.full { grid-column: 1 / -1; }
 .panel.muted-pad { color: var(--muted); }
 
+/* 站点设置：附属工具入口（MTProto 大文件存储等独立设置页） */
+.settings-tools { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.settings-tool-link {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px;
+  font-size: 12.5px; color: var(--muted); text-decoration: none;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  transition: color .15s, border-color .15s;
+}
+.settings-tool-link:hover { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 42%, var(--line)); }
+
 .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .data-table th, .data-table td { padding: 11px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
 .data-table th { font: 10px ui-monospace, monospace; letter-spacing: .08em; color: var(--faint); text-transform: uppercase; }

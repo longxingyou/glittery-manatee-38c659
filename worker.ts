@@ -31,10 +31,19 @@ const GAME_FRAME_ORIGINS = [
   'https://xn--cnqs3e5vdw9icjz2q1eaa.xyz',
 ]
 
+// 视频站官方外链播放器（/admin/network 视频面板 iframe 嵌入）：
+// B站官方播放器 + YouTube 隐私增强模式嵌入（视频流不经过本站服务器）
+const VIDEO_FRAME_ORIGINS = [
+  'https://player.bilibili.com',
+  'https://www.youtube-nocookie.com',
+  'https://www.youtube.com',
+]
+
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
-  // Cloudflare 自动注入 Web Analytics / RUM beacon（static.cloudflareinsights.com）
-  "script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com",
+  // Cloudflare 自动注入 Web Analytics / RUM beacon（static.cloudflareinsights.com）；
+  // api.bilibili.com 供视频面板 JSONP 解析 B站直链（手机端绕开外链播放器 iframe 风控）
+  "script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://api.bilibili.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' https: data:",
   // Vite 会把小于 4KB 的字体子集内联为 data: URL，需放行
@@ -44,25 +53,31 @@ const CONTENT_SECURITY_POLICY = [
   // （VPS/Koyeb/Cloudflare Tunnel 域名），其 origin 由 TG_GATEWAY_URL
   // 动态追加，见 buildSecurityHeaders()。
   "connect-src 'self' https://cloudflareinsights.com https://static.cloudflareinsights.com https://*.hf.space",
-  `frame-src 'self' ${GAME_FRAME_ORIGINS.join(' ')}`,
+  // 俄语工具箱神经语音：/api/tts 同源反代网关 mp3 供 <audio> 播放（手机无本地俄语 TTS）。
+  // 网关 origin 由 TG_GATEWAY_URL 在 buildSecurityHeaders() 里动态追加；
+  // *.bilivideo.com 是 B站 html5 直链（platform=html5，无 Referer 鉴权）的视频 CDN
+  "media-src 'self' https://*.bilivideo.com",
+  `frame-src 'self' blob: ${[...GAME_FRAME_ORIGINS, ...VIDEO_FRAME_ORIGINS].join(' ')}`,
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
   "object-src 'none'",
 ]
 
-/** 从 TG_GATEWAY_URL 提取可安全加入 CSP 的 origin（非法值返回空串） */
-function gatewayOrigin(): string {
-  const raw = (getEnv().TG_GATEWAY_URL || '').trim()
-  if (!raw) return ''
-  try {
-    const u = new URL(raw)
-    if (u.protocol !== 'https:' && u.protocol !== 'http:') return ''
-    const o = u.origin
-    return o && o !== 'null' ? o : ''
-  } catch {
-    return ''
+/** 从 TG_GATEWAY_URL / TG_GATEWAY_DL_URL 提取可安全加入 CSP 的 origin（非法值忽略） */
+function gatewayOrigins(): string[] {
+  const out: string[] = []
+  for (const raw of [getEnv().TG_GATEWAY_URL, getEnv().TG_GATEWAY_DL_URL]) {
+    const v = (raw || '').trim()
+    if (!v) continue
+    try {
+      const u = new URL(v)
+      if (u.protocol !== 'https:' && u.protocol !== 'http:') continue
+      const o = u.origin
+      if (o && o !== 'null' && !out.includes(o)) out.push(o)
+    } catch { /* 忽略非法配置 */ }
   }
+  return out
 }
 
 /** 组装安全头；connect-src 按运行时网关地址放行（Hugging Face / VPS / 隧道通用） */
@@ -78,10 +93,14 @@ function buildSecurityHeaders(isEgg = false): Record<string, string> {
     headers['Content-Security-Policy'] = EGG_CONTENT_SECURITY_POLICY
     return headers
   }
-  const gw = gatewayOrigin()
-  const csp = gw
+  const gws = gatewayOrigins()
+  // 预览页：PDF/文本经 fetch 拉取（connect-src），音视频走 <media>（media-src），
+  // 网关直链 PDF 直接放进 <iframe>（frame-src，原生查看器支持 Range 流式）
+  const csp = gws.length
     ? CONTENT_SECURITY_POLICY.map((d) =>
-        d.startsWith('connect-src ') && !d.includes(gw) ? `${d} ${gw}` : d,
+        (d.startsWith('connect-src ') || d.startsWith('media-src ') || d.startsWith('frame-src '))
+          ? `${d} ${gws.filter((o) => !d.includes(o)).join(' ')}`.trim()
+          : d,
       )
     : CONTENT_SECURITY_POLICY
   headers['Content-Security-Policy'] = csp.join('; ')
@@ -138,9 +157,15 @@ function withSecurityHeaders(response: Response, request: Request): Response {
   // DB 文章。降级响应只给浏览器短缓存 + stale-while-revalidate，客户端补拉会修正。
   const isHtml = (response.headers.get('content-type') || '').includes('text/html')
   const isAdmin = url.pathname.startsWith('/admin')
+  // /preview/* 的 SSR 内容随登录态/密码令牌变化（门禁 vs 含签名 URL 的预览数据），
+  // 既不能进浏览器共享缓存也不能进边缘缓存：一律 private no-store。
+  const isPreviewPage = url.pathname.startsWith('/preview/')
   const isOk = response.status >= 200 && response.status < 300
   const dbDegraded = response.headers.get('X-DB-Degraded') === '1'
-  if (isHtml && !isAdmin && isOk && !headers.has('Cache-Control')) {
+  if (isHtml && isPreviewPage) {
+    headers.set('Cache-Control', 'private, no-store, must-revalidate')
+    headers.set('X-Robots-Tag', 'noindex, nofollow')
+  } else if (isHtml && !isAdmin && isOk && !headers.has('Cache-Control')) {
     if (dbDegraded) {
       headers.set('Cache-Control', 'public, max-age=20, stale-while-revalidate=120, stale-if-error=600')
     } else {
@@ -203,6 +228,33 @@ export default {
       return Response.redirect(url.toString(), 301)
     }
 
+    // 本地 vite dev（run_worker_first 模式下所有请求先进 Worker）：把 Vite 开发态
+    // 模块请求交回 ASSETS 绑定——插件在 dev 下把该绑定接到完整 Vite 中间件栈，
+    // 由转换中间件提供 /@vite/client、/@id/* 虚拟模块与 /src/* 源码。
+    // 生产构建没有这些路径，import.meta.env.DEV 恒为 false。
+    const isViteDev = Boolean((import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV)
+    if (isViteDev && env.ASSETS) {
+      const p = url.pathname
+      // dev 同源网关代理（含 POST 上传 / Range 读取，见 vite.config.ts），任何方法都透传
+      if (p.startsWith('/__gwproxy/')) {
+        return env.ASSETS.fetch(request)
+      }
+      // Vite 开发态模块：/@* 虚拟模块、源码与依赖、content-collections 生成目录、
+      // public 下以 ?import 引入的模块（stickers manifest 等）、一切源码扩展文件。
+      if (request.method === 'GET' || request.method === 'HEAD') {
+        const isViteModulePath =
+          p.startsWith('/@') ||
+          p.startsWith('/src/') ||
+          p.startsWith('/node_modules/') ||
+          p.startsWith('/.content-collections/') ||
+          (p.startsWith('/public/') && url.searchParams.has('import')) ||
+          /\.(?:[cm]?[jt]sx?|css|json|map)$/i.test(p)
+        if (isViteModulePath) {
+          return env.ASSETS.fetch(request)
+        }
+      }
+    }
+
     // 静态资源：通过 Assets 绑定服务并添加长期缓存头
     // /assets/* 文件名含内容哈希，可永久缓存
     // /stickers/* 和根目录静态文件（favicon/og 图等）变更频率极低；
@@ -242,7 +294,7 @@ export default {
       // 未快照的路径（文章页等）ASSETS 返回 404 → 落回下面的 SSR + 三级缓存链路。
       // ?preview=1 是管理员实时预览，绝不能被部署时点快照顶替。
       // /egg/ 是彩蛋原始 HTML 出口（handler 自带缓存策略），不走资产直出。
-      if (env.ASSETS && request.method === 'GET' && !url.pathname.startsWith('/admin') && !url.pathname.startsWith('/egg/') && url.searchParams.get('preview') !== '1') {
+      if (env.ASSETS && request.method === 'GET' && !url.pathname.startsWith('/admin') && !url.pathname.startsWith('/egg/') && !url.pathname.startsWith('/preview/') && url.searchParams.get('preview') !== '1') {
         try {
           const prerendered = await env.ASSETS.fetch(request)
           const isHtmlAsset =
@@ -266,7 +318,7 @@ export default {
       // /egg/ 彩蛋页由路由 handler 自带缓存头，不进入本缓存（管理员改彩蛋需即时生效）。
       const acceptsHtml = request.headers.get('accept')?.includes('text/html')
       const cacheableHtml =
-        acceptsHtml && !url.pathname.startsWith('/admin') && !url.pathname.startsWith('/api/') && !url.pathname.startsWith('/egg/')
+        acceptsHtml && !url.pathname.startsWith('/admin') && !url.pathname.startsWith('/api/') && !url.pathname.startsWith('/egg/') && !url.pathname.startsWith('/preview/')
       const kv = env.SG_CACHE
       const htmlCacheKey = `html:${url.pathname}`
       // 边缘缓存键归一化为 origin+pathname：UTM 等 query 参数不影响 HTML 内容，
@@ -396,6 +448,10 @@ export default {
     const scheduledTime = (event as { scheduledTime?: number } | null)?.scheduledTime
     const minute = scheduledTime ? new Date(scheduledTime).getMinutes() : new Date().getMinutes()
     const refreshCache = minute % 20 === 0
-    ctx.waitUntil(import('./db/index.js').then((m) => m.warmupDb(refreshCache)))
+    ctx.waitUntil(import('./db/index.js').then(async (m) => {
+      await m.warmupDb(refreshCache)
+      // 转换失败自动重试（attempts<3 + 10 分钟退避）：顺手搭 cron 的车，不额外消耗调度次数
+      try { await m.autoRequeuePreviewFailed() } catch { /* 下轮 cron 再试 */ }
+    }))
   },
 }

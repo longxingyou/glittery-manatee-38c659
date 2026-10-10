@@ -16,6 +16,8 @@ const SettingsPanel = React.lazy(() => import('./components/ui/card').then((m) =
 const UserManager = React.lazy(() => import('./components/ui/card').then((m) => ({ default: m.UserManager })))
 const FeedbackManager = React.lazy(() => import('./components/ui/card').then((m) => ({ default: m.FeedbackManager })))
 const SiteContentEditor = React.lazy(() => import('./components/ui/card').then((m) => ({ default: m.SiteContentEditor })))
+const NetworkTools = React.lazy(() => import('./components/network-tools').then((m) => ({ default: m.NetworkTools })))
+const RussianToolkit = React.lazy(() => import('./components/russian-toolkit').then((m) => ({ default: m.RussianToolkit })))
 const AdminGateWrap = React.lazy(() => import('./components/ui/card').then((m) => ({ default: m.AdminGateWrap })))
 
 type AnyLazy = LazyExoticComponent<ComponentType<unknown>>
@@ -102,6 +104,43 @@ export const getRouter = () => {
     getParentRoute: () => adminRoute,
     component: wrap(SiteContentEditor as unknown as AnyLazy),
   })
+  const adminNetworkRoute = createRoute({
+    path: 'network',
+    getParentRoute: () => adminRoute,
+    component: wrap(NetworkTools as unknown as AnyLazy),
+  })
+  const adminRussianRoute = createRoute({
+    path: 'russian',
+    getParentRoute: () => adminRoute,
+    component: wrap(RussianToolkit as unknown as AnyLazy),
+  })
+
+  // /share：网络工具分享模式的公开页（免登录，凭 SG_SHARE cookie 访问 /api/net）
+  // 不走 AdminGateWrap；页面挂载时经 /api/net?action=share_info 自检，invalid 则显示拒绝提示
+  const shareRoute = createRoute({
+    path: '/share',
+    getParentRoute: () => root,
+    component: function SharePage() {
+      return (
+        <React.Suspense fallback={<AdminLoading />}>
+          <NetworkTools shared />
+        </React.Suspense>
+      )
+    },
+  })
+
+  // /share/russian：俄语工具箱分享公开页（免登录，凭 sg_ru_share cookie + IP 绑定）
+  const shareRussianRoute = createRoute({
+    path: '/share/russian',
+    getParentRoute: () => root,
+    component: function ShareRussianPage() {
+      return (
+        <React.Suspense fallback={<AdminLoading />}>
+          <RussianToolkit shared />
+        </React.Suspense>
+      )
+    },
+  })
 
   // /rss.xml 已改为文件路由 src/routes/rss[.]xml.tsx（[.] 是字面量句点），
   // 其 server.handlers 会被编译器在客户端构建中正确剥离；
@@ -116,6 +155,8 @@ export const getRouter = () => {
     adminUsersRoute,
     adminFeedbackRoute,
     adminContentRoute,
+    adminNetworkRoute,
+    adminRussianRoute,
     adminSettingsRoute,
   ])
 
@@ -123,12 +164,15 @@ export const getRouter = () => {
   // 幂等策略：若 children 里已含编程式 /admin 路由则直接复用，否则合并文件路由 + 编程式路由。
   // ① 不合并文件路由会导致 / 与 /api/comments 404；② 重复合并会导致 Duplicate routes id:/admin。
   const existingChildren = ((root as unknown as { children?: unknown[] }).children ?? [])
-  const alreadyMerged = existingChildren.some(
-    (r) => (r as { options?: { path?: string } })?.options?.path === '/admin',
-  )
-  const mergedChildren = alreadyMerged
-    ? existingChildren
-    : [...existingChildren, adminWithChildren]
+  const hasPath = (p: string) =>
+    existingChildren.some((r) => (r as { options?: { path?: string } })?.options?.path === p)
+  // ① 不合并文件路由会导致 / 与 /api/comments 404；② 重复合并会导致 Duplicate routes id:/admin
+  const mergedChildren = [
+    ...existingChildren,
+    ...(hasPath('/admin') ? [] : [adminWithChildren]),
+    ...(hasPath('/share') ? [] : [shareRoute]),
+    ...(hasPath('/share/russian') ? [] : [shareRussianRoute]),
+  ]
 
   const router = createRouter({
     routeTree: root.addChildren(mergedChildren as never),

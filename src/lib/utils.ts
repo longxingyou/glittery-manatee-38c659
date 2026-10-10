@@ -29,6 +29,8 @@ export type PostData = {
   language: PostLanguage
   /** 同一篇文章的多语言版本共享此键（通常取原文 slug）；null 表示独立文章 */
   translationKey: string | null
+  /** 访客可见的下载/导出入口开关 */
+  downloadable: boolean
 }
 
 /** 列表折叠时的语言优先级：当前语言 → 英语 → 任一 */
@@ -86,6 +88,12 @@ export type AttachmentPublic = {
   locked: boolean
   /** true = MTProto 直传附件（服务端单响应窗口仅 16MiB，前端须走 Range 下载器） */
   stream?: boolean
+  /** Office 附件的 PDF 预览转换状态：null = 未入队/直渲格式无此状态 */
+  previewState?: string | null
+  /** 网关整文件直连地址（tg1 且网关已配置时下发；密码锁附件解锁前为空）。
+   *  手机/无 FS API 的浏览器直接导航到此地址，由系统下载器原生接管，
+   *  避开 Worker 跨站 302 链（部分移动浏览器不唤起下载）。 */
+  gwDl?: string | null
 }
 
 /** 分类的三语名称：name 为权威中文名，nameEn/nameRu 为可空译名 */

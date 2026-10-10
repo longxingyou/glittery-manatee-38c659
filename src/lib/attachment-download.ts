@@ -53,7 +53,23 @@ declare global {
 }
 
 export function canStreamDownload(): boolean {
-  return typeof window !== 'undefined' && typeof window.showSaveFilePicker === 'function'
+  if (typeof window === 'undefined' || typeof window.showSaveFilePicker !== 'function') return false
+  // 移动端 Chromium 系浏览器可能暴露 showSaveFilePicker，但 File System Access
+  // 实现残缺（实测安卓上 createWritable/write 抛 InvalidStateError），且失败
+  // 回退会导致弹两次保存框。手机一律走系统下载器（网关 /dl 整文件直连）。
+  if (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)) return false
+  return true
+}
+
+/** 网关直连（gwDl）下载计数：浏览器直接导航到网关、不经 Worker 下载接口，
+ *  点击时用 sendBeacon 补记一次（同标签导航/页面卸载也能送达）；Beacon 失败
+ *  回退 keepalive fetch。 */
+export function reportGatewayDownload(id: number) {
+  const url = `/api/comments?action=record-download&id=${id}`
+  if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+    try { if (navigator.sendBeacon(url)) return } catch { /* 回退 fetch */ }
+  }
+  void fetch(url, { method: 'POST', credentials: 'same-origin', keepalive: true }).catch(() => undefined)
 }
 
 export type DownloadResult = 'done' | 'cancelled'
@@ -73,21 +89,29 @@ function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
   })
 }
 
-/** 读取一块 Range 数据（带退避重试）；4xx 直接抛错终止 */
+/** 读取一块 Range 数据（带退避重试）；4xx 直接抛错终止。
+ *  慢链路下一块可能传几分钟：建立连接限 60s，之后按"60s 无数据才中止"
+ *  流式读取，并按到达字节回报增量进度 onDelta（重试前回滚本次已报进度）。 */
 async function fetchChunk(
   url: string,
   start: number,
   end: number,
   credentials: RequestCredentials = 'same-origin',
+  onDelta?: (bytes: number) => void,
 ): Promise<Uint8Array> {
+  const want = end - start + 1
   let last: unknown = null
   for (let attempt = 0; attempt < CHUNK_MAX_RETRIES; attempt++) {
+    let got = 0
+    const ctrl = new AbortController()
+    const headerTimer = setTimeout(() => ctrl.abort(), 60_000)
     try {
       const res = await fetch(url, {
         headers: { Range: `bytes=${start}-${end}` },
         credentials,
-        signal: AbortSignal.timeout(60_000),
+        signal: ctrl.signal,
       })
+      clearTimeout(headerTimer)
       if (!res.ok || !res.body) {
         if (res.status === 401 || res.status === 403 || res.status === 404) {
           const data = (await res.json().catch(() => null)) as { error?: string } | null
@@ -95,14 +119,32 @@ async function fetchChunk(
         }
         throw new Error(`HTTP ${res.status}`)
       }
-      const buf = new Uint8Array(await res.arrayBuffer())
-      if (buf.length === 0) throw new Error('empty')
+      // 明确请求了 Range 却收到 200：数据起点不对，按可重试错误处理
+      if (start > 0 && res.status !== 206) throw new Error(`HTTP ${res.status} (no range)`)
+      const buf = new Uint8Array(want)
+      const reader = res.body.getReader()
+      for (;;) {
+        const { done, value } = await withTimeout(reader.read(), 60_000, 'chunk')
+        if (done) break
+        if (!value || value.length === 0) continue
+        const n = Math.min(value.length, want - got)
+        if (n <= 0) break
+        buf.set(value.subarray(0, n), got)
+        got += n
+        onDelta?.(n)
+        if (got >= want) break
+      }
+      if (got < want) throw new Error(`short (${got}/${want})`)
       return buf
     } catch (e) {
+      if (got > 0) onDelta?.(-got) // 未遂块：回滚进度，重试时重新计
       last = e
       const msg = e instanceof Error ? e.message : String(e)
       if (/HTTP 4\d\d|令牌|无效/.test(msg)) throw e
+      ctrl.abort()
       await sleep(Math.min(12000, 600 * 2 ** attempt))
+    } finally {
+      clearTimeout(headerTimer)
     }
   }
   throw last instanceof Error ? last : new Error('chunk failed')
@@ -251,8 +293,9 @@ export async function downloadAttachmentLarge(opts: {
 
 // ── 网关直连模式（本地 Bot API Server：file-urls → 每片一个签名 URL）──
 
-/** 网关分片拉取块大小（片内 Range；写盘位置用全局文件偏移） */
-const GW_CHUNK_BYTES = 8 * 1024 * 1024
+/** 网关分片拉取块大小（片内 Range；写盘位置用全局文件偏移）。
+ *  取 4MiB：慢链路上单块传输时间可控，中止重试的浪费小 */
+const GW_CHUNK_BYTES = 4 * 1024 * 1024
 const GW_CONCURRENCY = 6
 
 interface GwFileUrls {
@@ -322,11 +365,13 @@ export async function downloadAttachmentViaGateway(opts: {
       for (;;) {
         const task = tasks[cursor++]
         if (!task) return
-        // 网关是跨域签名 URL（无 cookie）；omit 避免触发 CORS 凭据模式
-        const buf = await fetchChunk(task.url, task.intraStart, task.intraEnd, 'omit')
+        // 网关是跨域签名 URL（无 cookie）；omit 避免触发 CORS 凭据模式。
+        // 进度按流式到达的字节增量累计（未遂块重试前会负增量回滚）。
+        const buf = await fetchChunk(task.url, task.intraStart, task.intraEnd, 'omit', (d) => {
+          received += d
+          reportPct()
+        })
         await writable.write({ type: 'write', position: task.globalPos, data: buf as BufferSource })
-        received += buf.length
-        reportPct()
       }
     }
     await Promise.all(Array.from({ length: Math.min(GW_CONCURRENCY, tasks.length) }, () => worker()))

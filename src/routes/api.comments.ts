@@ -17,6 +17,8 @@ import {
   gatewayConfig,
   gwUploadUrl,
   gwFileUrl,
+  gwDlUrl,
+  gwPreviewPutUrl,
   localPartBytes,
   tgSendChunk,
   tgDeleteMessages,
@@ -272,6 +274,84 @@ async function handleFileUrlsGet(url: URL): Promise<Response> {
   )
 }
 
+// POST /api/comments?action=record-download&id=ID
+// 网关直连计数：非密码锁附件的 gwDl 最终地址随列表下发，点击后浏览器直接
+// 导航到网关，请求不经过 action=file 路径；前端用 sendBeacon 把计数打到这里。
+async function handleRecordDownloadPost(url: URL): Promise<Response> {
+  const user = await dbApi.getCurrentUser()
+  if (!user) return Response.json({ authRequired: true, error: '请先登录后查看与下载附件。' }, { status: 401 })
+  const id = Number(url.searchParams.get('id'))
+  if (!Number.isInteger(id) || id <= 0) return Response.json({ error: '附件标识不合法。' }, { status: 400 })
+  const row = await dbApi.getAttachmentFullRow(id)
+  if (!row) return Response.json({ error: '附件不存在。' }, { status: 404 })
+  // 密码锁附件走令牌下载路径（action=file 自带计数），不下发 gwDl，此处不重复计
+  if (row.passwordHash && row.passwordSalt) return new Response(null, { status: 204 })
+  await dbApi.recordDownload(id)
+  return new Response(null, { status: 204 })
+}
+
+// ── 网关 converter 服务：Office → PDF 转换队列 ──
+
+/** 恒定时间比较 converter 密钥；未配置密钥时拒绝一切调用 */
+function converterAuthorized(request: Request): boolean {
+  const secret = getEnv().CONVERTER_SECRET || ''
+  if (!secret) return false
+  const got = request.headers.get('x-converter-secret') || ''
+  const a = new TextEncoder().encode(got)
+  const b = new TextEncoder().encode(secret)
+  if (a.length !== b.length) return false
+  let diff = 0
+  for (let i = 0; i < a.length; i++) diff |= a[i]! ^ b[i]!
+  return diff === 0
+}
+
+// POST /api/comments?action=convert-poll （x-converter-secret）
+// 回填旧附件状态 → 认领一个任务 → 下发源文件整流地址与 PDF 回传地址；无任务 204
+async function handleConvertPollPost(request: Request): Promise<Response> {
+  if (!converterAuthorized(request)) {
+    return Response.json({ error: 'unauthorized' }, { status: 401 })
+  }
+  if (!gatewayConfig()) return Response.json({ error: 'gateway not configured' }, { status: 503 })
+  await dbApi.backfillPreviewStates(20).catch(() => undefined)
+  const job = await dbApi.claimPreviewJob().catch(() => null)
+  if (!job) return new Response(null, { status: 204 })
+  const manifest = decodeAttachmentManifest(job.storageKey)
+  if (!manifest) {
+    // 非 tg1 清单不应进队（入队规则保证）；快速消耗重试次数后置 failed
+    await dbApi.completePreviewJob(job.id, false).catch(() => undefined)
+    return new Response(null, { status: 204 })
+  }
+  try {
+    const sourceUrl = await gwDlUrl(
+      job.filename,
+      job.mimeType || 'application/octet-stream',
+      manifest.p.map((p) => ({ f: p.f, s: p.s })),
+    )
+    const putUrl = await gwPreviewPutUrl(job.id)
+    return Response.json({
+      job: { id: job.id, filename: job.filename, ext: job.filename.split('.').pop() || '', sourceUrl, putUrl },
+    })
+  } catch (e) {
+    return Response.json({ error: e instanceof Error ? e.message : 'sign failed' }, { status: 502 })
+  }
+}
+
+// POST /api/comments?action=convert-done  {id, ok, size?}
+async function handleConvertDonePost(request: Request): Promise<Response> {
+  if (!converterAuthorized(request)) {
+    return Response.json({ error: 'unauthorized' }, { status: 401 })
+  }
+  const parsed = z.object({
+    id: z.number().int().positive(),
+    ok: z.boolean(),
+    size: z.number().int().nonnegative().optional(),
+    error: z.string().max(300).optional(),
+  }).safeParse(await request.json().catch(() => ({})))
+  if (!parsed.success) return Response.json({ error: 'bad payload' }, { status: 400 })
+  await dbApi.completePreviewJob(parsed.data.id, parsed.data.ok, parsed.data.size)
+  return new Response(null, { status: 204 })
+}
+
 // GET /api/comments?action=file&id=ID&token=...
 async function handleFileGet(request: Request, url: URL): Promise<Response> {
   const authz = await authorizeAttachment(url)
@@ -341,6 +421,22 @@ async function handleFileGet(request: Request, url: URL): Promise<Response> {
         isRange = true
         requestedStart = s
       }
+    }
+
+    // 网关整流直跳：配置网关时，整文件下载 302 到网关 /dl，由网关把多片顺序
+    // 拼接成整流直吐（字节不过 Worker）。手机等无 FS API 的浏览器由系统下载器
+    // 原生接管；带 Range 的请求跟随重定向时浏览器会自动带上同一 Range 头，
+    // 网关侧 206/416 语义与这里一致。桌面 FS API 下载器走 file-urls 分片直连，
+    // 不经此路径；网关不可用时回退到下面的 MTProto/窗口流式路径。
+    if (gatewayConfig()) {
+      try {
+        const dlUrl = await gwDlUrl(row.filename, row.mimeType || 'application/octet-stream', manifest.p)
+        if (requestedStart === 0) dbApi.recordDownload(row.id).catch(() => undefined)
+        return new Response(null, {
+          status: 302,
+          headers: { Location: dlUrl, 'Cache-Control': 'private, no-store' },
+        })
+      } catch { /* 签名失败等异常：继续走下面的 Worker 代理路径 */ }
     }
 
     // 优先：MTProto 用户会话绑定的正是该存储频道 → WSS 逐 256KiB 窗口
@@ -1486,6 +1582,9 @@ export const Route = createFileRoute('/api/comments')({
         const url = new URL(request.url)
         const action = url.searchParams.get('action')
         if (action === 'token') return handleTokenPost(request, url)
+        if (action === 'record-download') return handleRecordDownloadPost(url)
+        if (action === 'convert-poll') return handleConvertPollPost(request)
+        if (action === 'convert-done') return handleConvertDonePost(request)
         if (action === 'upload') return handleUploadPost(request)
         if (action === 'feedbackUpload') return handleFeedbackUploadPost(request)
         if (action === 'mp-start') return handleMpStartPost(request)

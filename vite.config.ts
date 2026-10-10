@@ -19,6 +19,19 @@ const config = defineConfig({
     tanstackStart(),
     viteReact(),
   ],
+  server: {
+    // 仅本地开发：附件网关的 CORS 只放行生产源，浏览器从 localhost 跨域会被拦。
+    // dev 下 attachment-store 把网关地址改写为同源 /__gwproxy/*，由这里服务端
+    // 透传到真实网关（CORS 同源化；Range/POST 均支持）。生产构建不含此配置。
+    proxy: {
+      '/__gwproxy': {
+        target: 'https://gw.xn--fpr224a.mom',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (p) => p.replace(/^\/__gwproxy/, ''),
+      },
+    },
+  },
 })
 
 export default config

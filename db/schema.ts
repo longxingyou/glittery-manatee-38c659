@@ -1,4 +1,4 @@
-import { boolean, index, integer, pgTable, primaryKey, serial, text, timestamp } from 'drizzle-orm/pg-core'
+import { bigserial, boolean, index, integer, pgTable, primaryKey, serial, text, timestamp } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 
 // 自建账户体系（替代 Netlify Identity）：PBKDF2 密码哈希 + 邮箱验证 + 找回密码令牌
@@ -54,6 +54,7 @@ export const posts = pgTable(
     date: text('date').notNull(),
     language: text('language').notNull().default('zh'), // zh | en | ru
     translationKey: text('translation_key'), // 同一篇文章的多语言版本共享此键（通常取原文 slug）
+    downloadable: boolean('downloadable').notNull().default(false), // 访客可见的下载/导出入口开关
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }),
   },
@@ -84,6 +85,12 @@ export const attachments = pgTable(
     passwordHash: text('password_hash'),
     passwordSalt: text('password_salt'),
     downloads: integer('downloads').default(0).notNull(),
+    // 在线预览（Office 系经网关 LibreOffice 转 PDF）：
+    // null = 未入队；pending/processing/ready/failed/unsupported
+    previewState: text('preview_state'),
+    previewAttempts: integer('preview_attempts').default(0).notNull(),
+    previewAt: timestamp('preview_at', { withTimezone: true }),
+    previewSize: integer('preview_size'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [index('attachments_post_slug_idx').on(table.postSlug)],
@@ -94,6 +101,9 @@ export const attachments = pgTable(
 export const postEggs = pgTable('post_eggs', {
   postSlug: text('post_slug').primaryKey(),
   html: text('html').notNull().default(''),
+  // true = html 列存的是 Markdown 源，/egg/:slug 输出前经 renderMarkdown 渲染（含 KaTeX）；
+  // false（默认）= 整页 HTML 原样输出
+  renderMd: boolean('render_md').notNull().default(false),
   enabled: boolean('enabled').notNull().default(false),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
@@ -194,5 +204,46 @@ export const settings = pgTable('settings', {
   adminEmails: text('admin_emails'),
   tokenSecret: text('token_secret'),
   bannedWords: text('banned_words'), // 违禁词，逗号/换行分隔；与内置默认表合并生效
+  netShareEnabled: boolean('net_share_enabled').notNull().default(false), // 网络工具分享模式总开关
+  ruShareEnabled: boolean('ru_share_enabled').notNull().default(false), // 俄语工具箱分享模式总开关
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
+
+// 网络工具分享链接（/api/net 免登录访问）。token 与设备绑定密钥只存 SHA-256 哈希；
+// bound_hash 为空表示尚未被任何人打开，先打开者独占绑定（"只能一个人"）
+export const netShareLinks = pgTable('net_share_links', {
+  id: text('id').primaryKey(), // 短随机 hex
+  tokenHash: text('token_hash').notNull().unique(),
+  boundHash: text('bound_hash'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+})
+
+// 俄语工具箱分享链接（/api/ru-share 免登录访问）。与网络工具"单设备独占"不同：
+// 每条链接允许 max_ips 个不同 IP 同时访问（默认 10）；同一 IP 下设备数不限。
+// token 只存 SHA-256 哈希。绑定明细见 ru_share_bindings
+export const ruShareLinks = pgTable('ru_share_links', {
+  id: text('id').primaryKey(), // 短随机 hex
+  tokenHash: text('token_hash').notNull().unique(),
+  maxIps: integer('max_ips').notNull().default(10),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+})
+
+// 俄语工具箱分享绑定：一行 = 一个已访问设备（同 IP 多设备各自一行）。
+// ip_hash 是「IP + 服务端盐」的 SHA-256，既统计唯一 IP 数又防止 IP 被反查；
+// secret_hash 是该设备 cookie 密钥的哈希；cookie 离开该 IP 即校验失败
+export const ruShareBindings = pgTable(
+  'ru_share_bindings',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    linkId: text('link_id')
+      .notNull()
+      .references(() => ruShareLinks.id, { onDelete: 'cascade' }),
+    ipHash: text('ip_hash').notNull(),
+    secretHash: text('secret_hash').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('ru_share_bindings_link_idx').on(table.linkId)],
+)

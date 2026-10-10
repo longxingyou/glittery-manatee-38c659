@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { createServerFn } from '@tanstack/react-start'
-import { Link, Outlet, useLoaderData, useNavigate, useParams, useSearch } from '@tanstack/react-router'
+import { Link, Outlet, useLoaderData, useNavigate, useParams, useRouterState, useSearch } from '@tanstack/react-router'
 import {
   Bold,
   CirclePlus,
@@ -13,6 +13,7 @@ import {
   Loader2,
   Hash,
   Home,
+  Globe,
   Italic,
   LayoutDashboard,
   List,
@@ -34,6 +35,7 @@ import {
   UserRound,
   Users,
   Inbox,
+  BookA,
   MessageSquareWarning,
   Eraser,
   Egg,
@@ -103,6 +105,7 @@ import {
   getPublishedPostFn as _pub_getPublishedPostFn,
   publicServerFns,
   AttachmentDownloadButton,
+  AttachmentPreviewButton,
 } from '../public-fns'
 
 // 公开 fns 已在 public-fns.tsx 声明；此处仍按原名引用 adminStatusFn / settingsFn
@@ -125,6 +128,7 @@ type PostSaveInput = {
   date: string
   language?: PostLanguage
   translationKey?: string | null
+  downloadable?: boolean
 }
 // 注意：handler 链上不能用 `as unknown as` 断言（会破坏 Start 编译器的链式识别，
 // 导致文件被静默跳过编译）。类型用返回值注解表达。
@@ -273,7 +277,7 @@ const saveSiteContentFn = createServerFn({ method: 'POST' })
 // ── 文章彩蛋（后台）────────────────────────────────────────────
 // db 层 savePostEgg/deletePostEgg/getPostEggAdmin 内部均 requireAdmin；
 // zod 字符数上限给 60 万（宽松兜底），精确的 512KB 字节校验在 db 层。
-type PostEggPayload = { postSlug: string; html: string; enabled: boolean; updatedAt: string | null }
+type PostEggPayload = { postSlug: string; html: string; renderMd: boolean; enabled: boolean; updatedAt: string | null }
 
 const getPostEggFn = createServerFn({ method: 'GET' })
   .inputValidator((input) => z.object({ slug: z.string().min(1).max(160) }).parse(input))
@@ -286,6 +290,7 @@ const savePostEggFn = createServerFn({ method: 'POST' })
   .inputValidator((input) => z.object({
     slug: z.string().min(1).max(160),
     html: z.string().min(1).max(600_000),
+    renderMd: z.boolean(),
     enabled: z.boolean(),
   }).parse(input))
   .handler(async ({ data }): Promise<PostEggPayload> => {
@@ -401,6 +406,10 @@ export function AdminLayout() {
   // 移动端侧边栏抽屉开关；路由变化后自动关闭
   const [sideOpen, setSideOpen] = React.useState(false)
   const closeOnNav = () => setSideOpen(false)
+  // 面包屑当前段：取路由器状态（SSR 与客户端首帧一致）。
+  // 不能直接读 window.location.pathname：workerd 无 location 全局，
+  // SSR 会回退成 'dashboard'，客户端首帧却是真实路径 → React #418 水合不匹配
+  const pathname = useRouterState({ select: (s) => s.location.pathname })
 
   return (
     <div className="admin-shell">
@@ -418,6 +427,8 @@ export function AdminLayout() {
           <Link to="/admin/users" className="admin-nav-item" onClick={closeOnNav}><Users size={17} /><span>{t('admin.nav.users')}</span></Link>
           <Link to="/admin/feedback" className="admin-nav-item" onClick={closeOnNav}><Inbox size={17} /><span>{t('admin.nav.feedback')}</span></Link>
           <Link to="/admin/content" className="admin-nav-item" onClick={closeOnNav}><FileText size={17} /><span>{t('admin.nav.content')}</span></Link>
+          <Link to="/admin/network" className="admin-nav-item" onClick={closeOnNav}><Globe size={17} /><span>{t('admin.nav.network')}</span></Link>
+          <Link to="/admin/russian" className="admin-nav-item" onClick={closeOnNav}><BookA size={17} /><span>{t('admin.nav.russian')}</span></Link>
           <Link to="/admin/settings" className="admin-nav-item" onClick={closeOnNav}><SettingsIcon size={17} /><span>{t('admin.nav.settings')}</span></Link>
           <a className="admin-nav-item" href="/" target="_blank" rel="noreferrer"><Home size={17} /><span>{t('admin.nav.site')}</span></a>
           <a className="admin-nav-item" href="/rss.xml" target="_blank" rel="noreferrer"><FileDown size={17} /><span>{t('admin.nav.rss')}</span></a>
@@ -442,7 +453,7 @@ export function AdminLayout() {
           <button className="admin-menu-toggle" onClick={() => setSideOpen((v) => !v)} aria-label={t('admin.toggle.aria')} aria-expanded={sideOpen} title={t('admin.toggle.title')}>
             {sideOpen ? <X size={18} /> : <Menu size={18} />}
           </button>
-          <div className="crumbs"><span>~/admin</span><span>/</span><b>{typeof location !== 'undefined' ? location.pathname.replace('/admin', '') || 'dashboard' : 'dashboard'}</b></div>
+          <div className="crumbs"><span>~/admin</span><span>/</span><b>{pathname.replace('/admin', '') || 'dashboard'}</b></div>
           <div className="admin-topbar-actions">
             <LangSwitch compact className="admin-icon-btn" />
             <ThemeToggle className="admin-icon-btn" />
@@ -848,19 +859,22 @@ export function PostEditorPage() {
     date: string
     language: PostLanguage
     translationKey: string | null
+    downloadable: boolean
     attachments: AttachmentPublic[]
     categoryOptions: CategoryInfo[]
     allPosts: PostData[]
   }>({
     id: null, title: '', slug: '', summary: '', content: '', categories: [], status: 'draft',
     date: new Date().toISOString().slice(0, 10), language: 'zh', translationKey: null,
-    attachments: [], categoryOptions: [], allPosts: [],
+    downloadable: false, attachments: [], categoryOptions: [], allPosts: [],
   })
   const [preview, setPreview] = React.useState(true)
   const editor = useMarkdownEditor('')
-  // 彩蛋文章模式：开启后正文由整页 HTML 接管，访客点击进入独立页面
+  // 彩蛋文章模式：开启后正文由整页内容接管，访客点击进入独立页面
   const [eggMode, setEggMode] = React.useState(false)
   const [eggHtml, setEggHtml] = React.useState('')
+  // eggRenderMd=true 时彩蛋内容按 Markdown 渲染（含 KaTeX）；false=整页 HTML 原样输出
+  const [eggRenderMd, setEggRenderMd] = React.useState(false)
   const [eggExisting, setEggExisting] = React.useState<PostEggPayload | null>(null)
   const eggFileRef = React.useRef<HTMLInputElement>(null)
 
@@ -878,6 +892,7 @@ export function PostEditorPage() {
             id: post.id, title: post.title, slug: post.slug, summary: post.summary,
             content: post.content, categories: [...post.categories], status: post.status,
             date: post.date, language: post.language, translationKey: post.translationKey,
+            downloadable: post.downloadable === true,
             attachments, categoryOptions: categories, allPosts: posts,
           })
           editor.setValue(post.content)
@@ -886,6 +901,7 @@ export function PostEditorPage() {
           if (alive && egg) {
             setEggExisting(egg)
             setEggHtml(egg.html)
+            setEggRenderMd(egg.renderMd === true)
             setEggMode(true)
           }
         } else if (translateFrom && Number.isInteger(translateFrom) && translateFrom > 0) {
@@ -1014,11 +1030,12 @@ export function PostEditorPage() {
           date: bootstrap.date,
           language: bootstrap.language,
           translationKey: bootstrap.translationKey,
+          downloadable: bootstrap.downloadable,
         },
       })
-      // 彩蛋文章：文章保存成功后，把 HTML 作为彩蛋保存（直接启用）
+      // 彩蛋文章：文章保存成功后，把内容（HTML 或 Markdown 源）作为彩蛋保存（直接启用）
       if (eggMode && eggHtml.trim()) {
-        const savedEgg = await savePostEggFn({ data: { slug: result.slug, html: eggHtml, enabled: true } })
+        const savedEgg = await savePostEggFn({ data: { slug: result.slug, html: eggHtml, renderMd: eggRenderMd, enabled: true } })
         setEggExisting(savedEgg)
       } else if (!eggMode && eggExisting) {
         // 取消彩蛋模式后保存：移除已存彩蛋，文章恢复普通 Markdown 渲染
@@ -1138,6 +1155,19 @@ export function PostEditorPage() {
               )}
             </select>
             <small className="muted">{t('admin.trans.hint')}</small>
+          </label>
+        </div>
+        <div className="meta-row">
+          <label className="egg-mode-toggle" style={{ flex: 1 }}>
+            <input
+              type="checkbox"
+              checked={bootstrap.downloadable}
+              onChange={(e) => setBootstrap((b) => ({ ...b, downloadable: e.target.checked }))}
+            />
+            <span className="egg-mode-label">
+              <b>{t('admin.f.download')}</b>
+              <small className="muted">{t('admin.f.download.hint')}</small>
+            </span>
           </label>
         </div>
         {/* 语言版本切换条：同组版本互跳修改；缺失语言一键新建译本（需先保存拿到 id） */}
@@ -1281,11 +1311,22 @@ export function PostEditorPage() {
 
         {eggMode && (
           <>
+            {/* 内容模式：关 = 整页 HTML 原样输出；开 = Markdown 源自动渲染（含 KaTeX） */}
+            <label className="egg-mode-toggle egg-render-toggle">
+              <input
+                type="checkbox"
+                checked={eggRenderMd}
+                onChange={(e) => setEggRenderMd(e.target.checked)}
+              />
+              <span className="egg-mode-label">{t('admin.egg.render.md')}</span>
+              <span className="muted small">{t('admin.egg.render.md.hint')}</span>
+            </label>
+
             <div className="egg-upload-row">
               <input
                 ref={eggFileRef}
                 type="file"
-                accept=".html,.htm,text/html"
+                accept={eggRenderMd ? '.md,.markdown,.txt,text/markdown,text/plain' : '.html,.htm,text/html'}
                 hidden
                 onChange={(e) => {
                   const f = e.target.files?.[0]
@@ -1294,16 +1335,22 @@ export function PostEditorPage() {
                 }}
               />
               <button type="button" className="ghost-button" onClick={() => eggFileRef.current?.click()}>
-                <Upload size={14} />{t('admin.egg.file')}
+                <Upload size={14} />{eggRenderMd ? t('admin.egg.file.md') : t('admin.egg.file')}
               </button>
               <button
                 type="button"
                 className="ghost-button"
                 disabled={!eggHtml.trim() || !bootstrap.slug}
                 onClick={() => {
-                  // 预览与主站当前字体保持一致
+                  // 预览与主站当前字体/主题保持一致
                   const f = document.documentElement.getAttribute('data-font')
-                  window.open(`/egg/${encodeURIComponent(bootstrap.slug)}?preview=1${f ? `&font=${encodeURIComponent(f)}` : ''}`, '_blank', 'noopener')
+                  const theme = document.documentElement.getAttribute('data-theme')
+                  const qs = [
+                    'preview=1',
+                    f ? `font=${encodeURIComponent(f)}` : '',
+                    theme === 'light' || theme === 'dark' ? `theme=${encodeURIComponent(theme)}` : '',
+                  ].filter(Boolean).join('&')
+                  window.open(`/egg/${encodeURIComponent(bootstrap.slug)}?${qs}`, '_blank', 'noopener')
                 }}
               >
                 <Eye size={14} />{t('admin.egg.preview')}
@@ -1314,27 +1361,39 @@ export function PostEditorPage() {
               className="egg-textarea"
               value={eggHtml}
               onChange={(e) => setEggHtml(e.target.value)}
-              placeholder={t('admin.egg.ph')}
+              placeholder={eggRenderMd ? t('admin.egg.ph.md') : t('admin.egg.ph')}
               spellCheck={false}
               rows={12}
             />
 
             {eggHtml.trim() && (
-              <div className="egg-scan">
-                <strong>{t('admin.egg.scan.title')}</strong>
-                <ul>
-                  <li className={eggScan.oversize ? 'bad' : ''}>
-                    {t('admin.egg.scan.bytes')}: {formatBytes(eggScan.bytes)}
-                    {eggScan.oversize && <> — {t('admin.egg.scan.oversize')}</>}
-                  </li>
-                  <li className={eggScan.scripts > 0 ? 'warn' : ''}>{'<script>'}: {eggScan.scripts}</li>
-                  <li className={eggScan.handlers > 0 ? 'warn' : ''}>{t('admin.egg.scan.handlers')}: {eggScan.handlers}</li>
-                  <li className={eggScan.iframes > 0 ? 'warn' : ''}>{'<iframe>'}: {eggScan.iframes}</li>
-                  <li className={eggScan.hosts.length > 0 ? 'warn' : ''}>
-                    {t('admin.egg.scan.links')}: {eggScan.hosts.length ? eggScan.hosts.join(', ') : t('admin.egg.scan.links.none')}
-                  </li>
-                </ul>
-              </div>
+              eggRenderMd ? (
+                // Markdown 模式：原始 HTML 会被渲染器转义，无脚本注入面，仅提示体积
+                <div className="egg-scan">
+                  <ul>
+                    <li className={eggScan.oversize ? 'bad' : ''}>
+                      {t('admin.egg.scan.bytes')}: {formatBytes(eggScan.bytes)}
+                      {eggScan.oversize && <> — {t('admin.egg.scan.oversize')}</>}
+                    </li>
+                  </ul>
+                </div>
+              ) : (
+                <div className="egg-scan">
+                  <strong>{t('admin.egg.scan.title')}</strong>
+                  <ul>
+                    <li className={eggScan.oversize ? 'bad' : ''}>
+                      {t('admin.egg.scan.bytes')}: {formatBytes(eggScan.bytes)}
+                      {eggScan.oversize && <> — {t('admin.egg.scan.oversize')}</>}
+                    </li>
+                    <li className={eggScan.scripts > 0 ? 'warn' : ''}>{'<script>'}: {eggScan.scripts}</li>
+                    <li className={eggScan.handlers > 0 ? 'warn' : ''}>{t('admin.egg.scan.handlers')}: {eggScan.handlers}</li>
+                    <li className={eggScan.iframes > 0 ? 'warn' : ''}>{'<iframe>'}: {eggScan.iframes}</li>
+                    <li className={eggScan.hosts.length > 0 ? 'warn' : ''}>
+                      {t('admin.egg.scan.links')}: {eggScan.hosts.length ? eggScan.hosts.join(', ') : t('admin.egg.scan.links.none')}
+                    </li>
+                  </ul>
+                </div>
+              )
             )}
 
             {eggExisting && (
@@ -1343,6 +1402,7 @@ export function PostEditorPage() {
                   size: formatBytes(new TextEncoder().encode(eggExisting.html).length),
                   date: eggExisting.updatedAt ? new Date(eggExisting.updatedAt).toLocaleString(lang === 'zh' ? 'zh-CN' : lang === 'ru' ? 'ru-RU' : 'en-US') : '—',
                 })}
+                {eggExisting.renderMd && <> · {t('admin.egg.state.md')}</>}
                 {' · '}{eggExisting.enabled ? t('admin.egg.state.on') : t('admin.egg.state.off')}
               </p>
             )}
@@ -1561,10 +1621,13 @@ function AttachmentManager({
               parameters?: { retry_after?: number }
               result?: { message_id: number; document: { file_id: string; file_size?: number } }
             }
-            if (pr.status === 429 || (pd.ok === false && typeof pd.parameters?.retry_after === 'number')) {
-              if (++rateLimits > 10) throw new Error(pd.description || 'rate limited')
+            // 限流识别：标准 429；本地 botapi 也会以 400 + "retry after N" 文本返回限流
+            const retryMatch = /retry after (\d+)/i.exec(pd.description || '')
+            const retryAfterSec = pd.parameters?.retry_after ?? (retryMatch ? Number(retryMatch[1]) : NaN)
+            if (pr.status === 429 || (pd.ok === false && Number.isFinite(retryAfterSec))) {
+              if (++rateLimits > 30) throw new Error(pd.description || 'rate limited')
               attempt--
-              await new Promise((r) => setTimeout(r, (pd.parameters?.retry_after ?? 2) * 1000 + Math.random() * 500))
+              await new Promise((r) => setTimeout(r, retryAfterSec * 1000 + 1000 + Math.random() * 500))
               continue
             }
             if (pr.status >= 500) {
@@ -1594,7 +1657,8 @@ function AttachmentManager({
         }
       }
     }
-    await Promise.all(Array.from({ length: 4 }, () => worker()))
+    // 2 路并发：Telegram 对 bot 上传有全局限流，4 路容易触发 retry-after 风暴
+    await Promise.all(Array.from({ length: 2 }, () => worker()))
 
     onPct(98)
     const complete = await postJson('mp-complete', {
@@ -1800,6 +1864,7 @@ function AttachmentManager({
               <button className="row-action primary" disabled={busyId === att.id} onClick={() => setPassword(att)}>
                 {busyId === att.id ? t('admin.busy.processing') : att.locked ? t('admin.am.unlock') : t('admin.am.lock')}
               </button>
+              <AttachmentPreviewButton att={att} className="row-action" />
               <AttachmentDownloadButton
                 att={att}
                 gateway={gwReady === true}

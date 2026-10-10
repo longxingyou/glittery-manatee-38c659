@@ -110,7 +110,11 @@ async function measureOverflow(page, targets) {
 /** null = 目标元素当前不存在，不计为溢出失败 */
 const overflowOk = (over) => Object.values(over).every((v) => v === 0 || v === null);
 
-const browser = await chromium.launch({ headless: true, executablePath });
+const browser = await chromium.launch({
+  headless: true,
+  executablePath,
+  ...(cfg.launchArgs ? { args: cfg.launchArgs } : {}),
+});
 const sizes = cfg.sizes ?? DEFAULT_SIZES;
 const report = {};
 let failed = false;
@@ -125,6 +129,7 @@ for (const size of sizes) {
     isMobile: true,
     hasTouch: true,
     userAgent: size.ua ?? cfg.ua ?? DEFAULT_UA,
+    ...(cfg.storageState ? { storageState: resolve(cfg.storageState) } : {}),
   });
   const page = await ctx.newPage();
   page.on('console', (m) => {
@@ -133,7 +138,14 @@ for (const size of sizes) {
   });
   page.on('pageerror', (e) => r.pageErrors.push(String(e).slice(0, 200)));
 
-  await page.goto(cfg.url, { waitUntil: 'networkidle' });
+  await page.goto(cfg.url, { waitUntil: cfg.waitUntil ?? 'networkidle', timeout: cfg.navTimeout ?? 60000 });
+
+  // 等 React 水合完成（body 上出现 __reactFiber 键），避免点击落在未水合节点上
+  await page.waitForFunction(
+    () => Object.keys(document.body).some((k) => k.startsWith('__reactFiber')),
+    null, { timeout: 30000 },
+  ).catch(() => {});
+  await page.waitForTimeout(400);
 
   // 首屏溢出
   const home = await measureOverflow(page, cfg.targets ?? []);
@@ -169,7 +181,12 @@ for (const size of sizes) {
       await page.reload({ waitUntil: 'networkidle' });
       if (step.wait) await page.waitForTimeout(step.wait);
     }
-    if (step.scroll) await page.mouse.wheel(0, step.scroll);
+    if (step.scrollEl) {
+      await page.evaluate(({ sel, dy }) => {
+        const el = document.querySelector(sel);
+        if (el) el.scrollTop += dy;
+      }, { sel: step.scrollEl, dy: step.scroll ?? 500 });
+    } else if (step.scroll) await page.mouse.wheel(0, step.scroll);
     if (step.shot) {
       const dir = resolve(cfg.outDir ?? '.');
       mkdirSync(dir, { recursive: true });

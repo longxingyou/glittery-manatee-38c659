@@ -65,5 +65,7 @@
   //   TG_GATEWAY_SECRET  网关 HMAC 共享密钥（= 容器的 GATEWAY_SECRET）
   //   TG_LOCAL_PART_BYTES 可选，网关模式单片字节数（默认 94371840=90MiB；
   //                       平台请求超时时可调小，如 41943040=40MiB）
+  //   BRAVE_API_KEY       可选，后台 /admin/network 网络工具的代理搜索密钥
+  //                       （Brave Search API；未配置时自动回退 DuckDuckGo）
   // 本地开发由 .dev.vars 提供（已在 .gitignore 中忽略）。
 }

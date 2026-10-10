@@ -1,6 +1,22 @@
 # 网关域名（DNS 需先 A 记录指向本机，且 80/443 入站放行）
 # Caddy 会自动向 Let's Encrypt 申请并续期证书。
 # Caddy 默认不限制请求体大小、不设响应超时，大文件分片（≤2000MB）可直接透传。
+
+# 只用 HTTP/1.1：h2 下浏览器的 6 路并发会复用同一条 TCP 连接，国际链路
+# 丢包时单流整体受阻；h1 下浏览器开出 6 条独立 TCP 流，吞吐与稳定性更好。
+# 注意：protocols 是全局 servers 块的子选项，不是站点块内指令。
+{
+	servers {
+		protocols h1
+	}
+}
+
 gw.xn--fpr224a.mom {
+	reverse_proxy gateway:8080
+}
+
+# 下载专用域（手机整文件直下）：DNS A 记录先灰云签发证书，再开橙云代理。
+# 橙云后浏览器/下载器连的是 Cloudflare 边缘，CF 回源到本机的 443。
+dl.xn--fpr224a.mom {
 	reverse_proxy gateway:8080
 }

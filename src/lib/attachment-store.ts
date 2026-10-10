@@ -19,7 +19,7 @@
  * attachments.storage_key 存清单 JSON：tg1:{"c":chatId,"p":[{m,f,s},...]}
  * （m=消息 id，f=document file_id，s=分片字节数）。
  */
-import { getEnv } from './server-env'
+import { getEnv, getWorkerOrigin } from './server-env'
 
 /**
  * 单片大小：47 MiB。
@@ -107,15 +107,27 @@ export async function isTgConfigured(): Promise<boolean> {
 
 export interface GatewayConfig {
   url: string
+  /** 下载专用公开地址（TG_GATEWAY_DL_URL，如经 Cloudflare 代理的子域）；缺省同 url */
+  dlUrl: string
   secret: string
 }
 
 /** 网关配置；未配置时返回 null（调用方回退云端 Bot API） */
 export function gatewayConfig(): GatewayConfig | null {
   const env = getEnv()
-  const url = (env.TG_GATEWAY_URL || '').trim().replace(/\/+$/, '')
+  const rawUrl = (env.TG_GATEWAY_URL || '').trim().replace(/\/+$/, '')
   const secret = env.TG_GATEWAY_SECRET || ''
-  return url && secret ? { url, secret } : null
+  if (!rawUrl || !secret) return null
+  // 下载地址默认与主地址相同；配置 TG_GATEWAY_DL_URL 时整文件下载走该域
+  // （典型用途：该域经 Cloudflare 代理，改善国内直连下载质量）
+  const rawDlUrl = (env.TG_GATEWAY_DL_URL || '').trim().replace(/\/+$/, '') || rawUrl
+  // 本地 vite dev：网关 CORS 只放行生产源，浏览器从 localhost 跨域 fetch 会被拦。
+  // 改写成同源 /__gwproxy 前缀（vite.config.ts 的 server.proxy 服务端透传到真实网关）。
+  const origin = getWorkerOrigin()
+  const localDev = /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/.test(origin)
+    ? `${origin}/__gwproxy`
+    : ''
+  return { url: localDev || rawUrl, dlUrl: localDev || rawDlUrl, secret }
 }
 
 function b64urlBytes(bytes: Uint8Array): string {
@@ -132,9 +144,11 @@ const enc = new TextEncoder()
  * - admin：payload=方法名（Worker 服务端调用，15 分钟）
  * - upload：payload=存储频道 id（浏览器直传，6 小时，覆盖大文件全程）
  * - file：payload=file_id（游客下载，12 小时）
+ * - dl：payload=JSON {n,m,p:[[file_id,size]...]}（整文件整流直发，7 天；
+ *   令牌仅绑定单个文件的只读下载，随附件列表下发到页面）
  */
 export async function signGwToken(
-  kind: 'admin' | 'upload' | 'file',
+  kind: 'admin' | 'upload' | 'file' | 'dl' | 'pvget' | 'pvput' | 'pvdel' | 'bili',
   payload: string,
   ttlMs: number,
 ): Promise<string> {
@@ -167,6 +181,46 @@ export async function gwFileUrl(fileId: string): Promise<string> {
   if (!gw) throw new Error('网关未配置')
   const token = await signGwToken('file', fileId, 12 * 60 * 60 * 1000)
   return `${gw.url}/file?f=${encodeURIComponent(fileId)}&t=${encodeURIComponent(token)}`
+}
+
+/** 整文件直发地址：网关 /dl 把多片顺序拼接成整流直吐
+ *  （手机/普通浏览器原生下载用，Worker 302 跳转目标；支持 Range 续传） */
+export async function gwDlUrl(
+  filename: string,
+  mimeType: string,
+  parts: Array<{ f: string; s: number }>,
+): Promise<string> {
+  const gw = gatewayConfig()
+  if (!gw) throw new Error('网关未配置')
+  const payload = JSON.stringify({ n: filename, m: mimeType, p: parts.map((p) => [p.f, p.s]) })
+  const token = await signGwToken('dl', payload, 7 * 24 * 60 * 60 * 1000)
+  return `${gw.dlUrl}/dl?t=${encodeURIComponent(token)}`
+}
+
+// ── 预览 PDF（converter 上传 / 浏览器 Range 读取 / 附件删除时清理）──
+
+/** 浏览器读取转换后 PDF 的地址（走下载域，Range 流式，内联显示） */
+export async function gwPreviewGetUrl(id: number): Promise<string> {
+  const gw = gatewayConfig()
+  if (!gw) throw new Error('网关未配置')
+  const token = await signGwToken('pvget', String(id), 12 * 60 * 60 * 1000)
+  return `${gw.dlUrl}/preview/${id}?t=${encodeURIComponent(token)}`
+}
+
+/** converter 回传 PDF 的上传地址（PUT 整文件，20 分钟内一次转换完成） */
+export async function gwPreviewPutUrl(id: number): Promise<string> {
+  const gw = gatewayConfig()
+  if (!gw) throw new Error('网关未配置')
+  const token = await signGwToken('pvput', String(id), 20 * 60 * 1000)
+  return `${gw.url}/preview-put/${id}?t=${encodeURIComponent(token)}`
+}
+
+/** 删除附件时清理转换产物（DELETE，10 分钟） */
+export async function gwPreviewDeleteUrl(id: number): Promise<string> {
+  const gw = gatewayConfig()
+  if (!gw) throw new Error('网关未配置')
+  const token = await signGwToken('pvdel', String(id), 10 * 60 * 1000)
+  return `${gw.url}/preview/${id}?t=${encodeURIComponent(token)}`
 }
 
 export function encodeAttachmentManifest(m: AttachmentManifest): string {

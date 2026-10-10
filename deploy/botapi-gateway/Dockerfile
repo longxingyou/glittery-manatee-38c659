@@ -5,12 +5,15 @@ FROM aiogram/telegram-bot-api:latest
 
 USER root
 
-# nodejs：网关进程（零依赖，仅用内置模块）；tini：PID1 信号转发
-RUN apk add --no-cache nodejs tini
+# nodejs：网关进程；npm：安装 msedge-tts（神经语音）；tini：PID1 信号转发
+RUN apk add --no-cache nodejs npm tini
 
 COPY gateway /app/gateway
 COPY start.sh /app/start.sh
-RUN chmod +x /app/start.sh && mkdir -p /data && chmod 777 /data
+# --ignore-scripts：msedge-tts 带 only-allow-pnpm 的 preinstall 钩子，npm 安装需绕过；
+# 其运行时依赖 ws/axios 均无安装脚本需求
+RUN cd /app/gateway && npm install --omit=dev --ignore-scripts --no-audit --no-fund \
+  && chmod +x /app/start.sh && mkdir -p /data && chmod 777 /data
 
 WORKDIR /app
 

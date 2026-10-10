@@ -11,6 +11,7 @@ const posts = defineCollection({
     categories: z.array(z.string()),
     slug: z.string().optional(),
     image: z.string().optional(),
+    download: z.boolean().optional(),
     date: z.string(),
     content: z.string(),
   }),

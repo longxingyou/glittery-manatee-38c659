@@ -14,8 +14,25 @@ services:
       PORT: "8080"
     volumes:
       - tg-data:/data/tg
+      - preview-data:/data/previews
     expose:
       - "8080"
+
+  # Office → PDF 转换服务（串行、512MiB 内存上限，压测见 lo-bench）
+  converter:
+    build: ./converter
+    image: sg-preview-converter:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # 签名 URL 经 docker 内网直取 gateway，不经 Cloudflare
+      GW_INTERNAL_ORIGIN: "http://gateway:8080"
+      POLL_INTERVAL_MS: "5000"
+    mem_limit: 512m
+    memswap_limit: 2048m
+    cpus: 2.0
+    depends_on:
+      - gateway
 
   caddy:
     image: caddy:2-alpine
@@ -32,5 +49,6 @@ services:
 
 volumes:
   tg-data:
+  preview-data:
   caddy-data:
   caddy-config:

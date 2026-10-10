@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "type": "module",
+  "description": "Syntax Garden gateway deps (msedge-tts neural TTS). Install with --ignore-scripts (msedge-tts ships a pnpm-only preinstall hook).",
+  "dependencies": {
+    "msedge-tts": "2.0.9"
+  }
+}

@@ -3,8 +3,9 @@ import { createServerFn } from '@tanstack/react-start'
 import { setResponseHeader } from '@tanstack/react-start/server'
 import { onAuthChange } from '@/lib/auth-client'
 import { z } from 'zod'
-import { FileDown, Lock, LockOpen } from 'lucide-react'
+import { FileDown, Eye, Loader2, Lock, LockOpen } from 'lucide-react'
 import { useT } from '@/lib/i18n'
+import { previewKind, previewUiState } from '@/lib/preview'
 
 import {
   DEFAULT_SITE_DESCRIPTION,
@@ -24,6 +25,7 @@ import {
   canStreamDownload,
   downloadAttachmentLarge,
   downloadAttachmentViaGateway,
+  reportGatewayDownload,
 } from '@/lib/attachment-download'
 
 /** 附件下载入口：>380MiB 且浏览器支持 FS API 时走 Range 分段续传下载器（带进度），
@@ -54,9 +56,22 @@ export function AttachmentDownloadButton({
   // tg1 bot 附件窗口 380MiB，仅超大文件需要
   const needStream = att.stream === true || att.sizeBytes > ATTACHMENT_DIRECT_LINK_MAX_BYTES
   if (!needStream || !canStreamDownload()) {
+    // 大文件 + 不支持 FS API（主要是手机）：必须同标签导航。
+    // target="_blank" 下部分移动浏览器对"新标签 → 跨站 302 → attachment"
+    // 这一组合不会唤起系统下载（空白页一闪而过）。attachment 响应本身不会
+    // 卸载当前页面，所以同标签导航是安全的；小文件仍保留新标签打开的旧行为。
+    // 大文件优先直连网关（最终地址随附件列表下发，无需 Worker 302 跳转）；
+    // 小文件 / 密码锁附件 / 网关不可用时走 Worker 下载地址
+    const href = att.gwDl || attachmentDownloadUrl(att.id, token)
     return (
-      <a className={className} href={attachmentDownloadUrl(att.id, token)} target="_blank" rel="noreferrer"
-        title={needStream ? t('attach.dl.big.hint') : undefined}>
+      <a
+        className={className}
+        href={href}
+        // 网关直连不经 Worker，下载计数由信标补记（Worker 路径自带计数）
+        onClick={att.gwDl ? () => reportGatewayDownload(att.id) : undefined}
+        {...(needStream ? {} : { target: '_blank', rel: 'noreferrer' })}
+        title={needStream ? t('attach.dl.big.hint') : undefined}
+      >
         <FileDown size={13} />{label}
       </a>
     )
@@ -94,6 +109,36 @@ export function AttachmentDownloadButton({
     >
       <FileDown size={13} />{running ? t('attach.dl.progress', { pct }) : label}
     </button>
+  )
+}
+
+/** 附件「预览」入口：直渲格式直接打开 /preview/$id；Office 显示转换状态。
+ *  不支持或超限时返回 null（下载按钮不受影响）。 */
+export function AttachmentPreviewButton({
+  att,
+  token,
+  className,
+}: {
+  att: AttachmentPublic
+  token?: string
+  className?: string
+}) {
+  const t = useT()
+  const kind = previewKind(att.filename)
+  const ui = previewUiState(kind, att.previewState, att.sizeBytes)
+  if (ui === 'none') return null
+  const href = `/preview/${att.id}${token ? `?token=${encodeURIComponent(token)}` : ''}`
+  if (ui === 'pending') {
+    return (
+      <span className={`${className || ''} is-busy`} aria-disabled="true" title={t('preview.converting.hint')}>
+        <Loader2 size={13} className="pv-spin-inline" />{t('preview.converting')}
+      </span>
+    )
+  }
+  return (
+    <a className={className} href={href} title={ui === 'failed' ? t('preview.failed.hint') : t('preview.open.hint')}>
+      <Eye size={13} />{ui === 'failed' ? t('preview.retry') : t('preview.open')}
+    </a>
   )
 }
 
@@ -218,6 +263,101 @@ export const postAttachmentsFn = createServerFn({ method: 'GET' })
     const user = await mod.getCurrentUser()
     if (!user) throw new Error('请先登录后查看附件。')
     return mod.listAttachmentsPublic(data.postSlug)
+  })
+
+/** /preview/$id 页面数据：门禁与附件下载同一套（登录 + 密码令牌） */
+export type AttachmentPreviewInfo = {
+  authRequired?: boolean
+  found?: boolean
+  locked?: boolean
+  id?: number
+  postSlug?: string
+  filename?: string
+  mimeType?: string
+  sizeBytes?: number
+  kind?: import('@/lib/preview').PreviewKind | null
+  previewState?: string | null
+  /** 转换后 PDF（office ready）或原始 PDF 的网关读取地址 */
+  pdfUrl?: string | null
+  /** 原始附件整文件地址（媒体直渲 / blob 拉取；tg1 网关系下发） */
+  fileUrl?: string | null
+  /** 非网关存储（旧 base64 / mt1）走同源 action=file（带 token） */
+  sameOriginUrl?: string | null
+}
+
+export const attachmentPreviewFn = createServerFn({ method: 'GET' })
+  .inputValidator((input) =>
+    z.object({ id: z.number().int().positive(), token: z.string().max(1024).optional() }).parse(input),
+  )
+  .handler(async ({ data }): Promise<AttachmentPreviewInfo> => {
+    const mod = await import('../../db/index.js')
+    const user = await mod.getCurrentUser()
+    if (!user) return { authRequired: true }
+    const row = await mod.getAttachmentFullRow(data.id)
+    if (!row) return { found: false }
+    const { previewKind } = await import('@/lib/preview')
+    const kind = previewKind(row.filename)
+    if (row.passwordHash && row.passwordSalt) {
+      const secret = await mod.getTokenSecret()
+      const payload = await mod.verifyToken<{ aid: number }>(data.token || '', secret)
+      if (!payload || payload.aid !== row.id) {
+        return { found: true, locked: true, id: row.id, filename: row.filename, kind }
+      }
+    }
+    const info: AttachmentPreviewInfo = {
+      found: true,
+      locked: false,
+      id: row.id,
+      postSlug: row.postSlug,
+      filename: row.filename,
+      mimeType: row.mimeType,
+      sizeBytes: row.sizeBytes,
+      kind,
+      previewState: row.previewState,
+      sameOriginUrl: !row.storageKey?.startsWith('tg1:')
+        ? `/api/comments?action=file&id=${row.id}${data.token ? `&token=${encodeURIComponent(data.token)}` : ''}`
+        : null,
+    }
+    const store = await import('@/lib/attachment-store')
+    const manifest = store.decodeAttachmentManifest(row.storageKey)
+    if (manifest && store.gatewayConfig()) {
+      try {
+        info.fileUrl = await store.gwDlUrl(
+          row.filename,
+          row.mimeType || 'application/octet-stream',
+          manifest.p.map((p) => ({ f: p.f, s: p.s })),
+        )
+      } catch { /* 网关临时异常：前端回退同源地址（mt1/窗口路径不适用 tg1，报错由用户重试） */ }
+    }
+    if (kind === 'pdf') {
+      // 原始 PDF：直接用整文件地址在 PDF.js 里 Range 渲染
+      info.pdfUrl = info.fileUrl || info.sameOriginUrl || null
+    } else if (kind === 'office' && row.previewState === 'ready') {
+      try {
+        info.pdfUrl = await store.gwPreviewGetUrl(row.id)
+      } catch { /* 网关未配置/异常：pdfUrl 留空，页面显示下载提示 */ }
+    }
+    return info
+  })
+
+/** 转换失败后手动重新入队（登录门禁同预览；密码锁需携带有效令牌） */
+export const attachmentPreviewRetryFn = createServerFn({ method: 'POST' })
+  .inputValidator((input) =>
+    z.object({ id: z.number().int().positive(), token: z.string().max(1024).optional() }).parse(input),
+  )
+  .handler(async ({ data }): Promise<{ ok: boolean; error?: string }> => {
+    const mod = await import('../../db/index.js')
+    const user = await mod.getCurrentUser()
+    if (!user) return { ok: false, error: '请先登录。' }
+    const row = await mod.getAttachmentFullRow(data.id)
+    if (!row) return { ok: false, error: '附件不存在。' }
+    if (row.passwordHash && row.passwordSalt) {
+      const secret = await mod.getTokenSecret()
+      const payload = await mod.verifyToken<{ aid: number }>(data.token || '', secret)
+      if (!payload || payload.aid !== row.id) return { ok: false, error: '请先解锁附件。' }
+    }
+    const result = await mod.requeuePreview(data.id)
+    return result === 'queued' ? { ok: true } : { ok: false, error: result }
   })
 
 // 站点内容块（网站简介 / 友情链接；公开，用户中心展示）
@@ -354,6 +494,7 @@ export function AttachmentPanel({ postSlug }: { postSlug: string }) {
                   tokens[att.id] ? (
                     <>
                       <span className="chip unlock"><LockOpen size={10} />{t('attach.unlocked')}</span>
+                      <AttachmentPreviewButton att={att} token={tokens[att.id]} className="row-action" />
                       <AttachmentDownloadButton
                         att={att}
                         token={tokens[att.id]}
@@ -380,15 +521,18 @@ export function AttachmentPanel({ postSlug }: { postSlug: string }) {
                     </>
                   )
                 ) : (
-                  <AttachmentDownloadButton
-                    att={att}
-                    gateway={gateway}
-                    className="row-action primary"
-                    label={t('attach.download')}
-                    pct={dlPct[att.id]}
-                    onPct={(id, p) => setDlPct((m) => { const n = { ...m }; if (p < 0) delete n[id]; else n[id] = p; return n })}
-                    onError={(msg) => setError(msg)}
-                  />
+                  <>
+                    <AttachmentPreviewButton att={att} className="row-action" />
+                    <AttachmentDownloadButton
+                      att={att}
+                      gateway={gateway}
+                      className="row-action primary"
+                      label={t('attach.download')}
+                      pct={dlPct[att.id]}
+                      onPct={(id, p) => setDlPct((m) => { const n = { ...m }; if (p < 0) delete n[id]; else n[id] = p; return n })}
+                      onError={(msg) => setError(msg)}
+                    />
+                  </>
                 )}
               </div>
             </li>

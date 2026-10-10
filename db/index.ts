@@ -7,7 +7,14 @@ import { allPosts } from 'content-collections'
 import * as schema from './schema.js'
 import { getEnv, getWorkerOrigin } from '../src/lib/server-env.js'
 import { TtlCache, safeKvGet, safeKvPut, safeKvDelete, edgeCacheDelete } from '../src/lib/cache.js'
-import { deleteAttachmentFiles } from '../src/lib/attachment-store.js'
+import {
+  deleteAttachmentFiles,
+  decodeAttachmentManifest,
+  gatewayConfig,
+  gwDlUrl,
+  gwPreviewDeleteUrl,
+} from '../src/lib/attachment-store.js'
+import { isConvertibleForPreview } from '../src/lib/preview.js'
 import {
   DEFAULT_SITE_DESCRIPTION,
   DEFAULT_SITE_TITLE,
@@ -47,8 +54,8 @@ export function withDbTimeout<T>(promise: Promise<T>, ms: number, label: string)
 }
 
 /**
- * 读路径通用包装：直接执行查询；仅当报"表不存在"(Postgres 42P01) 时，
- * 才跑 ensureSchema() 建表后重试一次。
+ * 读路径通用包装：直接执行查询；仅当报"表/列不存在"(Postgres 42P01/42703) 时，
+ * 才跑 ensureSchema() 建表/补列后重试一次。
  * 稳态下（表早已建好）读请求永远不执行 ~40 条 DDL——冷启动关键路径只剩纯 SELECT，
  * 这是登录变慢、访客文章列表冷启动超时降级（看不到 DB 文章）的根因修复。
  */
@@ -63,10 +70,17 @@ export async function readWithSchemaFallback<T>(fn: () => Promise<T>): Promise<T
 }
 
 function isUndefinedTableError(e: unknown): boolean {
-  const code = (e as { code?: string } | null)?.code
-  if (code === '42P01') return true
-  const msg = e instanceof Error ? e.message : String(e)
-  return /42P01|relation "[^"]+" does not exist|undefined_table/.test(msg)
+  // Drizzle 会把 Neon 的原始 PG 错误包进 DrizzleQueryError.cause（message 只有
+  // "Failed query: ..."），因此沿 cause 链向下找 42P01/42703，最多 4 层。
+  let cur: unknown = e
+  for (let depth = 0; depth < 4 && cur; depth++) {
+    const code = (cur as { code?: string } | null)?.code
+    if (code === '42P01' || code === '42703') return true
+    const msg = cur instanceof Error ? cur.message : String(cur)
+    if (/42P01|42703|relation "[^"]+" does not exist|column "[^"]+" does not exist|undefined_table|undefined_column/.test(msg)) return true
+    cur = (cur as { cause?: unknown } | null)?.cause
+  }
+  return false
 }
 
 /**
@@ -242,6 +256,7 @@ const schemaStatements = [
       date TEXT NOT NULL,
       language TEXT NOT NULL DEFAULT 'zh',
       translation_key TEXT,
+      downloadable BOOLEAN NOT NULL DEFAULT FALSE,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ
     )`,
@@ -249,6 +264,8 @@ const schemaStatements = [
     // 既有库增量迁移：语言与翻译组列（幂等）
     sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT 'zh'`,
     sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS translation_key TEXT`,
+    // 既有库增量迁移：下载/导出开关（幂等）
+    sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS downloadable BOOLEAN NOT NULL DEFAULT FALSE`,
     sql`CREATE INDEX IF NOT EXISTS posts_translation_key_idx ON posts (translation_key)`,
     sql`CREATE TABLE IF NOT EXISTS categories (
       id SERIAL PRIMARY KEY,
@@ -271,17 +288,29 @@ const schemaStatements = [
       password_hash TEXT,
       password_salt TEXT,
       downloads INTEGER NOT NULL DEFAULT 0,
+      preview_state TEXT,
+      preview_attempts INTEGER NOT NULL DEFAULT 0,
+      preview_at TIMESTAMPTZ,
+      preview_size INTEGER,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`,
     sql`ALTER TABLE attachments ADD COLUMN IF NOT EXISTS storage_key TEXT`,
+    sql`ALTER TABLE attachments ADD COLUMN IF NOT EXISTS preview_state TEXT`,
+    sql`ALTER TABLE attachments ADD COLUMN IF NOT EXISTS preview_attempts INTEGER NOT NULL DEFAULT 0`,
+    sql`ALTER TABLE attachments ADD COLUMN IF NOT EXISTS preview_at TIMESTAMPTZ`,
+    sql`ALTER TABLE attachments ADD COLUMN IF NOT EXISTS preview_size INTEGER`,
+    sql`CREATE INDEX IF NOT EXISTS attachments_preview_idx ON attachments (preview_state, id)`,
     sql`CREATE INDEX IF NOT EXISTS attachments_post_slug_idx ON attachments (post_slug)`,
     // 文章彩蛋（整页静态 HTML，公开访问仅当 enabled 且文章已发布）
     sql`CREATE TABLE IF NOT EXISTS post_eggs (
       post_slug TEXT PRIMARY KEY,
       html TEXT NOT NULL DEFAULT '',
+      render_md BOOLEAN NOT NULL DEFAULT FALSE,
       enabled BOOLEAN NOT NULL DEFAULT FALSE,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`,
+    // 既有库增量迁移：Markdown 渲染模式列（幂等）
+    sql`ALTER TABLE post_eggs ADD COLUMN IF NOT EXISTS render_md BOOLEAN NOT NULL DEFAULT FALSE`,
     sql`CREATE TABLE IF NOT EXISTS settings (
       id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
       site_title TEXT,
@@ -293,7 +322,35 @@ const schemaStatements = [
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`,
     sql`ALTER TABLE settings ADD COLUMN IF NOT EXISTS banned_words TEXT`,
+    // 网络工具分享模式总开关（幂等增量迁移）
+    sql`ALTER TABLE settings ADD COLUMN IF NOT EXISTS net_share_enabled BOOLEAN NOT NULL DEFAULT FALSE`,
     sql`INSERT INTO settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING`,
+    // 网络工具分享链接（token/绑定密钥只存 SHA-256 哈希）
+    sql`CREATE TABLE IF NOT EXISTS net_share_links (
+      id TEXT PRIMARY KEY,
+      token_hash TEXT NOT NULL UNIQUE,
+      bound_hash TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      last_used_at TIMESTAMPTZ
+    )`,
+    // 俄语工具箱分享模式（总开关 + 链接 + 多 IP 绑定明细）
+    sql`ALTER TABLE settings ADD COLUMN IF NOT EXISTS ru_share_enabled BOOLEAN NOT NULL DEFAULT FALSE`,
+    sql`CREATE TABLE IF NOT EXISTS ru_share_links (
+      id TEXT PRIMARY KEY,
+      token_hash TEXT NOT NULL UNIQUE,
+      max_ips INTEGER NOT NULL DEFAULT 10,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      last_used_at TIMESTAMPTZ
+    )`,
+    sql`CREATE TABLE IF NOT EXISTS ru_share_bindings (
+      id BIGSERIAL PRIMARY KEY,
+      link_id TEXT NOT NULL REFERENCES ru_share_links(id) ON DELETE CASCADE,
+      ip_hash TEXT NOT NULL,
+      secret_hash TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      last_used_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
+    sql`CREATE INDEX IF NOT EXISTS ru_share_bindings_link_idx ON ru_share_bindings(link_id)`,
     // 用户资料（个签/昵称缓存）
     sql`CREATE TABLE IF NOT EXISTS profiles (
       user_id TEXT PRIMARY KEY,
@@ -637,6 +694,8 @@ const EMPTY_SETTINGS_ROW = {
   adminEmails: null as string | null,
   bannedWords: null as string | null,
   tokenSecret: null as string | null,
+  netShareEnabled: false,
+  ruShareEnabled: false,
   updatedAt: new Date(),
 }
 
@@ -767,6 +826,7 @@ function mapStaticPost(p: {
   date: string
   content: string
   readingTime?: number
+  download?: boolean
 }): PostData {
   return {
     id: null,
@@ -780,9 +840,9 @@ function mapStaticPost(p: {
     status: 'published',
     source: 'static',
     updatedAt: null,
-    // 静态种子文章均为中文原文
     language: 'zh',
     translationKey: null,
+    downloadable: p.download === true,
   }
 }
 
@@ -797,6 +857,7 @@ type DbPostRow = {
   date: string
   language: string | null
   translationKey: string | null
+  downloadable?: boolean | null
   createdAt: Date | string
   updatedAt: Date | string | null
 }
@@ -816,6 +877,7 @@ function mapDbPost(row: DbPostRow): PostData {
     updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
     language: isPostLanguage(row.language) ? row.language : 'zh',
     translationKey: row.translationKey || null,
+    downloadable: row.downloadable === true,
   }
 }
 
@@ -1067,6 +1129,8 @@ export type PostSaveInput = {
   language?: PostLanguage
   /** 翻译组键；空串/省略视为独立文章 */
   translationKey?: string | null
+  /** 访客可见的下载/导出入口开关 */
+  downloadable?: boolean
 }
 
 export async function savePost(input: PostSaveInput): Promise<{ id: number; slug: string }> {
@@ -1149,6 +1213,7 @@ export async function savePost(input: PostSaveInput): Promise<{ id: number; slug
           date: input.date,
           language,
           translationKey,
+          downloadable: input.downloadable === true,
           updatedAt: sql`NOW()`,
         })
         .where(eq(schema.posts.id, input.id)),
@@ -1169,6 +1234,7 @@ export async function savePost(input: PostSaveInput): Promise<{ id: number; slug
       date: input.date,
       language,
       translationKey,
+      downloadable: input.downloadable === true,
     })
     .returning({ id: schema.posts.id, slug: schema.posts.slug })
   await anchorPromise
@@ -1208,20 +1274,20 @@ export async function deletePost(id: number): Promise<void> {
 // enabled + 文章已发布双重门控，/egg/:slug 路由以此为数据源）
 // ============================================================
 
-export type PostEgg = { postSlug: string; html: string; enabled: boolean; updatedAt: string | null }
+export type PostEgg = { postSlug: string; html: string; renderMd: boolean; enabled: boolean; updatedAt: string | null }
 
 /** 彩蛋 HTML 体积上限：512KB（约 10 倍于典型单页攻略，超出说明塞入了应走附件的资源） */
 export const POST_EGG_MAX_BYTES = 512 * 1024
 
-export async function savePostEgg(input: { slug: string; html: string; enabled: boolean }): Promise<PostEgg> {
+export async function savePostEgg(input: { slug: string; html: string; renderMd: boolean; enabled: boolean }): Promise<PostEgg> {
   await requireAdmin()
   await ensureSchema()
   const slug = input.slug.trim()
   if (!slug) throw new Error('路径（slug）不能为空。')
   const html = input.html
-  if (!html.trim()) throw new Error('彩蛋 HTML 不能为空。')
+  if (!html.trim()) throw new Error(input.renderMd ? '彩蛋 Markdown 不能为空。' : '彩蛋 HTML 不能为空。')
   if (new TextEncoder().encode(html).byteLength > POST_EGG_MAX_BYTES) {
-    throw new Error('彩蛋 HTML 超过 512KB 上限，请精简或改走附件。')
+    throw new Error(input.renderMd ? '彩蛋 Markdown 超过 512KB 上限，请精简或改走附件。' : '彩蛋 HTML 超过 512KB 上限，请精简或改走附件。')
   }
   // 目标文章必须存在于 DB（彩蛋依附于已保存的文章）
   const post = await useDb()
@@ -1233,12 +1299,12 @@ export async function savePostEgg(input: { slug: string; html: string; enabled: 
   const now = new Date()
   await useDb()
     .insert(schema.postEggs)
-    .values({ postSlug: slug, html, enabled: input.enabled, updatedAt: now })
+    .values({ postSlug: slug, html, renderMd: input.renderMd, enabled: input.enabled, updatedAt: now })
     .onConflictDoUpdate({
       target: schema.postEggs.postSlug,
-      set: { html, enabled: input.enabled, updatedAt: now },
+      set: { html, renderMd: input.renderMd, enabled: input.enabled, updatedAt: now },
     })
-  return { postSlug: slug, html, enabled: input.enabled, updatedAt: now.toISOString() }
+  return { postSlug: slug, html, renderMd: input.renderMd, enabled: input.enabled, updatedAt: now.toISOString() }
 }
 
 export async function deletePostEgg(slug: string): Promise<void> {
@@ -1257,7 +1323,7 @@ export async function getPostEggAdmin(slug: string): Promise<PostEgg | null> {
       { timeoutMs: 7000 },
     )
     const r = rows[0]
-    return r ? { postSlug: r.postSlug, html: r.html, enabled: r.enabled, updatedAt: r.updatedAt?.toISOString() ?? null } : null
+    return r ? { postSlug: r.postSlug, html: r.html, renderMd: r.renderMd === true, enabled: r.enabled, updatedAt: r.updatedAt?.toISOString() ?? null } : null
   })
 }
 
@@ -1281,13 +1347,18 @@ export async function getPostEggMeta(slug: string): Promise<{ enabled: boolean }
   }
 }
 
-/** /egg/:slug 公开输出：仅当彩蛋已启用且对应文章已发布；返回 null 表示不可见 */
-export async function getPublicPostEgg(slug: string): Promise<string | null> {
+/** /egg/:slug 公开输出：仅当彩蛋已启用且对应文章已发布；返回 null 表示不可见。
+ *  renderMd=true 时 html 字段存的是 Markdown 源，由路由层渲染后输出。 */
+export async function getPublicPostEgg(slug: string): Promise<{ html: string; renderMd: boolean } | null> {
   if (!isDbConfigured()) return null
   return readWithSchemaFallback(async () => {
     const rows = await withDbRetry(
       () => useDb()
-        .select({ html: schema.postEggs.html, postStatus: schema.posts.status })
+        .select({
+          html: schema.postEggs.html,
+          renderMd: schema.postEggs.renderMd,
+          postStatus: schema.posts.status,
+        })
         .from(schema.postEggs)
         .innerJoin(schema.posts, eq(schema.posts.slug, schema.postEggs.postSlug))
         .where(and(eq(schema.postEggs.postSlug, slug), eq(schema.postEggs.enabled, true)))
@@ -1295,7 +1366,7 @@ export async function getPublicPostEgg(slug: string): Promise<string | null> {
       { timeoutMs: 7000 },
     )
     const r = rows[0]
-    return r && r.postStatus === 'published' ? r.html : null
+    return r && r.postStatus === 'published' ? { html: r.html, renderMd: r.renderMd === true } : null
   })
 }
 
@@ -1512,6 +1583,7 @@ function toPublic(row: {
   createdAt: Date | string
   passwordHash: string | null
   storageKey?: string | null
+  previewState?: string | null
 }): AttachmentPublic {
   return {
     id: row.id,
@@ -1522,6 +1594,7 @@ function toPublic(row: {
     downloads: row.downloads,
     createdAt: new Date(row.createdAt).toISOString(),
     locked: !!row.passwordHash,
+    previewState: row.previewState ?? null,
     // 大窗口/小窗口回源都由前端 Range 下载器拼接（见 attachment-download.ts）
     ...(attachmentNeedsStream(row.storageKey) ? { stream: true as const } : {}),
   }
@@ -1542,6 +1615,7 @@ export async function listAttachmentsPublic(postSlug: string): Promise<Attachmen
             mimeType: schema.attachments.mimeType,
             sizeBytes: schema.attachments.sizeBytes,
             downloads: schema.attachments.downloads,
+            previewState: schema.attachments.previewState,
             createdAt: schema.attachments.createdAt,
             passwordHash: schema.attachments.passwordHash,
             storageKey: schema.attachments.storageKey,
@@ -1552,7 +1626,28 @@ export async function listAttachmentsPublic(postSlug: string): Promise<Attachmen
       { timeoutMs: 7000 },
     ),
   )
-  return rows.map(toPublic)
+  // 网关已配置时，为非密码锁的 tg1 附件签发整文件直连地址，随列表下发。
+  // 手机浏览器直接导航到 gw 域名可由系统下载器接管；Worker 跨站 302 链在
+  // 部分移动浏览器上无法唤起下载。密码锁附件解锁前不下发（门禁不绕过）。
+  const gw = gatewayConfig()
+  const list = rows.map(toPublic)
+  if (gw) {
+    await Promise.all(
+      list.map(async (item, i) => {
+        if (item.locked) return
+        const manifest = decodeAttachmentManifest(rows[i].storageKey)
+        if (!manifest) return
+        try {
+          item.gwDl = await gwDlUrl(
+            item.filename,
+            item.mimeType || 'application/octet-stream',
+            manifest.p.map((p) => ({ f: p.f, s: p.s })),
+          )
+        } catch { /* 网关临时异常：前端回退 Worker 302 路径 */ }
+      }),
+    )
+  }
+  return list
 }
 
 export async function listAttachmentsAdmin(postSlug?: string): Promise<AttachmentPublic[]> {
@@ -1596,6 +1691,16 @@ export async function insertAttachment(params: {
   await requireAdmin()
   await ensureSchema()
   const passwordRow = params.password && params.password.length > 0 ? await hashPassword(params.password) : null
+  // Office 系且网关可整流回源（tg1）的附件上传后即进入 PDF 转换队列；
+  // 其余格式不需要服务端产物（浏览器直渲），标 unsupported 让轮询回填跳过。
+  const storageKey = params.storageKey || null
+  const initialPreviewState = isConvertibleForPreview({
+    filename: params.filename,
+    storageKey,
+    sizeBytes: params.sizeBytes,
+  })
+    ? 'pending'
+    : 'unsupported'
   const [row] = await useDb()
     .insert(schema.attachments)
     .values({
@@ -1604,9 +1709,10 @@ export async function insertAttachment(params: {
       mimeType: params.mimeType || 'application/octet-stream',
       sizeBytes: params.sizeBytes,
       content: params.storageKey ? '' : params.base64Content ?? '',
-      storageKey: params.storageKey || null,
+      storageKey,
       passwordHash: passwordRow?.hash || null,
       passwordSalt: passwordRow?.salt || null,
+      previewState: initialPreviewState,
     })
     .returning({
       id: schema.attachments.id,
@@ -1635,6 +1741,7 @@ export async function getAttachmentByStorageKey(storageKey: string): Promise<Att
             mimeType: schema.attachments.mimeType,
             sizeBytes: schema.attachments.sizeBytes,
             downloads: schema.attachments.downloads,
+            previewState: schema.attachments.previewState,
             createdAt: schema.attachments.createdAt,
             passwordHash: schema.attachments.passwordHash,
             storageKey: schema.attachments.storageKey,
@@ -1658,6 +1765,7 @@ export async function getAttachmentFullRow(id: number): Promise<{
   sizeBytes: number
   passwordHash: string | null
   passwordSalt: string | null
+  previewState: string | null
 } | null> {
   // 读优先（稳态零 DDL）；content 为 base64 大字段，超时给足 9s
   return readWithSchemaFallback(() =>
@@ -1674,6 +1782,7 @@ export async function getAttachmentFullRow(id: number): Promise<{
             sizeBytes: schema.attachments.sizeBytes,
             passwordHash: schema.attachments.passwordHash,
             passwordSalt: schema.attachments.passwordSalt,
+            previewState: schema.attachments.previewState,
           })
           .from(schema.attachments)
           .where(eq(schema.attachments.id, id))
@@ -1711,6 +1820,12 @@ export async function deleteAttachment(id: number): Promise<void> {
     .limit(1)
   await useDb().delete(schema.attachments).where(eq(schema.attachments.id, id))
   if (rows[0]?.storageKey) await deleteAttachmentFiles(rows[0].storageKey)
+  // 删除网关上已转换的预览 PDF（尽力而为；孤儿文件不影响业务）
+  if (gatewayConfig()) {
+    gwPreviewDeleteUrl(id)
+      .then((u) => fetch(u, { method: 'DELETE' }))
+      .catch(() => undefined)
+  }
 }
 
 export async function recordDownload(id: number) {
@@ -1722,6 +1837,168 @@ export async function recordDownload(id: number) {
   } catch {
     // 记录下载次数失败不影响下载本身
   }
+}
+
+// ============================================================
+// 附件预览：Office → PDF 转换队列（网关 converter 轮询）
+// ============================================================
+
+export interface PreviewJob {
+  id: number
+  postSlug: string
+  filename: string
+  storageKey: string
+  mimeType: string
+  sizeBytes: number
+  attempts: number
+}
+
+/**
+ * 旧附件回填：把 preview_state 为 NULL 的行按格式判定翻成
+ * pending（可转换）/ unsupported（浏览器直渲或不支持）。每次轮询处理一小批，
+ * 稳态后 NULL 集合归零，开销趋近于零。
+ */
+export async function backfillPreviewStates(batchSize = 20): Promise<void> {
+  const rows = await useDb()
+    .select({
+      id: schema.attachments.id,
+      filename: schema.attachments.filename,
+      storageKey: schema.attachments.storageKey,
+      sizeBytes: schema.attachments.sizeBytes,
+    })
+    .from(schema.attachments)
+    .where(isNull(schema.attachments.previewState))
+    .orderBy(schema.attachments.id)
+    .limit(batchSize)
+  for (const r of rows) {
+    const target = isConvertibleForPreview({
+      filename: r.filename,
+      storageKey: r.storageKey,
+      sizeBytes: r.sizeBytes,
+    })
+      ? 'pending'
+      : 'unsupported'
+    await useDb()
+      .update(schema.attachments)
+      .set({ previewState: target })
+      .where(and(
+        eq(schema.attachments.id, r.id),
+        isNull(schema.attachments.previewState),
+      ))
+  }
+}
+
+/**
+ * 原子认领一个转换任务：pending 直接领；processing 超时 15 分钟（worker
+ * 崩溃/被杀）可被重新领取，最多尝试 3 次。返回 null 表示队列空。
+ */
+export async function claimPreviewJob(): Promise<PreviewJob | null> {
+  const res = await useDb().execute(sql`
+    UPDATE attachments
+    SET preview_state = 'processing',
+        preview_attempts = preview_attempts + 1,
+        preview_at = NOW()
+    WHERE id = (
+      SELECT id FROM attachments
+      WHERE preview_attempts < 3
+        AND ( preview_state = 'pending'
+           OR (preview_state = 'processing' AND preview_at < NOW() - INTERVAL '15 minutes') )
+      ORDER BY id
+      LIMIT 1
+      FOR UPDATE SKIP LOCKED
+    )
+    RETURNING id, post_slug, filename, storage_key, mime_type, size_bytes, preview_attempts
+  `)
+  const rows = (res as unknown as { rows?: Array<Record<string, unknown>> }).rows || []
+  const r = rows[0]
+  if (!r) return null
+  return {
+    id: Number(r.id),
+    postSlug: String(r.post_slug),
+    filename: String(r.filename),
+    storageKey: String(r.storage_key),
+    mimeType: String(r.mime_type),
+    sizeBytes: Number(r.size_bytes),
+    attempts: Number(r.preview_attempts),
+  }
+}
+
+/** converter 回报：成功置 ready；失败且未到上限回到 pending 等重试，否则 failed */
+export async function completePreviewJob(
+  id: number,
+  ok: boolean,
+  sizeBytes?: number,
+): Promise<void> {
+  if (ok) {
+    await useDb()
+      .update(schema.attachments)
+      .set({
+        previewState: 'ready',
+        previewSize: Number.isFinite(sizeBytes) ? Math.max(0, Math.trunc(sizeBytes as number)) : null,
+        previewAt: new Date(),
+      })
+      .where(eq(schema.attachments.id, id))
+    return
+  }
+  const [row] = await useDb()
+    .select({ attempts: schema.attachments.previewAttempts })
+    .from(schema.attachments)
+    .where(eq(schema.attachments.id, id))
+    .limit(1)
+  const giveUp = (row?.attempts ?? 3) >= 3
+  await useDb()
+    .update(schema.attachments)
+    .set({ previewState: giveUp ? 'failed' : 'pending', previewAt: new Date() })
+    .where(eq(schema.attachments.id, id))
+}
+
+/** 手动重新入队（预览页「重新转换」）：仅对可转换且已失败的附件生效 */
+export async function requeuePreview(id: number): Promise<'queued' | 'notfound' | 'notconvertible'> {
+  const rows = await useDb()
+    .select({
+      filename: schema.attachments.filename,
+      storageKey: schema.attachments.storageKey,
+      sizeBytes: schema.attachments.sizeBytes,
+      previewState: schema.attachments.previewState,
+    })
+    .from(schema.attachments)
+    .where(eq(schema.attachments.id, id))
+    .limit(1)
+  const row = rows[0]
+  if (!row) return 'notfound'
+  if (!isConvertibleForPreview({
+    filename: row.filename,
+    storageKey: row.storageKey,
+    sizeBytes: row.sizeBytes,
+  })) return 'notconvertible'
+  await useDb()
+    .update(schema.attachments)
+    .set({ previewState: 'pending', previewAttempts: 0, previewAt: new Date() })
+    .where(eq(schema.attachments.id, id))
+  return 'queued'
+}
+
+/**
+ * cron 自动重试：failed 且未到 3 次上限、失败已超 10 分钟的任务回到 pending。
+ * 保留 attempts（由 claimPreviewJob 的 <3 上限封顶）避免无限循环；行必然经过
+ * 可转换校验才会进入转换队列，此处无需再查 isConvertibleForPreview。
+ */
+export async function autoRequeuePreviewFailed(limit = 10): Promise<number> {
+  const res = await useDb().execute(sql`
+    UPDATE attachments
+    SET preview_state = 'pending', preview_at = NOW()
+    WHERE id IN (
+      SELECT id FROM attachments
+      WHERE preview_state = 'failed' AND preview_attempts < 3
+        AND preview_at < NOW() - INTERVAL '10 minutes'
+      ORDER BY id
+      LIMIT ${limit}
+      FOR UPDATE SKIP LOCKED
+    )
+    RETURNING id
+  `)
+  const rows = (res as unknown as { rows?: Array<Record<string, unknown>> }).rows || []
+  return rows.length
 }
 
 // ============================================================
@@ -2453,6 +2730,411 @@ async function getPostTitleMap(slugs: string[]): Promise<Record<string, string>>
     for (const r of rows) map[r.slug] = r.title
   }
   return map
+}
+
+// ============================================================
+// 网络工具分享模式（/api/net 的免登录加密链接，仅管理员管理）
+// 绑定模型：token 哈希定位链接；首个打开者获得 SG_SHARE cookie
+// （id.secret），secret 的 SHA-256 写入 bound_hash —— 此后只有
+// 携带该 cookie 的设备可用，实现"每条链接只能一个人使用"。
+// ============================================================
+
+export const SHARE_COOKIE_NAME = 'sg_share'
+export const SHARE_COOKIE_MAX_AGE = 30 * 24 * 60 * 60 // 30 天
+
+async function sha256Hex(text: string): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
+  return toHex(new Uint8Array(buf))
+}
+
+export async function getNetShareEnabled(): Promise<boolean> {
+  if (!isDbConfigured()) return false
+  const rows = await readWithSchemaFallback(() =>
+    useDb()
+      .select({ v: schema.settings.netShareEnabled })
+      .from(schema.settings)
+      .where(eq(schema.settings.id, 1))
+      .limit(1),
+  )
+  return rows[0]?.v === true
+}
+
+export type NetShareLinkInfo = {
+  id: string
+  createdAt: string
+  lastUsedAt: string | null
+  bound: boolean
+}
+
+export async function listNetShareLinks(): Promise<{ enabled: boolean; links: NetShareLinkInfo[] }> {
+  await requireAdmin()
+  const [enabled, rows] = await Promise.all([
+    getNetShareEnabled(),
+    readWithSchemaFallback(() => useDb().select().from(schema.netShareLinks).orderBy(schema.netShareLinks.createdAt)),
+  ])
+  return {
+    enabled,
+    links: rows.map((r) => ({
+      id: r.id,
+      createdAt: r.createdAt.toISOString(),
+      lastUsedAt: r.lastUsedAt ? r.lastUsedAt.toISOString() : null,
+      bound: !!r.boundHash,
+    })),
+  }
+}
+
+/** 新建分享链接。明文 token 仅在此返回值中出现一次（DB 只存哈希），供管理员复制分发。 */
+export async function createNetShareLink(): Promise<{ id: string; token: string }> {
+  await requireAdmin()
+  const id = randomHex(6)
+  const token = randomHex(32)
+  const tokenHash = await sha256Hex(token)
+  await readWithSchemaFallback(() => useDb().insert(schema.netShareLinks).values({ id, tokenHash }))
+  return { id, token }
+}
+
+export async function deleteNetShareLink(id: string): Promise<void> {
+  await requireAdmin()
+  await useDb().delete(schema.netShareLinks).where(eq(schema.netShareLinks.id, id))
+}
+
+/** 重置设备绑定：原绑定者的 cookie 立即失效，链接回到"先到先得"状态 */
+export async function resetNetShareLink(id: string): Promise<void> {
+  await requireAdmin()
+  await useDb()
+    .update(schema.netShareLinks)
+    .set({ boundHash: null })
+    .where(eq(schema.netShareLinks.id, id))
+}
+
+/** 分享模式总开关；关闭时删除全部链接（"关闭即自动删除，访问不再有效"）。开启时若无链接自动补一条。 */
+export async function setNetShareEnabled(enabled: boolean): Promise<{ token?: string }> {
+  await requireAdmin()
+  await readWithSchemaFallback(() =>
+    useDb()
+      .update(schema.settings)
+      .set({ netShareEnabled: enabled, updatedAt: sql`NOW()` })
+      .where(eq(schema.settings.id, 1)),
+  )
+  _settingsCache = null // 让 10s settings 缓存立即失效
+  if (!enabled) {
+    await useDb().delete(schema.netShareLinks)
+    return {}
+  }
+  const existing = await useDb().select({ id: schema.netShareLinks.id }).from(schema.netShareLinks).limit(1)
+  if (existing.length > 0) return {}
+  // 开启时没有任何链接：自动创建一条并返回明文 token 供复制
+  const id = randomHex(6)
+  const token = randomHex(32)
+  const tokenHash = await sha256Hex(token)
+  await useDb().insert(schema.netShareLinks).values({ id, tokenHash })
+  return { token }
+}
+
+export type NetShareClaimResult =
+  | { status: 'bound'; id: string; secret: string } // 新绑定成功，需种 cookie
+  | { status: 'ok' } // 已绑定且请求 cookie 匹配
+  | { status: 'invalid' } // token 无效/链接已删除
+  | { status: 'disabled' } // 分享模式已关闭
+  | { status: 'taken' } // 已被其他设备绑定
+
+export async function claimNetShareLink(token: string, cookieValue: string | null): Promise<NetShareClaimResult> {
+  if (!isDbConfigured()) return { status: 'invalid' }
+  if (!/^[0-9a-f]{64}$/.test(token)) return { status: 'invalid' }
+  const tokenHash = await sha256Hex(token)
+  const rows = await readWithSchemaFallback(() =>
+    useDb().select().from(schema.netShareLinks).where(eq(schema.netShareLinks.tokenHash, tokenHash)).limit(1),
+  )
+  const link = rows[0]
+  if (!link) return { status: 'invalid' }
+  if (!(await getNetShareEnabled())) return { status: 'disabled' }
+
+  if (link.boundHash) {
+    const [cid, csecret] = (cookieValue || '').split('.')
+    if (cid === link.id && csecret && (await sha256Hex(csecret)) === link.boundHash) return { status: 'ok' }
+    return { status: 'taken' }
+  }
+
+  // 未绑定：先到先得。条件 UPDATE（bound_hash IS NULL）保证并发下只有一人绑定成功。
+  const secret = randomHex(32)
+  const boundHash = await sha256Hex(secret)
+  const updated = await useDb()
+    .update(schema.netShareLinks)
+    .set({ boundHash, lastUsedAt: sql`NOW()` })
+    .where(and(eq(schema.netShareLinks.id, link.id), isNull(schema.netShareLinks.boundHash)))
+    .returning({ id: schema.netShareLinks.id })
+  if (updated.length === 0) return { status: 'taken' }
+  return { status: 'bound', id: link.id, secret }
+}
+
+/** 校验 SG_SHARE cookie（id.secret）：链接存在、分享开启、绑定密钥匹配。低频更新 last_used_at。 */
+export async function verifyNetShareCookie(cookieValue: string | null): Promise<boolean> {
+  if (!isDbConfigured()) return false
+  const [id, secret] = (cookieValue || '').split('.')
+  if (!id || !secret || !/^[0-9a-f]{12}$/.test(id) || !/^[0-9a-f]{64}$/.test(secret)) return false
+  if (!(await getNetShareEnabled())) return false
+  const rows = await readWithSchemaFallback(() =>
+    useDb().select().from(schema.netShareLinks).where(eq(schema.netShareLinks.id, id)).limit(1),
+  )
+  const link = rows[0]
+  if (!link?.boundHash) return false
+  if ((await sha256Hex(secret)) !== link.boundHash) return false
+  if (!link.lastUsedAt || Date.now() - link.lastUsedAt.getTime() > 5 * 60_000) {
+    await useDb()
+      .update(schema.netShareLinks)
+      .set({ lastUsedAt: sql`NOW()` })
+      .where(eq(schema.netShareLinks.id, id))
+      .catch(() => undefined)
+  }
+  return true
+}
+
+// ============================================================
+// 俄语工具箱分享：多 IP 链接
+// 每条链接允许 N 个不同 IP（默认 10）"同时"访问；同一 IP（如校园 NAT）
+// 下设备数不限。cookie 绑定「IP + 设备密钥」，离开该 IP 即失效；
+// 超过 RU_SHARE_STALE_DAYS 未访问的 IP 自动释放槽位
+// ============================================================
+
+export const RU_SHARE_COOKIE_NAME = 'sg_ru_share'
+export const RU_SHARE_COOKIE_MAX_AGE = 30 * 24 * 60 * 60 // 30 天
+const RU_SHARE_STALE_DAYS = 60
+
+function normalizeClientIp(raw: string | null | undefined): string {
+  const ip = (raw || '').trim()
+  return ip || 'unknown'
+}
+
+/** IP 加盐哈希：盐为站点 tokenSecret，防止 IPv4 空间小被暴力反查 */
+async function clientIpHash(ip: string): Promise<string> {
+  const salt = await getTokenSecret()
+  return sha256Hex(`${ip}|${salt}`)
+}
+
+export async function getRuShareEnabled(): Promise<boolean> {
+  if (!isDbConfigured()) return false
+  const rows = await readWithSchemaFallback(() =>
+    useDb()
+      .select({ v: schema.settings.ruShareEnabled })
+      .from(schema.settings)
+      .where(eq(schema.settings.id, 1))
+      .limit(1),
+  )
+  return rows[0]?.v === true
+}
+
+export type RuShareLinkInfo = {
+  id: string
+  createdAt: string
+  lastUsedAt: string | null
+  maxIps: number
+  ipCount: number
+}
+
+/** 各链接的唯一 IP 计数：单条分组查询，避免 N+1 */
+async function getIpCounts(): Promise<Record<string, number>> {
+  const rows = (await useDb().execute(sql`
+    SELECT link_id AS "linkId", COUNT(DISTINCT ip_hash)::int AS "ipCount"
+    FROM ru_share_bindings GROUP BY link_id
+  `)) as unknown as Array<{ linkId: string; ipCount: number }>
+  const out: Record<string, number> = {}
+  for (const r of rows) out[r.linkId] = r.ipCount
+  return out
+}
+
+export async function listRuShareLinks(): Promise<{ enabled: boolean; links: RuShareLinkInfo[] }> {
+  await requireAdmin()
+  const [enabled, rows, counts] = await Promise.all([
+    getRuShareEnabled(),
+    readWithSchemaFallback(() => useDb().select().from(schema.ruShareLinks).orderBy(schema.ruShareLinks.createdAt)),
+    getIpCounts().catch(() => ({}) as Record<string, number>),
+  ])
+  return {
+    enabled,
+    links: rows.map((r) => ({
+      id: r.id,
+      createdAt: r.createdAt.toISOString(),
+      lastUsedAt: r.lastUsedAt ? r.lastUsedAt.toISOString() : null,
+      maxIps: r.maxIps,
+      ipCount: counts[r.id] ?? 0,
+    })),
+  }
+}
+
+/** 新建分享链接。明文 token 仅在此返回一次（DB 只存哈希），供管理员复制分发。 */
+export async function createRuShareLink(maxIps = 10): Promise<{ id: string; token: string }> {
+  await requireAdmin()
+  const n = Math.min(100, Math.max(1, Math.floor(maxIps) || 10))
+  const id = randomHex(6)
+  const token = randomHex(32)
+  const tokenHash = await sha256Hex(token)
+  await readWithSchemaFallback(() => useDb().insert(schema.ruShareLinks).values({ id, tokenHash, maxIps: n }))
+  return { id, token }
+}
+
+export async function deleteRuShareLink(id: string): Promise<void> {
+  await requireAdmin()
+  await useDb().delete(schema.ruShareLinks).where(eq(schema.ruShareLinks.id, id))
+}
+
+/** 重置全部绑定：所有已访问 IP 的 cookie 立即失效，槽位全部释放 */
+export async function resetRuShareLink(id: string): Promise<void> {
+  await requireAdmin()
+  await useDb().delete(schema.ruShareBindings).where(eq(schema.ruShareBindings.linkId, id))
+}
+
+/** 修改链接的 IP 上限（调小不会立即踢人，只阻止新 IP） */
+export async function setRuShareMaxIps(id: string, maxIps: number): Promise<void> {
+  await requireAdmin()
+  const n = Math.min(100, Math.max(1, Math.floor(maxIps) || 10))
+  await useDb()
+    .update(schema.ruShareLinks)
+    .set({ maxIps: n })
+    .where(eq(schema.ruShareLinks.id, id))
+}
+
+/** 分享模式总开关；关闭时删除全部链接（cascade 删绑定），开启且无链接时自动补一条。 */
+export async function setRuShareEnabled(enabled: boolean): Promise<{ token?: string }> {
+  await requireAdmin()
+  await readWithSchemaFallback(() =>
+    useDb()
+      .update(schema.settings)
+      .set({ ruShareEnabled: enabled, updatedAt: sql`NOW()` })
+      .where(eq(schema.settings.id, 1)),
+  )
+  _settingsCache = null
+  if (!enabled) {
+    await useDb().delete(schema.ruShareLinks)
+    return {}
+  }
+  const existing = await useDb().select({ id: schema.ruShareLinks.id }).from(schema.ruShareLinks).limit(1)
+  if (existing.length > 0) return {}
+  const id = randomHex(6)
+  const token = randomHex(32)
+  const tokenHash = await sha256Hex(token)
+  await useDb().insert(schema.ruShareLinks).values({ id, tokenHash })
+  return { token }
+}
+
+/** 链接级最近使用时间（低频更新） */
+async function touchRuShareLink(linkId: string): Promise<void> {
+  await useDb()
+    .update(schema.ruShareLinks)
+    .set({ lastUsedAt: sql`NOW()` })
+    .where(eq(schema.ruShareLinks.id, linkId))
+}
+
+/** 删除长期未访问的绑定，释放 IP 槽位 */
+async function pruneStaleBindings(linkId: string): Promise<void> {
+  const days = Math.floor(RU_SHARE_STALE_DAYS)
+  await useDb().execute(sql`
+    DELETE FROM ru_share_bindings
+    WHERE link_id = ${linkId}
+      AND last_used_at < NOW() - INTERVAL '${sql.raw(String(days))} days'
+  `)
+}
+
+async function countDistinctIps(linkId: string): Promise<number> {
+  const rows = (await useDb().execute(sql`
+    SELECT COUNT(DISTINCT ip_hash)::int AS "ipCount"
+    FROM ru_share_bindings WHERE link_id = ${linkId}
+  `)) as unknown as Array<{ ipCount: number }>
+  return rows[0]?.ipCount ?? 0
+}
+
+/** 校验某 cookie 是否为该链接、该 IP 下的有效设备；低频刷新使用时间 */
+async function verifyRuShareBinding(linkId: string, cookieValue: string | null, ip: string): Promise<boolean> {
+  const [id, secret] = (cookieValue || '').split('.')
+  if (id !== linkId || !secret || !/^[0-9a-f]{64}$/.test(secret)) return false
+  const rows = await useDb()
+    .select({ id: schema.ruShareBindings.id, lastUsedAt: schema.ruShareBindings.lastUsedAt })
+    .from(schema.ruShareBindings)
+    .where(
+      and(
+        eq(schema.ruShareBindings.linkId, linkId),
+        eq(schema.ruShareBindings.ipHash, await clientIpHash(ip)),
+        eq(schema.ruShareBindings.secretHash, await sha256Hex(secret)),
+      ),
+    )
+    .limit(1)
+  const b = rows[0]
+  if (!b) return false
+  if (Date.now() - b.lastUsedAt.getTime() > 5 * 60_000) {
+    await useDb()
+      .update(schema.ruShareBindings)
+      .set({ lastUsedAt: sql`NOW()` })
+      .where(eq(schema.ruShareBindings.id, b.id))
+      .catch(() => undefined)
+    await touchRuShareLink(linkId).catch(() => undefined)
+  }
+  return true
+}
+
+export type RuShareClaimResult =
+  | { status: 'bound'; id: string; secret: string } // 新设备绑定成功，需种 cookie
+  | { status: 'ok' } // cookie 有效
+  | { status: 'invalid' } // token 无效/链接已删除
+  | { status: 'disabled' } // 分享模式已关闭
+  | { status: 'full'; used: number; max: number } // IP 槽位已满
+
+/** 打开分享链接：校验 token，按 IP 绑定设备密钥 */
+export async function claimRuShareLink(
+  token: string,
+  cookieValue: string | null,
+  clientIpRaw: string | null,
+): Promise<RuShareClaimResult> {
+  if (!isDbConfigured()) return { status: 'invalid' }
+  if (!/^[0-9a-f]{64}$/.test(token)) return { status: 'invalid' }
+  const ip = normalizeClientIp(clientIpRaw)
+  const rows = await readWithSchemaFallback(async () =>
+    useDb()
+      .select()
+      .from(schema.ruShareLinks)
+      .where(eq(schema.ruShareLinks.tokenHash, await sha256Hex(token)))
+      .limit(1),
+  )
+  const link = rows[0]
+  if (!link) return { status: 'invalid' }
+  if (!(await getRuShareEnabled())) return { status: 'disabled' }
+
+  // 已持有有效 cookie（同 IP）→ 放行
+  if (await verifyRuShareBinding(link.id, cookieValue, ip)) return { status: 'ok' }
+
+  const ipHash = await clientIpHash(ip)
+  const sameIp = await useDb()
+    .select({ id: schema.ruShareBindings.id })
+    .from(schema.ruShareBindings)
+    .where(and(eq(schema.ruShareBindings.linkId, link.id), eq(schema.ruShareBindings.ipHash, ipHash)))
+    .limit(1)
+  let admitted = sameIp.length > 0 // 同 IP 新设备/cookie 丢失：不占新槽位
+
+  if (!admitted) {
+    await pruneStaleBindings(link.id)
+    const ipCount = await countDistinctIps(link.id)
+    if (ipCount >= link.maxIps) return { status: 'full', used: ipCount, max: link.maxIps }
+    admitted = true
+  }
+
+  const secret = randomHex(32)
+  await useDb().insert(schema.ruShareBindings).values({
+    linkId: link.id,
+    ipHash,
+    secretHash: await sha256Hex(secret),
+  })
+  await touchRuShareLink(link.id).catch(() => undefined)
+  return { status: 'bound', id: link.id, secret }
+}
+
+/** /share/russian 页面自检：cookie 是本 IP 下该链接的有效设备 */
+export async function verifyRuShareCookie(
+  cookieValue: string | null,
+  clientIpRaw: string | null,
+): Promise<boolean> {
+  if (!isDbConfigured()) return false
+  const [id, secret] = (cookieValue || '').split('.')
+  if (!id || !secret || !/^[0-9a-f]{12}$/.test(id) || !/^[0-9a-f]{64}$/.test(secret)) return false
+  if (!(await getRuShareEnabled())) return false
+  return verifyRuShareBinding(id, cookieValue, normalizeClientIp(clientIpRaw))
 }
 
 /** 当前用户的评论列表（不含个签；支持关键词搜正文） */

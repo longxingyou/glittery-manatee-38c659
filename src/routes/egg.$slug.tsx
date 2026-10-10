@@ -1,6 +1,13 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useT } from '@/lib/i18n'
 import { FONT_STACKS, ALL_FONT_IDS, type FontId } from '@/lib/font-prefs'
+import { renderMarkdown } from '@/lib/markdown'
+
+// Markdown 模式彩蛋使用主站同一套样式（.markdown-body 排版、Callout、标签等）
+// 与 KaTeX 公式样式；均为 /assets/ 同源 CSS，被彩蛋 CSP 的 style-src 'self' 放行。
+// KaTeX CSS 引用的 woff2 字体经 Vite 打包为同源 /assets/ 资源，font-src 'self' 放行。
+import siteStyles from '../styles.css?url'
+import katexCss from 'katex/dist/katex.min.css?url'
 
 // 各字体 CSS 的构建后 URL（Vite ?url 导入 → /assets/xxx-[hash].css）。
 // 彩蛋文档通过 <link rel="stylesheet"> 加载它们；CSS 内部 @font-face 的字体
@@ -57,16 +64,25 @@ function asFontId(v: string | null): FontId | null {
   return v && (ALL_FONT_IDS as string[]).includes(v) ? (v as FontId) : null
 }
 
+function asTheme(v: string | null): 'light' | 'dark' | null {
+  return v === 'light' || v === 'dark' ? v : null
+}
+
 /**
  * /egg/$slug — 文章彩蛋的整页静态 HTML 出口（非 React SSR，直接输出原始 HTML）。
  * - 公开访问：仅当彩蛋 enabled=true 且对应文章已发布（getPublicPostEgg 内门控）；
  * - 管理员预览：?preview=1 查看未启用版本（requireAdmin 把关），no-store 不缓存；
+ * - 两种内容模式（后台保存时由 render_md 标记）：
+ *   · HTML 模式（默认）：原文不做删改，交互脚本允许存在，由后台审查面板列出
+ *     脚本/外链供人工核对；
+ *   · Markdown 模式：库存 Markdown 源，输出前经 renderMarkdown 渲染（含 KaTeX），
+ *     套主站 markdown-body 样式；原始 HTML 被转义，无脚本注入面；
  * - ?font=<FontId>：父页面把当前主站字体偏好传入，服务端向彩蛋文档注入
  *   对应字体 CSS + font-family，使彩蛋呈现与主站一致的字体（如得意黑）；
  *   中文字体不含西里尔字形时，font-family 栈自动回退系统字体正常显示俄文；
+ * - ?theme=light|dark：父页面传入当前主题（Markdown 模式套主站配色）；
  * - 安全性：worker.ts 对本路径改用彩蛋专用 CSP（sandbox allow-scripts 等，
- *   脚本在不透明源中运行，拿不到站点 cookie/存储），并豁免 frame-ancestors 'none'；
- * - HTML 原文不做删改：交互脚本允许存在，由后台审查面板列出脚本/外链供人工核对。
+ *   脚本在不透明源中运行，拿不到站点 cookie/存储），并豁免 frame-ancestors 'none'。
  */
 
 export const Route = createFileRoute('/egg/$slug')({
@@ -82,9 +98,11 @@ async function handleEggGet(request: Request, slug: string): Promise<Response> {
   const url = new URL(request.url)
   const isPreview = url.searchParams.get('preview') === '1'
   const font = asFontId(url.searchParams.get('font'))
+  const theme = asTheme(url.searchParams.get('theme'))
   const mod = await import('../../db/index.js')
 
   let html: string | null = null
+  let renderMd = false
   if (isPreview) {
     // 管理员预览：鉴权后输出最新保存版本（无论是否启用）
     try {
@@ -97,6 +115,7 @@ async function handleEggGet(request: Request, slug: string): Promise<Response> {
         })
       }
       html = egg.html
+      renderMd = egg.renderMd
     } catch (e) {
       return new Response(e instanceof Error ? e.message : '无权访问', {
         status: 403,
@@ -104,7 +123,9 @@ async function handleEggGet(request: Request, slug: string): Promise<Response> {
       })
     }
   } else {
-    html = await mod.getPublicPostEgg(slug)
+    const pub = await mod.getPublicPostEgg(slug)
+    html = pub?.html ?? null
+    renderMd = pub?.renderMd ?? false
   }
 
   if (!html) {
@@ -114,11 +135,13 @@ async function handleEggGet(request: Request, slug: string): Promise<Response> {
     })
   }
 
-  // 完整文档：直接把字体注入其 <head>；片段：交由 wrapEggHtml 的骨架注入
-  const isFullDocument = /^\s*<!DOCTYPE/i.test(html) || /^\s*<html[\s>]/i.test(html)
-  const finalHtml = isFullDocument
-    ? injectFontIntoDocument(html, font)
-    : wrapEggHtml(html, slug, font ? buildEggFontHead(font) : '')
+  // Markdown 模式：源文经 renderMarkdown 渲染（含 KaTeX）后套主站样式骨架；
+  // HTML 模式：完整文档直接把字体注入其 <head>，片段交由 wrapEggHtml 骨架注入
+  const finalHtml = renderMd
+    ? wrapEggMarkdown(html, slug, font, theme)
+    : (/^\s*<!DOCTYPE/i.test(html) || /^\s*<html[\s>]/i.test(html)
+      ? injectFontIntoDocument(html, font)
+      : wrapEggHtml(html, slug, font ? buildEggFontHead(font) : ''))
 
   const headers = new Headers({
     'Content-Type': 'text/html; charset=utf-8',
@@ -170,6 +193,36 @@ ${headExtra}
 </head>
 <body>
 ${body}
+</body>
+</html>`
+}
+
+/**
+ * Markdown 模式彩蛋骨架：库存 Markdown 源经主站 renderMarkdown 渲染
+ *（KaTeX 已在该函数内服务端渲染为安全 HTML），外包 .markdown-body 容器并
+ * 加载主站样式与 KaTeX 样式；?theme / ?font 控制配色与字体，与文章页观感一致。
+ * renderMarkdown 会转义原始 HTML，故该模式不存在脚本/事件属性注入面。
+ */
+function wrapEggMarkdown(source: string, slug: string, font: FontId | null, theme: 'light' | 'dark' | null): string {
+  const safeSlug = slug.replace(/[<>&"]/g, '')
+  const themeAttr = theme ? ` data-theme="${theme}"` : ''
+  const fontHead = font ? buildEggFontHead(font) : ''
+  const bodyHtml = renderMarkdown(source)
+  return `<!DOCTYPE html>
+<html lang="zh-CN"${themeAttr}>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<base href="/">
+<title>Egg · ${safeSlug}</title>
+<link rel="stylesheet" href="${siteStyles}">
+<link rel="stylesheet" href="${katexCss}">
+${fontHead}
+</head>
+<body>
+<div class="markdown-body egg-md-body">
+${bodyHtml}
+</div>
 </body>
 </html>`
 }

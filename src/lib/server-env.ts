@@ -24,6 +24,8 @@ export interface ServerEnv {
   PUBLIC_ORIGIN?: string
   /** 管理员邮箱白名单（逗号/分号/空格分隔） */
   ADMIN_EMAILS?: string
+  /** YouTube Data API v3 key（/api/net?action=yt_search 站内视频搜索用） */
+  YT_API_KEY?: string
   /** KV 缓存命名空间：公开数据（文章列表等）跨 colo 共享，绕过 CF→Neon 高延迟 */
   SG_CACHE?: KVNamespace
   /** Telegram Bot token（@BotFather 创建）：附件分片存储的代理凭据，仅 Worker 持有 */
@@ -41,8 +43,14 @@ export interface ServerEnv {
   TG_GATEWAY_URL?: string
   /** 网关 HMAC 签名共享密钥（与网关容器 GATEWAY_SECRET 相同） */
   TG_GATEWAY_SECRET?: string
+  /** 下载专用公开地址（可选，如经 Cloudflare 代理的 dl 子域）；未配置时用 TG_GATEWAY_URL */
+  TG_GATEWAY_DL_URL?: string
   /** 网关模式单片大小（字节，可选，默认 90MiB；平台请求超时时可调小） */
   TG_LOCAL_PART_BYTES?: string
+  /** 网关 converter 轮询密钥（Office→PDF 转换服务的 x-converter-secret） */
+  CONVERTER_SECRET?: string
+  /** 后台「网络工具」代理搜索的 Brave Search API key（可选；缺省回退 DuckDuckGo） */
+  BRAVE_API_KEY?: string
 }
 
 /** Cloudflare Workers KV 命名空间的最小类型（避免依赖 @cloudflare/workers-types 全局） */

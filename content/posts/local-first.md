@@ -4,6 +4,7 @@ summary: "离线优先不只是缓存策略，而是一种把所有权、延迟�
 categories: ["工程", "产品"]
 slug: "local-first"
 date: "2026-08-24"
+download: true
 ---
 ## 网络不应该是单点故障
 

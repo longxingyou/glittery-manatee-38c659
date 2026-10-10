@@ -1,5 +1,5 @@
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
-import { ArrowLeft, CalendarDays, Check, Clock3, Hash, Share2 } from 'lucide-react'
+import { ArrowLeft, CalendarDays, Check, Clock3, Download, Globe, Hash, Printer, Share2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArticleOutline } from '@/components/article-outline'
 import { CommentSection } from '@/components/comment-section'
@@ -8,6 +8,7 @@ import { getPostSiblings, DEFAULT_SITE_TITLE, type PostData } from '@/lib/utils'
 import { renderMarkdown, extractHeadingsFromHtml } from '@/lib/markdown'
 import { useMermaidLazy } from '@/lib/use-mermaid'
 import { getPublicOrigin } from '@/lib/server-env'
+import { saveBlob } from '@/lib/export-doc'
 import { useT, useCatName } from '@/lib/i18n'
 
 export const Route = createFileRoute('/posts/$slug')({
@@ -133,6 +134,9 @@ function RouteComponent() {
   const { post, siblings, egg } = Route.useLoaderData()
   const [copied, setCopied] = useState(false)
   const articleRef = useRef<HTMLDivElement>(null)
+  // 彩蛋下载菜单（hooks 必须置顶，不能放在条件分支内）
+  const eggFrameRef = useRef<HTMLIFrameElement>(null)
+  const [eggMenuOpen, setEggMenuOpen] = useState(false)
   useMermaidLazy(articleRef)
   // markdown 产物一次计算、两处复用（正文渲染 + SSR 大纲提取），
   // 使大纲按钮直接进入首屏 HTML（不依赖水合，弱网下也可见）
@@ -147,18 +151,33 @@ function RouteComponent() {
     return () => document.body.classList.remove('egg-takeover')
   }, [isEggTakeover])
 
-  // 读取主站当前字体偏好并随 iframe 传入；监听 data-font 变化（用户可在
-  // 彩蛋接管状态下打开用户面板切换字体，iframe 即时换字体重载）。
+  // 读取主站当前字体/主题偏好并随 iframe 传入；监听变化（用户可在彩蛋接管
+  // 状态下打开用户面板切换字体、或用顶部按钮切主题，iframe 即时重载）。
   // undefined = 尚未在客户端完成读取（SSR 安全），此时先不渲染 iframe，
-  // 避免先无 font 加载一次、水合后再带参重载。
-  const [eggFont, setEggFont] = useState<string | null | undefined>(undefined)
+  // 避免先无参加载一次、水合后再带参重载。主题仅 Markdown 模式彩蛋消费。
+  const [eggPrefs, setEggPrefs] = useState<{ font: string | null; theme: string | null } | undefined>(undefined)
   useEffect(() => {
-    const read = () => document.documentElement.getAttribute('data-font')
-    setEggFont(read())
-    const mo = new MutationObserver(() => setEggFont(read()))
-    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-font'] })
+    const read = () => ({
+      font: document.documentElement.getAttribute('data-font'),
+      theme: document.documentElement.getAttribute('data-theme'),
+    })
+    setEggPrefs(read())
+    const mo = new MutationObserver(() => setEggPrefs(read()))
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-font', 'data-theme'] })
     return () => mo.disconnect()
   }, [])
+
+  // 彩蛋接管时预热 Markdown 模式所需的两份指纹 CSS：/egg/:slug 的 iframe 随即
+  // 以 <link> 加载相同 URL（/assets/ 一年 immutable 缓存，直接命中）。
+  // 动态 import 同时把这两个资产保留在客户端构建图中——仅服务端 ?url 引用时
+  // Vite 只发布到 dist/server/assets，公开 /assets/ 会 404。
+  useEffect(() => {
+    if (!isEggTakeover) return
+    void Promise.all([
+      import('../styles.css?url'),
+      import('katex/dist/katex.min.css?url'),
+    ]).catch(() => undefined)
+  }, [isEggTakeover])
 
   // 分享：优先系统分享面板（iOS Safari / Android Chrome）；
   // 微信/QQ 等内置浏览器不支持 navigator.share 时降级为复制链接，
@@ -185,19 +204,59 @@ function RouteComponent() {
   }
 
   if (isEggTakeover) {
-    // 字体偏好未读取完成（SSR/首帧）时先占位，读完再一次性加载带 font 的彩蛋
-    const eggSrc = eggFont === undefined
+    // 字体/主题偏好未读取完成（SSR/首帧）时先占位，读完再一次性加载带参彩蛋
+    const eggSrc = eggPrefs === undefined
       ? null
-      : `/egg/${encodeURIComponent(post.slug)}${eggFont ? `?font=${encodeURIComponent(eggFont)}` : ''}`
+      : (() => {
+          const params = new URLSearchParams()
+          if (eggPrefs.font) params.set('font', eggPrefs.font)
+          if (eggPrefs.theme === 'light' || eggPrefs.theme === 'dark') params.set('theme', eggPrefs.theme)
+          const qs = params.toString()
+          return `/egg/${encodeURIComponent(post.slug)}${qs ? `?${qs}` : ''}`
+        })()
+    const handleEggPrint = () => {
+      // sandbox 阻止 iframe 内脚本调用 print，改在新窗口打开后由用户手动打印
+      const win = window.open(`/egg/${encodeURIComponent(post.slug)}`, '_blank')
+      if (win) {
+        win.addEventListener('load', () => {
+          setTimeout(() => win.print(), 100)
+        })
+      }
+    }
+    const handleEggHtml = async () => {
+      try {
+        const res = await fetch(`/egg/${encodeURIComponent(post.slug)}`)
+        if (!res.ok) return
+        const blob = await res.blob()
+        saveBlob(blob, `${post.slug}.html`)
+      } catch (e) {
+        console.error('egg download failed', e)
+      }
+    }
     return (
       <div className="egg-post-view">
         {eggSrc && (
           <iframe
+            ref={eggFrameRef}
             className="egg-post-frame"
             src={eggSrc}
             title={post.title}
             sandbox="allow-scripts allow-modals allow-popups allow-popups-to-escape-sandbox allow-downloads"
           />
+        )}
+        <button
+          type="button"
+          className="egg-download-fab no-print"
+          title={t('post.download.title')}
+          onClick={() => setEggMenuOpen(v => !v)}
+        >
+          <Download size={17} />
+        </button>
+        {eggMenuOpen && (
+          <div className="egg-download-menu no-print">
+            <button type="button" onClick={handleEggPrint}><Printer size={14} />{t('egg.dl.pdf')}</button>
+            <button type="button" onClick={handleEggHtml}><Globe size={14} />{t('egg.dl.html')}</button>
+          </div>
         )}
       </div>
     )
@@ -218,6 +277,11 @@ function RouteComponent() {
               <span title={t('post.meta.date')}><CalendarDays size={14} />{post.date}</span>
               <span title={t('post.meta.reading')}><Clock3 size={14} />{t('post.reading', { n: post.readingTime })}</span>
               <span title={t('post.meta.categories')}><Hash size={14} />{post.categories.map((c: string) => catName(c)).join(' · ')}</span>
+              {post.downloadable && (
+                <Link to="/export/$slug" params={{ slug: post.slug }} className="post-download-btn" title={t('post.download.title')}>
+                  <Download size={14} />{t('post.download')}
+                </Link>
+              )}
               <button onClick={() => void handleShare()} className={copied ? 'share-copied' : ''} title={t('post.share.title')}>
                 {copied ? <><Check size={14} />{t('post.share.copied')}</> : <><Share2 size={14} />{t('post.share')}</>}
               </button>

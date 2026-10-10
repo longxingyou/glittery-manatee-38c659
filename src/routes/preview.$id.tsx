@@ -10,6 +10,10 @@ import { renderMarkdown } from '@/lib/markdown'
 import { useMermaidLazy } from '@/lib/use-mermaid'
 import { formatBytes } from '@/lib/utils'
 import { fileExt, PREVIEW_CONVERT_MAX_BYTES, type PreviewKind } from '@/lib/preview'
+// 西里尔文本专用：Inter Variable 自带 cyrillic 子集（@font-face 按 unicode-range 声明，
+// 浏览器只在出现西里尔字符时下载分片）；预览栈中置于 prose 字体之前，
+// 让俄语字母不吃中文字体里的西里尔字形（错位/全角化）
+import '@fontsource-variable/inter'
 // 仅类型引用，不产生运行时依赖（pdfjs 本体在 PdfJsView 里动态 import）
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 
@@ -45,6 +49,49 @@ function nodeText(node: Element): string {
 }
 
 type MindNode = { title: string; note?: string; children: MindNode[] }
+
+// ── 俄语重音渲染 ──
+// 「元音 + U+0301 组合锐音符」在大量字体（Georgia / 中文字体内的西里尔字形等）
+// 下定位错位、遮挡相邻字母。JS 把组合符剥掉，改由 CSS（.ru-stress::after）按
+// 字形精确绘制锐音符；大写字母重音位置更高（.cap）。
+const RU_STRESS_RE = /([АЕИОУЫЭЮЯаеиоуыэюя])\u0301/g
+const RU_CAP_RE = /[АЕИОУЫЭЮЯ]/
+
+/** 纯文本 → React 片段：重音元音替换为 CSS 绘制的 span（树/列表视图用） */
+function ruStressNodes(text: string): ReactNode {
+  if (!text.includes('\u0301')) return text
+  const out: ReactNode[] = []
+  let last = 0
+  for (const m of text.matchAll(RU_STRESS_RE)) {
+    const i = m.index!
+    if (i > last) out.push(text.slice(last, i))
+    const ch = m[1]!
+    out.push(<span key={out.length} className={RU_CAP_RE.test(ch) ? 'ru-stress cap' : 'ru-stress'}>{ch}</span>)
+    last = i + m[0].length
+  }
+  if (last < text.length) out.push(text.slice(last))
+  return out
+}
+
+/** 文本 → HTML（markmap 节点内容按原始 HTML 注入，先转义再加重音） */
+function escHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+function ruStressHtml(s: string): string {
+  return s.replace(RU_STRESS_RE, (_, ch: string) =>
+    `<span class="ru-stress${RU_CAP_RE.test(ch) ? ' cap' : ''}">${ch}</span>`)
+}
+
+/** Markdown 渲染结果：只在标签外、pre/code 外的文本上加重音（代码/公式/mermaid 源不动） */
+function ruStressOutsideTags(html: string): string {
+  return html
+    .split(/(<pre[\s\S]*?<\/pre>|<code[\s\S]*?<\/code>)/gi)
+    .map((part, i) => {
+      if (i % 2 === 1) return part
+      return part.split(/(<[^>]+>)/g).map((s, j) => (j % 2 === 1 ? s : ruStressHtml(s))).join('')
+    })
+    .join('')
+}
 
 /** FreeMind/Freeplane .mm：<node TEXT> 递归 */
 function parseMm(xml: string): MindNode | null {
@@ -129,8 +176,8 @@ function MindTree({ node, depth }: { node: MindNode; depth: number }) {
       <li>
         <details open={depth < 2}>
           <summary>
-            <span className="pv-tree-node">{node.title}</span>
-            {node.note && <em className="pv-tree-note">{node.note}</em>}
+            <span className="pv-tree-node">{ruStressNodes(node.title)}</span>
+            {node.note && <em className="pv-tree-note">{ruStressNodes(node.note)}</em>}
           </summary>
           {node.children.length > 0 && (
             <ul>
@@ -238,14 +285,15 @@ function ProgressLine({ p }: { p: number | null }) {
 
 function MarkdownView({ text }: { text: string }) {
   const ref = useRef<HTMLDivElement>(null)
-  const html = useMemo(() => renderMarkdown(text), [text])
+  const html = useMemo(() => ruStressOutsideTags(renderMarkdown(text)), [text])
   useMermaidLazy(ref)
   return <article ref={ref} className="markdown-body pv-md" dangerouslySetInnerHTML={{ __html: html }} />
 }
 
 type MmData = { content: string; children: MmData[] }
 function toMmData(n: MindNode): MmData {
-  return { content: n.title, children: n.children.map(toMmData) }
+  // markmap 把 content 作为原始 HTML 注入 foreignObject：先转义再绘制重音
+  return { content: ruStressHtml(escHtml(n.title)), children: n.children.map(toMmData) }
 }
 
 /** markmap 画布：动态 import（含 d3，不进主包）；加载/布局失败回调父级降级到列表视图 */

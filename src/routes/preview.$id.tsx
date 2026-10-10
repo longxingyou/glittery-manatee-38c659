@@ -200,7 +200,10 @@ function CsvTable({ text, sep }: { text: string; sep: string }) {
 
 /** 跨域拉文本（网关 CORS 已放行站点源）；有 Content-Length 时经 onProgress 上报 0~1 进度 */
 async function fetchText(url: string, onProgress?: (p: number) => void): Promise<string> {
-  const res = await fetch(url, { credentials: 'omit' })
+  // 同源请求（/api/comments 等）需要带 cookie 才能通过登录门禁；
+  // 跨域网关直链（gw.../dl）带签名 token，same-origin 对跨域等同于
+  // omit 不发 cookie，所以这里统一 same-origin 是安全的。
+  const res = await fetch(url, { credentials: 'same-origin' })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   if (!res.body || !onProgress) return res.text()
   const total = Number(res.headers.get('Content-Length') || 0)
@@ -282,7 +285,7 @@ function MindmapView({ url, filename }: { url: string; filename: string }) {
       try {
         const ext = fileExt(filename)
         if (ext === 'xmind') {
-          const res = await fetch(url, { credentials: 'omit' })
+          const res = await fetch(url, { credentials: 'same-origin' })
           if (!res.ok) throw new Error(`HTTP ${res.status}`)
           const tree = parseXmind(await res.arrayBuffer())
           if (!tree) throw new Error('parse')

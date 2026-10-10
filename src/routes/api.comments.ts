@@ -514,7 +514,7 @@ async function handleFileGet(request: Request, url: URL): Promise<Response> {
         'Content-Type': row.mimeType || 'application/octet-stream',
         'Content-Length': String(bytes.length),
         'Content-Disposition': filenameHeader(row.filename),
-        'Cache-Control': 'private, max-age=0',
+        'Cache-Control': 'private, max-age=300',
         'X-Content-Type-Options': 'nosniff',
       },
     })
@@ -981,7 +981,7 @@ async function handleFeedbackFileGet(url: URL): Promise<Response> {
         'Content-Type': row.mimeType || 'application/octet-stream',
         'Content-Length': String(bytes.length),
         'Content-Disposition': filenameHeader(row.filename),
-        'Cache-Control': 'private, max-age=0',
+        'Cache-Control': 'private, max-age=300',
         'X-Content-Type-Options': 'nosniff',
       },
     })

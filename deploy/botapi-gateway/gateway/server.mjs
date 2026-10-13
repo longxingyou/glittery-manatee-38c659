@@ -19,6 +19,7 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
+import { Readable } from 'node:stream'
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts'
 
 const BOT_TOKEN = process.env.BOT_TOKEN || ''
@@ -654,6 +655,248 @@ const server = http.createServer(async (req, res) => {
       quality: data.data.quality ?? null,
       streams: [d.url, ...(d.backup_url || [])].filter(Boolean),
     }, corsHeaders(req))
+  }
+
+  // 0.7) 短链解析代理：GET /short-resolve?site=douyin|bili&u=<短链>（x-sg-bili 签名）
+  // 背景：Cloudflare Worker 出口 IP 被抖音风控（fetch 直接失败），短链重定向改由
+  // 本网关出口跟随。douyin 用移动 UA（302 → iesdouyin.com/share/video/{id}，路径含
+  // aweme_id）；bili 用桌面 UA（b23.tv → www.bilibili.com/video/BVxxx|avxxx）。
+  if (p === '/short-resolve' && req.method === 'GET') {
+    const site = u.searchParams.get('site') === 'bili' ? 'bili' : 'douyin'
+    const target = (u.searchParams.get('u') || '').trim()
+    const hosts = site === 'douyin'
+      ? ['v.douyin.com', 'douyin.com', 'www.douyin.com', 'iesdouyin.com', 'www.iesdouyin.com']
+      : ['b23.tv', 'bili2233.cn']
+    let hostOk = false
+    try { hostOk = hosts.includes(new URL(target).hostname.toLowerCase()) } catch { /* fallthrough */ }
+    if (!hostOk) return json(res, 400, { ok: false, error: 'bad url' }, corsHeaders(req))
+    if (verifyToken('bili', req.headers['x-sg-bili']) !== `${site}.${target}`) {
+      return json(res, 401, { ok: false, error: 'bad short token' }, corsHeaders(req))
+    }
+    const idOf = site === 'douyin'
+      ? (s) => { const m = /\/(?:video|share\/video)\/(\d+)/.exec(s); return m ? m[1] : null }
+      : (s) => { const m = /\/video\/(BV[0-9A-Za-z]{10}|av\d{6,})/.exec(s); return m ? m[1] : null }
+    const ua = site === 'douyin'
+      ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1'
+      : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+    let cur = target
+    for (let hop = 0; hop < 5; hop++) {
+      let r
+      try {
+        r = await fetch(cur, {
+          redirect: 'manual',
+          headers: {
+            'User-Agent': ua,
+            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+            Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          },
+          signal: AbortSignal.timeout(8000),
+        })
+      } catch {
+        return json(res, 502, { ok: false, error: 'short fetch failed' }, corsHeaders(req))
+      }
+      if (r.status >= 300 && r.status < 400) {
+        const loc = r.headers.get('location')
+        if (!loc) break
+        const id = idOf(loc)
+        if (id) return json(res, 200, { ok: true, id }, corsHeaders(req))
+        try { cur = new URL(loc, cur).toString() } catch { break }
+        continue
+      }
+      // 非 3xx：部分短链直接返回落地页，从当前 URL 兜底提取一次
+      const id = idOf(cur)
+      if (id) return json(res, 200, { ok: true, id }, corsHeaders(req))
+      break
+    }
+    return json(res, 502, { ok: false, error: 'no id in redirect chain' }, corsHeaders(req))
+  }
+
+  // 0.8) X 岛匿名版代理：GET /xdnmb?k=api|imgt|imgi&p=<路径>&uh=<userhash>
+  //      POST /xdnmb?k=post&p=home/forum/doReplyThread|doPostThread.html&uh=<userhash>（发言，表单/图片转发）
+  // 背景：api.nmb.best / image.nmb.best / www.nmbxd1.com 对 Cloudflare Worker 出口 IP 返回 403，
+  // 与 B站/抖音同源问题；由本网关出口转发。令牌载荷绑定 kind/p/uh，5 分钟有效。
+  const X_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+  // userhash 只允许可见 ASCII（其本身是 URL 编码后的随机串），防头注入
+  const uhPattern = /^[A-Za-z0-9%._~+=-]{1,160}$/
+  if (p === '/xdnmb' && req.method === 'POST') {
+    const k = u.searchParams.get('k') || ''
+    const pp = (u.searchParams.get('p') || '').trim()
+    const uh = (u.searchParams.get('uh') || '').trim()
+    // 发言只有网页版端点（无 JSON API）；白名单限定写操作路径，防变成开放代理
+    if (k !== 'post' || !/^(?:home\/forum\/doReplyThread\.html|home\/forum\/doPostThread\.html)$/.test(pp)) {
+      return json(res, 400, { ok: false, error: 'bad kind or path' }, corsHeaders(req))
+    }
+    if (!uh || !uhPattern.test(uh)) {
+      return json(res, 400, { ok: false, error: 'bad userhash' }, corsHeaders(req))
+    }
+    if (verifyToken('bili', req.headers['x-sg-bili']) !== `xdnmb.post.${pp}.${uh}`) {
+      return json(res, 401, { ok: false, error: 'bad xdnmb token' }, corsHeaders(req))
+    }
+    // 纯文本发言 64KB 上限；带图片的 multipart 上限 25MB（原图直传策略）
+    const reqContentType = String(req.headers['content-type'] || '')
+    const isMultipart = reqContentType.includes('multipart/form-data')
+    const maxBody = isMultipart ? 25 * 1024 * 1024 : 65536
+    const chunks = []
+    let size = 0
+    for await (const ch of req) {
+      size += ch.length
+      if (size > maxBody) return json(res, 413, { ok: false, error: 'body too large' }, corsHeaders(req))
+      chunks.push(ch)
+    }
+    const rawBody = Buffer.concat(chunks)
+    try {
+      // 必须直连 nmbxd1.com：nmbxd.com 对 POST 回 307 跨主机跳转到 nmbxd1.com，
+      // Node fetch 自动跟随跨源 307 时会丢弃 Cookie 头（容器内探针实证），
+      // 导致有效饼干被服务端判为“未应用饼干”。
+      // Node v22.23.2 的 fetch 对 Buffer/ArrayBuffer body 一律抛
+      // "Cannot perform ArrayBuffer.prototype.slice on a detached ArrayBuffer"
+      // （容器内对照实验 A~G 已验证）：纯文本转 utf8 字符串字节安全；
+      // multipart 是二进制，用 Blob 包裹转发（已探针验证），content-type（含 boundary）原样透传。
+      const r = await fetch(`https://www.nmbxd1.com/${pp}`, {
+        method: 'POST',
+        headers: {
+          'User-Agent': X_UA,
+          'Content-Type': reqContentType || 'application/x-www-form-urlencoded',
+          Cookie: `userhash=${uh}`,
+        },
+        body: isMultipart ? new Blob([rawBody]) : rawBody.toString('utf8'),
+        signal: AbortSignal.timeout(isMultipart ? 45000 : 15000),
+      })
+      const text = await r.text()
+      res.writeHead(200, {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'no-store',
+        ...corsHeaders(req),
+      })
+      return res.end(text)
+    } catch (e) {
+      // undici 的 fetch failed 细节在 cause 里（ENOTFOUND/ECONNRESET/TLS...），一并带出
+      const cause = e && e.cause ? ` (${e.cause.code || e.cause.message || e.cause})` : ''
+      return json(res, 502, { ok: false, error: `xdnmb post failed: ${e && e.message ? e.message : e}${cause}` }, corsHeaders(req))
+    }
+  }
+  if (p === '/xdnmb' && req.method === 'GET') {
+    const k = u.searchParams.get('k') || ''
+    const pp = (u.searchParams.get('p') || '').trim()
+    const uh = (u.searchParams.get('uh') || '').trim()
+    if (!['api', 'imgt', 'imgi'].includes(k)) {
+      return json(res, 400, { ok: false, error: 'bad kind' }, corsHeaders(req))
+    }
+    // userhash 只允许可见 ASCII（其本身是 URL 编码后的随机串），防头注入
+    if (uh && !uhPattern.test(uh)) {
+      return json(res, 400, { ok: false, error: 'bad userhash' }, corsHeaders(req))
+    }
+    if (verifyToken('bili', req.headers['x-sg-bili']) !== `xdnmb.${k}.${pp}.${uh}`) {
+      return json(res, 401, { ok: false, error: 'bad xdnmb token' }, corsHeaders(req))
+    }
+    try {
+      if (k === 'api') {
+        // 白名单只读/订阅端点；query 仅允许安全字符（feed/addFeed/delFeed 用 uuid 同步官方订阅）
+        if (!/^(?:getForumList|getTimelineList|showf|timeline|thread|po|ref|feed|addFeed|delFeed)(?:\?[A-Za-z0-9_=&%.-]{0,200})?$/.test(pp)) {
+          return json(res, 400, { ok: false, error: 'bad api path' }, corsHeaders(req))
+        }
+        const r = await fetch(`https://api.nmb.best/api/${pp}`, {
+          headers: {
+            'User-Agent': X_UA,
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'zh-CN,zh;q=0.9',
+            ...(uh ? { Cookie: `userhash=${uh}` } : {}),
+          },
+          signal: AbortSignal.timeout(12000),
+        })
+        const buf = Buffer.from(await r.arrayBuffer())
+        res.writeHead(r.status, {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': 'no-store',
+          ...corsHeaders(req),
+        })
+        return res.end(buf)
+      }
+      // 图片：白名单路径格式（日期目录 + 文件名 + 扩展名）
+      if (!/^[\w/-]+\.(?:jpe?g|png|gif|webp)$/i.test(pp)) {
+        return json(res, 400, { ok: false, error: 'bad img path' }, corsHeaders(req))
+      }
+      const r = await fetch(`https://image.nmb.best/${k === 'imgt' ? 'thumb' : 'image'}/${pp}`, {
+        headers: {
+          'User-Agent': X_UA,
+          'Referer': 'https://nmbxd.com/',
+          'Accept': 'image/avif,image/webp,image/*,*/*;q=0.8',
+        },
+        signal: AbortSignal.timeout(15000),
+      })
+      if (!r.ok || !r.body) {
+        return json(res, 502, { ok: false, error: `image upstream ${r.status}` }, corsHeaders(req))
+      }
+      res.writeHead(r.status, {
+        'Content-Type': r.headers.get('content-type') || 'image/jpeg',
+        'Cache-Control': 'private, max-age=86400',
+        'X-Robots-Tag': 'noindex, nofollow',
+      })
+      return Readable.fromWeb(r.body).pipe(res)
+    } catch (e) {
+      return json(res, 502, { ok: false, error: `xdnmb fetch failed: ${e && e.message ? e.message : e}` }, corsHeaders(req))
+    }
+  }
+
+  // 0.9) 233chan（里岛匿名版 / x.1145141919810.org，vichan 引擎）只读代理：
+  //      GET /c233?k=api&p=<board>/threads.json|catalog.json|pages.json|<页码>.json|thread/<id>.json
+  //      GET /c233?k=img&p=<board>/thumb|src/<文件名>   或   assets/countryballs/<国别>.png
+  // 背景：站点源站不稳定且部分网络/时段不可达（Cloudflare 前置），由本网关出口转发保证随时可达。
+  //      只读不发言；令牌复用 bili HMAC 域，载荷自带 c233. 命名空间与 xdnmb.* 天然隔离。
+  if (p === '/c233' && req.method === 'GET') {
+    const k = u.searchParams.get('k') || ''
+    const pp = (u.searchParams.get('p') || '').trim()
+    if (!['api', 'img'].includes(k)) {
+      return json(res, 400, { ok: false, error: 'bad kind' }, corsHeaders(req))
+    }
+    if (k === 'api') {
+      // vichan 标准 JSON API 端点白名单（该站串 JSON 走 res/<id>.json 而非 thread/<id>.json，实测；
+      // 版面 slug 含大写如 TK/Yui，白名单按大小写敏感放行）
+      if (!/^[A-Za-z0-9]{1,20}\/(?:threads|catalog|pages)\.json$/.test(pp)
+        && !/^[A-Za-z0-9]{1,20}\/(?:\d{1,3}|res\/\d{1,12})\.json$/.test(pp)) {
+        return json(res, 400, { ok: false, error: 'bad api path' }, corsHeaders(req))
+      }
+    } else {
+      // 帖子附件（thumb/src）与国别旗帜图标
+      if (!/^[A-Za-z0-9]{1,20}\/(?:thumb|src)\/[\w.+-]+\.(?:jpe?g|png|gif|webp|mp4|webm|mp3|pdf)$/i.test(pp)
+        && !/^assets\/countryballs\/[\w]+\.(?:png|gif)$/i.test(pp)) {
+        return json(res, 400, { ok: false, error: 'bad img path' }, corsHeaders(req))
+      }
+    }
+    if (verifyToken('bili', req.headers['x-sg-bili']) !== `c233.${k}.${pp}`) {
+      return json(res, 401, { ok: false, error: 'bad c233 token' }, corsHeaders(req))
+    }
+    try {
+      const r = await fetch(`https://x.1145141919810.org/${pp}`, {
+        headers: {
+          'User-Agent': X_UA,
+          'Accept': k === 'api' ? 'application/json, */*;q=0.8' : 'image/avif,image/webp,image/*,*/*;q=0.8',
+          'Referer': 'https://x.1145141919810.org/',
+        },
+        signal: AbortSignal.timeout(20000),
+      })
+      if (k === 'api') {
+        const buf = Buffer.from(await r.arrayBuffer())
+        res.writeHead(r.status, {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': 'no-store',
+          ...corsHeaders(req),
+        })
+        return res.end(buf)
+      }
+      if (!r.ok || !r.body) {
+        return json(res, 502, { ok: false, error: `image upstream ${r.status}` }, corsHeaders(req))
+      }
+      res.writeHead(r.status, {
+        'Content-Type': r.headers.get('content-type') || 'image/jpeg',
+        'Cache-Control': 'private, max-age=86400',
+        'X-Robots-Tag': 'noindex, nofollow',
+        ...corsHeaders(req),
+      })
+      return Readable.fromWeb(r.body).pipe(res)
+    } catch (e) {
+      return json(res, 502, { ok: false, error: `c233 fetch failed: ${e && e.message ? e.message : e}` }, corsHeaders(req))
+    }
   }
 
   // 1) Worker → botapi（白名单方法 + admin 签名）

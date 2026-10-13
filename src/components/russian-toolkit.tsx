@@ -1,12 +1,20 @@
 import * as React from 'react'
-import { Atom, BookA, BookOpen, Boxes, Check, ChevronDown, ChevronUp, Copy, Delete, Eye, EyeOff, Keyboard, Repeat, Share2, Sparkles, Turtle, Type, Volume2, X } from 'lucide-react'
+import { Atom, BookA, BookOpen, Boxes, Check, Copy, Delete, Keyboard, Repeat, Share2, Type, Volume2, X } from 'lucide-react'
 
 import { useLang, useT } from '@/lib/i18n'
-import { PHRASE_CATS, type Phrase, type PhraseCatId } from '@/lib/russian-phrases'
+import type { Phrase } from '@/lib/russian-phrases'
+// 语音栈（本地合成 / 神经 TTS）已抽到 russian-voice.ts：每日一句面板
+// （russian-daily-phrase.tsx，含 878KB 短语库）拆为 lazy chunk 后共用此模块
+import { playRu, stopRu } from './russian-voice'
+// 每日一句面板：短语库 878KB 只被它消费，React.lazy 独立 chunk 按需加载
+const DailyPhrase = React.lazy(() => import('./russian-daily-phrase'))
 import { LEX_SECTIONS, type LexSectionId } from '@/lib/russian-lexicon'
 // 西里尔文本专用字体：Inter Variable 自带 cyrillic 子集（@font-face 按 unicode-range
 // 声明，浏览器只在出现西里尔字符时下载对应分片），不受站点主题字体影响
 import '@fontsource-variable/inter'
+
+// 学习资料库标签页：内容文件较大（构建期内联 .md/.opml），懒加载独立 chunk
+const MaterialsTab = React.lazy(() => import('./russian-materials').then((m) => ({ default: m.MaterialsTab })))
 
 // =================================================================
 // 俄语工具箱（/admin/russian，纯前端离线，无 server fn、无数据库）
@@ -17,7 +25,7 @@ import '@fontsource-variable/inter'
 // ⑤ 动词变位：第一/第二变位法、过去时、将来时、命令式
 // =================================================================
 
-type ToolkitTab = 'translit' | 'alphabet' | 'nouns' | 'verbs' | 'elements' | 'polymer' | 'lexicon'
+type ToolkitTab = 'translit' | 'alphabet' | 'nouns' | 'verbs' | 'elements' | 'polymer' | 'lexicon' | 'materials'
 
 // ── 音译映射（拉丁 → 西里尔；多字母组合在前，最长匹配优先）──
 const LAT2CYR: Array<[string, string]> = [
@@ -77,162 +85,6 @@ function cyrToLat(input: string): string {
 
 // ЙЦУКЕН 键盘三排 + Ё 在第三排末位
 const KB_ROWS = ['йцукенгшщзхъ', 'фывапролджэ', 'ячсмитьбюё']
-
-function speak(text: string, rate = 0.8): boolean {
-  try {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return false
-    // 数据里的重音符号（组合锐音符 U+0301，如 полиме́р）供学习者 sight-reading，
-    // TTS 朗读前剥离，否则部分语音引擎会把重音符号读错或读成杂音
-    const clean = text.normalize('NFD').replace(/\u0301/g, '')
-    const synth = window.speechSynthesis
-    const u = new SpeechSynthesisUtterance(clean)
-    u.lang = 'ru-RU'
-    u.rate = rate
-    const voice = synth.getVoices().find((v) => v.lang?.toLowerCase().startsWith('ru'))
-    if (voice) u.voice = voice
-    synth.cancel()
-    synth.speak(u)
-    return true
-  } catch {
-    return false
-  }
-}
-
-// TTS 友好化：把语音引擎常读错的单位/符号/缩写展开成完整俄语单词。
-// 仅作兜底——数据中含大量数字/单位的条目应在 say 字段提供完整朗读文本（更准）。
-// 注意：JS \b 词边界不支持西里尔字母（西里尔字符非 \w），须用显式西里尔范围做边界。
-const CYR = 'А-Яа-яЁё'
-function ttsNormalize(s: string): string {
-  const word = (abbr: string, full: string) =>
-    (t: string) =>
-      t.replace(new RegExp(`(^|[^${CYR}])${abbr}([^${CYR}]|$)`, 'g'), `$1${full}$2`)
-  let out = s
-    // 复合单位优先于单单位替换
-    .replace(/см⁻¹/g, 'обратных сантиметрах')
-    .replace(/г\/моль/g, 'грамм на моль')
-    .replace(/г\/см³/g, 'грамм на кубический сантиметр')
-    .replace(/кг\/м³/g, 'килограмм на кубический метр')
-    .replace(/км\/ч/g, 'километров в час')
-    .replace(/°C|°С/g, ' градусов Цельсия')
-    .replace(/(\d)\s*°/g, '$1 градуса')
-    .replace(/(\d)\s*%/g, '$1 процентов')
-  for (const [abbr, full] of [
-    ['МПа', 'мегапаскалей'],
-    ['кПа', 'килопаскалей'],
-    ['ИК', 'инфракрасной'],
-    ['ЯМР', 'ядерного магнитного резонанса'],
-    ['ДСК', 'дифференциальной сканирующей калориметрии'],
-    ['ТГА', 'термогравиметрического анализа'],
-    ['ПЭТФ?', 'полиэтилентерефталата'],
-    ['ПВХ', 'поливинилхлорида'],
-    ['мм', 'миллиметров'],
-    ['см', 'сантиметров'],
-    ['км', 'километров'],
-    ['кг', 'килограммов'],
-    ['ПЭ', 'полиэтилена'],
-    ['ПП', 'полипропилена'],
-    ['ПС', 'полистирола'],
-    ['ПА', 'полиамида'],
-    // ПК 有歧义（поликарбонат / персональный компьютер），交给数据里的 say 字段精确处理
-    ['ПУ', 'полиуретана'],
-  ] as Array<[string, string]>) {
-    out = word(abbr, full)(out)
-  }
-  return out
-}
-
-// ─────────────── 统一俄语播放：本地合成 / 服务端神经语音 ───────────────
-// 手机浏览器普遍没有 ru-RU 合成语音；自动检测并改用 gateway 的神经 TTS 音频
-// （ru-RU-SvetlanaNeural，带自然句子语调），桌面默认保留本地合成语音，
-// 用户可手动切换到「自然语音」获得不生硬、有合适声调的朗读。
-// 神经语音走同源 /api/tts 反代（src/routes/api.tts.ts）：gw 网关域名在国内
-// 被 DNS 污染 + 443 直连阻断，浏览器直连网关必然无声；同源请求由 Worker 回源拉取
-const TTS_BASE = '/api/tts'
-
-export type RuVoiceMode = 'auto' | 'natural' | 'local'
-let voiceMode: RuVoiceMode = 'auto'
-const modeListeners = new Set<(m: RuVoiceMode) => void>()
-try {
-  const saved = localStorage.getItem('sg-ru-voice-mode')
-  if (saved === 'natural' || saved === 'local' || saved === 'auto') voiceMode = saved
-} catch { /* ignore */ }
-
-export function getRuVoiceMode(): RuVoiceMode { return voiceMode }
-export function setRuVoiceMode(m: RuVoiceMode) {
-  voiceMode = m
-  try { localStorage.setItem('sg-ru-voice-mode', m) } catch { /* ignore */ }
-  modeListeners.forEach((fn) => fn(m))
-}
-function useRuVoiceMode(): RuVoiceMode {
-  return React.useSyncExternalStore(
-    (cb) => { modeListeners.add(cb); return () => { modeListeners.delete(cb) } },
-    () => voiceMode,
-    () => voiceMode,
-  )
-}
-
-function isMobileDevice(): boolean {
-  if (typeof navigator === 'undefined') return false
-  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
-}
-function hasLocalRuVoice(): boolean {
-  try {
-    return typeof window !== 'undefined'
-      && 'speechSynthesis' in window
-      && window.speechSynthesis.getVoices().some((v) => v.lang?.toLowerCase().startsWith('ru'))
-  } catch {
-    return false
-  }
-}
-// 是否走服务端神经语音：手动 natural/local 优先；auto 时手机或无俄语语音→服务端
-function shouldUseServerVoice(): boolean {
-  if (voiceMode === 'local') return false
-  if (voiceMode === 'natural') return true
-  return isMobileDevice() || !hasLocalRuVoice()
-}
-
-let ttsAudio: HTMLAudioElement | null = null
-
-/**
- * 播放俄语文本（自动选择引擎）。rate 0.8 常速、0.5 慢速。
- * 返回 false 表示两种引擎都不可用（UI 据此提示）。
- */
-async function playRu(text: string, rate = 0.8): Promise<boolean> {
-  if (shouldUseServerVoice()) {
-    try {
-      const url = `${TTS_BASE}?text=${encodeURIComponent(text)}&rate=${rate}`
-      if (!ttsAudio) ttsAudio = new Audio()
-      // 语速在服务端合成时控制，避免手机端变速导致音调异常
-      ttsAudio.pause()
-      ttsAudio.src = url
-      await ttsAudio.play()
-      return true
-    } catch {
-      // 服务端失败时本地引擎兜底（桌面场景）
-      if (!isMobileDevice() && hasLocalRuVoice()) return speak(text, rate)
-      return false
-    }
-  }
-  const ok = speak(text, rate)
-  if (!ok) {
-    // 本地声称不可用：尝试服务端兜底
-    try {
-      if (!ttsAudio) ttsAudio = new Audio()
-      ttsAudio.src = `${TTS_BASE}?text=${encodeURIComponent(text)}&rate=${rate}`
-      await ttsAudio.play()
-      return true
-    } catch {
-      return false
-    }
-  }
-  return ok
-}
-
-// 需要中断朗读时（切换面板等）
-function stopRu() {
-  try { window.speechSynthesis.cancel() } catch { /* ignore */ }
-  if (ttsAudio) { ttsAudio.pause(); ttsAudio.removeAttribute('src'); ttsAudio.load() }
-}
 
 // ── 字母表数据：гlyph / 字母名 / 拉丁转写 / zh、en 近似音 ──
 type Letter = { u: string; l: string; name: string; lat: string; zh: string; en: string }
@@ -829,172 +681,6 @@ function VerbsTab() {
   )
 }
 
-// ═══════════════ ⓪ 每日一句 ═══════════════
-// 句库数据从 src/lib/russian-phrases.ts 导入（8 大分类，每类约 150 条三语句子）
-
-// 当日序号：按本地日期年内天数取模，跨天自动轮换（纯前端，无网络请求）
-function dayIndex(len: number): number {
-  const now = new Date()
-  const start = new Date(now.getFullYear(), 0, 0)
-  const day = Math.floor((now.getTime() - start.getTime()) / 86400000)
-  return day % len
-}
-
-function DailyPhrase() {
-  const t = useT()
-  const lang = useLang()
-  const [catId, setCatId] = React.useState<PhraseCatId>('greet')
-  // 挂载后才取日期序号：SSR（服务器时区）与客户端可能差一天，延迟计算避免水合不匹配
-  const [base, setBase] = React.useState<number | null>(null)
-  const [offset, setOffset] = React.useState(0)
-  const [copied, setCopied] = React.useState(false)
-  const [noVoice, setNoVoice] = React.useState(false)
-  // 面板折叠 / 译文隐藏：持久化到 localStorage，避免每次进来重设
-  const [collapsed, setCollapsed] = React.useState(false)
-  const [hideTr, setHideTr] = React.useState(false)
-  const voiceMode = useRuVoiceMode()
-  React.useEffect(() => {
-    try {
-      setCollapsed(localStorage.getItem('sg-ru-daily-fold') === '1')
-      setHideTr(localStorage.getItem('sg-ru-daily-hidetr') === '1')
-    } catch { /* ignore */ }
-  }, [])
-  const toggleCollapsed = () => {
-    setCollapsed((v) => {
-      try { localStorage.setItem('sg-ru-daily-fold', v ? '0' : '1') } catch { /* ignore */ }
-      return !v
-    })
-  }
-  const toggleHideTr = () => {
-    setHideTr((v) => {
-      try { localStorage.setItem('sg-ru-daily-hidetr', v ? '0' : '1') } catch { /* ignore */ }
-      return !v
-    })
-  }
-  const activeCat = PHRASE_CATS.find((c) => c.id === catId) ?? PHRASE_CATS[0]
-  React.useEffect(() => {
-    setBase(dayIndex(activeCat.items.length))
-    setOffset(0)
-  }, [activeCat])
-  if (base === null) return null
-  const phrase = activeCat.items[(base + offset) % activeCat.items.length]
-  // 朗读文本：优先数据里的 say（含数字/单位/缩写时提供），否则对 ru 做单位规范化
-  const ttsText = phrase.say ?? ttsNormalize(phrase.ru)
-
-  const copyPhrase = async () => {
-    try {
-      await navigator.clipboard.writeText(phrase.ru)
-    } catch {
-      const ta = document.createElement('textarea')
-      ta.value = phrase.ru
-      document.body.appendChild(ta)
-      ta.select()
-      document.execCommand('copy')
-      ta.remove()
-    }
-    setCopied(true)
-    window.setTimeout(() => setCopied(false), 1500)
-  }
-
-  return (
-    <section className="panel" style={{ marginTop: 14 }}>
-      <div
-        className="ru-daily-head"
-        role="button"
-        tabIndex={0}
-        aria-expanded={!collapsed}
-        onClick={toggleCollapsed}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCollapsed() } }}
-      >
-        <h2 style={{ margin: 0, fontSize: 16 }}>
-          <Sparkles size={16} style={{ verticalAlign: '-3px', marginRight: 6 }} />
-          {t('ru.dl.title')}
-        </h2>
-        <span className="ru-daily-fold">
-          {collapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-          {collapsed ? t('ru.dl.expand') : t('ru.dl.collapse')}
-        </span>
-      </div>
-      {!collapsed && (
-        <>
-          <p style={{ margin: '0 0 10px', color: 'var(--muted)', fontSize: 13 }}>
-            {noVoice ? t('ru.ab.nosound') : t('ru.dl.sub')}
-          </p>
-          <div className="ru-tabs" style={{ margin: '0 0 10px' }} role="tablist">
-            {PHRASE_CATS.map((c) => (
-              <button
-                type="button"
-                key={c.id}
-                role="tab"
-                aria-selected={c.id === catId}
-                className={`ru-tab${c.id === catId ? ' active' : ''}`}
-                onClick={() => setCatId(c.id)}
-              >
-                {t(`ru.dl.cat.${c.id}`)}
-              </button>
-            ))}
-          </div>
-          <button
-            type="button"
-            className="ru-daily-card"
-            onClick={() => { void (async () => { if (!(await playRu(ttsText))) setNoVoice(true) })() }}
-          >
-            {phrase.ctx && <span className="ru-daily-ctx">▸ {phrase.ctx}</span>}
-            <span className="ru-daily-ru">{phrase.ru}</span>
-            {lang !== 'ru' && (
-              <span className={`ru-daily-tr${hideTr ? ' hidden' : ''}`}>
-                {lang === 'zh' ? phrase.zh : phrase.en}
-              </span>
-            )}
-          </button>
-          <div className="ru-actions" style={{ marginTop: 10 }}>
-            <button
-              type="button"
-              className={`ghost-button${voiceMode === 'natural' ? ' active' : ''}`}
-              title={t('ru.dl.naturalhint')}
-              onClick={() => setRuVoiceMode(voiceMode === 'natural' ? 'auto' : 'natural')}
-            >
-              <Sparkles size={14} /> {t('ru.dl.natural')}
-            </button>
-            <button
-              type="button"
-              className="ghost-button"
-              onClick={() => { void (async () => { if (!(await playRu(ttsText, 0.5))) setNoVoice(true) })() }}
-            >
-              <Turtle size={14} /> {t('ru.dl.slow')}
-            </button>
-            {lang !== 'ru' && (
-              <button type="button" className="ghost-button" onClick={toggleHideTr}>
-                {hideTr ? <EyeOff size={14} /> : <Eye size={14} />}
-                {hideTr ? t('ru.dl.showtr') : t('ru.dl.hidetr')}
-              </button>
-            )}
-            <button
-              type="button"
-              className="ghost-button"
-              onClick={() => {
-                // 随机换一句：从当前分类中均匀抽取，且保证与当前句不同
-                const len = activeCat.items.length
-                if (len <= 1) return
-                const cur = (base + offset) % len
-                let r = Math.floor(Math.random() * (len - 1))
-                if (r >= cur) r++
-                setBase(r)
-                setOffset(0)
-              }}
-            >
-              <Repeat size={14} /> {t('ru.dl.next')}
-            </button>
-            <button type="button" className="ghost-button" onClick={() => void copyPhrase()}>
-              {copied ? <Check size={14} /> : <Copy size={14} />}
-              {copied ? t('ru.dl.copied') : t('ru.dl.copy')}
-            </button>
-          </div>
-        </>
-      )}
-    </section>
-  )
-}
 
 // ═══════════════ ⑤ 元素周期表（俄语点读，118 元素标准网格布局）═══════════════
 type Element = { z: number; sym: string; ru: string; zh: string; en: string }
@@ -1871,7 +1557,8 @@ export function RuShareButton() {
 // ═══════════════ 页面入口 ═══════════════
 export function RussianToolkit({ shared = false }: { shared?: boolean } = {}) {
   const t = useT()
-  const [tab, setTab] = React.useState<ToolkitTab>('translit')
+  // 默认落在最高频的变格速查（学习刚需），输入器/字母表等工具类靠后
+  const [tab, setTab] = React.useState<ToolkitTab>('nouns')
   // 分享模式：挂载时自检 /api/ru-share?action=info（cookie + IP 绑定）
   const [denied, setDenied] = React.useState('')
   const [checking, setChecking] = React.useState(shared)
@@ -1912,18 +1599,21 @@ export function RussianToolkit({ shared = false }: { shared?: boolean } = {}) {
 
       {!checking && !denied && (
         <>
-          <DailyPhrase />
+          <React.Suspense fallback={<section className="panel" style={{ marginTop: 14, minHeight: 96 }} aria-hidden="true" />}>
+            <DailyPhrase />
+          </React.Suspense>
 
           <div className="ru-tabs" role="tablist">
             {(
               [
-                ['translit', t('ru.tab.translit')],
-                ['alphabet', t('ru.tab.alphabet')],
                 ['nouns', t('ru.tab.nouns')],
                 ['verbs', t('ru.tab.verbs')],
+                ['materials', t('ru.tab.materials')],
+                ['lexicon', t('ru.tab.lexicon')],
+                ['translit', t('ru.tab.translit')],
+                ['alphabet', t('ru.tab.alphabet')],
                 ['elements', t('ru.tab.elements')],
                 ['polymer', t('ru.tab.polymer')],
-                ['lexicon', t('ru.tab.lexicon')],
               ] as Array<[ToolkitTab, string]>
             ).map(([id, label]) => (
               <button
@@ -1946,6 +1636,17 @@ export function RussianToolkit({ shared = false }: { shared?: boolean } = {}) {
           {tab === 'elements' && <ElementsTab />}
           {tab === 'polymer' && <PolymerTab />}
           {tab === 'lexicon' && <LexiconTab />}
+          {tab === 'materials' && (
+            <React.Suspense
+              fallback={
+                <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--muted)' }}>
+                  <span style={{ display: 'inline-block', animation: 'spin 0.9s linear infinite' }}>⟳</span>
+                </div>
+              }
+            >
+              <MaterialsTab />
+            </React.Suspense>
+          )}
         </>
       )}
     </div>

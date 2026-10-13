@@ -51,6 +51,12 @@ export interface ServerEnv {
   CONVERTER_SECRET?: string
   /** 后台「网络工具」代理搜索的 Brave Search API key（可选；缺省回退 DuckDuckGo） */
   BRAVE_API_KEY?: string
+  /**
+   * X岛本地搜索索引 D1 数据库（从 Neon 迁移）。
+   * 主站只读（search/find/stats/getThread）；爬虫 Worker 读写。
+   * 未配置时 db/index.ts 的 shim 自动回退 Neon 路径（回滚兜底）。
+   */
+  XDNMB_DB?: D1Database
 }
 
 /** Cloudflare Workers KV 命名空间的最小类型（避免依赖 @cloudflare/workers-types 全局） */
@@ -58,6 +64,22 @@ interface KVNamespace {
   get(key: string): Promise<string | null>
   put(key: string, value: string, opts?: { expirationTtl?: number }): Promise<void>
   delete(key: string): Promise<void>
+}
+
+/** Cloudflare D1 最小类型（避免依赖 @cloudflare/workers-types 全局） */
+interface D1Result<T = unknown> {
+  results?: T[]
+  success: boolean
+  meta?: { changes?: number; last_row_id?: number }
+}
+interface D1PreparedStatement {
+  bind(...values: unknown[]): D1PreparedStatement
+  first<T = unknown>(): Promise<T | null>
+  all<T = unknown>(): Promise<D1Result<T>>
+  run<T = unknown>(): Promise<D1Result<T>>
+}
+interface D1Database {
+  prepare(sql: string): D1PreparedStatement
 }
 
 let workerEnv: Partial<ServerEnv> | null = null

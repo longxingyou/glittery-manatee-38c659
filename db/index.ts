@@ -1,11 +1,19 @@
 import { drizzle } from 'drizzle-orm/neon-http'
 import { neon } from '@neondatabase/serverless'
-import { desc, eq, sql, and, ne, inArray, isNull, ilike } from 'drizzle-orm'
+import { desc, eq, sql, and, or, ne, inArray, isNull, ilike } from 'drizzle-orm'
 import { getCookie } from '@tanstack/react-start/server'
 import { allPosts } from 'content-collections'
 
 import * as schema from './schema.js'
 import { getEnv, getWorkerOrigin } from '../src/lib/server-env.js'
+import {
+  searchXdnmbIndexD1,
+  findXdnmbThreadByPostIdD1,
+  getXdnmbIndexStatsD1,
+  getXdnmbIndexThreadD1,
+  settingsSetUserhashD1,
+  type D1Database,
+} from './d1.js'
 import { TtlCache, safeKvGet, safeKvPut, safeKvDelete, edgeCacheDelete } from '../src/lib/cache.js'
 import {
   deleteAttachmentFiles,
@@ -63,10 +71,38 @@ export async function readWithSchemaFallback<T>(fn: () => Promise<T>): Promise<T
   try {
     return await fn()
   } catch (e) {
+    // Neon 冷启动（compute 睡眠，唤醒约 0.5~3s）时首查可能网络失败：
+    // 瞬态错误等待 900ms 后重试一次，覆盖唤醒窗口——用户感知从
+    // "操作失败/500"变为"首次操作稍慢"。PG 语义错误不重试，走原 fallback。
+    if (isTransientDbError(e)) {
+      await new Promise((resolve) => setTimeout(resolve, 900))
+      try {
+        return await fn()
+      } catch (e2) {
+        if (!isUndefinedTableError(e2)) throw e2
+        await ensureSchema()
+        return fn()
+      }
+    }
     if (!isUndefinedTableError(e)) throw e
     await ensureSchema()
     return fn()
   }
+}
+
+/**
+ * 判断是否为值得重试的瞬态 DB 错误（Neon 冷启动唤醒 / 网络抖动）。
+ * Drizzle 会把 Postgres 错误包进 DrizzleQueryError.cause——凡是沿 cause 链
+ * 能找到 PG 错误码的都是语义错误（表不存在/约束冲突等），不重试，
+ * 交给上层 schema fallback 或业务逻辑；找不到错误码的是网络层错误 → 重试。
+ */
+function isTransientDbError(e: unknown): boolean {
+  let cur: unknown = e
+  for (let depth = 0; depth < 4 && cur; depth++) {
+    if ((cur as { code?: string } | null)?.code) return false
+    cur = (cur as { cause?: unknown } | null)?.cause
+  }
+  return true
 }
 
 function isUndefinedTableError(e: unknown): boolean {
@@ -324,6 +360,90 @@ const schemaStatements = [
     sql`ALTER TABLE settings ADD COLUMN IF NOT EXISTS banned_words TEXT`,
     // 网络工具分享模式总开关（幂等增量迁移）
     sql`ALTER TABLE settings ADD COLUMN IF NOT EXISTS net_share_enabled BOOLEAN NOT NULL DEFAULT FALSE`,
+    // X 岛匿名版：浏览饼干 + 订阅 ID（官方 feed uuid）+ TG 推送目标 chat_id（后台填写）
+    sql`ALTER TABLE settings ADD COLUMN IF NOT EXISTS xdnmb_userhash TEXT`,
+    sql`ALTER TABLE settings ADD COLUMN IF NOT EXISTS xdnmb_cookie_name TEXT`,
+    sql`ALTER TABLE settings ADD COLUMN IF NOT EXISTS xdnmb_feed_uuid TEXT`,
+    sql`ALTER TABLE settings ADD COLUMN IF NOT EXISTS xdnmb_tg_chat TEXT`,
+    // X 岛收藏 / 订阅（串 ID 为全局递增大整数）
+    sql`CREATE TABLE IF NOT EXISTS xdnmb_favs (
+      id BIGINT PRIMARY KEY,
+      fid BIGINT,
+      title TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
+    sql`CREATE TABLE IF NOT EXISTS xdnmb_subs (
+      id BIGINT PRIMARY KEY,
+      fid BIGINT,
+      title TEXT NOT NULL DEFAULT '',
+      last_reply_id BIGINT NOT NULL DEFAULT 0,
+      last_reply_count INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
+    // 我的发言：浏览串时按已绑定饼干的 user_hash 被动采集（官方无历史接口）
+    sql`CREATE TABLE IF NOT EXISTS xdnmb_my_posts (
+      id BIGINT PRIMARY KEY,
+      tid BIGINT NOT NULL,
+      fid BIGINT,
+      is_po BOOLEAN NOT NULL DEFAULT FALSE,
+      thread_title TEXT NOT NULL DEFAULT '',
+      content TEXT NOT NULL DEFAULT '',
+      img TEXT NOT NULL DEFAULT '',
+      ext TEXT NOT NULL DEFAULT '',
+      now TEXT NOT NULL DEFAULT '',
+      user_hash TEXT NOT NULL DEFAULT '',
+      seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
+    sql`CREATE INDEX IF NOT EXISTS xdnmb_my_posts_seen_idx ON xdnmb_my_posts (seen_at DESC)`,
+    sql`CREATE INDEX IF NOT EXISTS xdnmb_my_posts_tid_idx ON xdnmb_my_posts (tid)`,
+    // X 岛饼干管理：订阅 ID 在官网用户中心可获取最多 5 个饼干；备注用于本地身份管理（参考黎明岛）
+    sql`CREATE TABLE IF NOT EXISTS xdnmb_cookies (
+      userhash TEXT PRIMARY KEY,
+      alias TEXT NOT NULL DEFAULT '',
+      cookie_name TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
+    // X 岛本地搜索索引（爬虫填充）：threads=主楼，posts=楼层含 thread_id 反查
+    // 解决 >>No.xxx 直跳与全论坛搜索（比 nmb-search 覆盖面广）
+    sql`CREATE TABLE IF NOT EXISTS xdnmb_index_threads (
+      id BIGINT PRIMARY KEY,
+      fid BIGINT,
+      title TEXT NOT NULL DEFAULT '',
+      content TEXT NOT NULL DEFAULT '',
+      reply_count INTEGER NOT NULL DEFAULT 0,
+      last_reply_id BIGINT NOT NULL DEFAULT 0,
+      sage INTEGER NOT NULL DEFAULT 0,
+      admin INTEGER NOT NULL DEFAULT 0,
+      indexed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
+    sql`CREATE INDEX IF NOT EXISTS xdnmb_index_threads_fid_idx ON xdnmb_index_threads (fid)`,
+    sql`CREATE TABLE IF NOT EXISTS xdnmb_index_posts (
+      id BIGINT PRIMARY KEY,
+      thread_id BIGINT NOT NULL,
+      content TEXT NOT NULL DEFAULT '',
+      user_hash TEXT NOT NULL DEFAULT '',
+      now TEXT NOT NULL DEFAULT '',
+      sage INTEGER NOT NULL DEFAULT 0,
+      admin INTEGER NOT NULL DEFAULT 0,
+      indexed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
+    sql`CREATE INDEX IF NOT EXISTS xdnmb_index_posts_thread_idx ON xdnmb_index_posts (thread_id)`,
+    sql`CREATE INDEX IF NOT EXISTS xdnmb_index_posts_now_idx ON xdnmb_index_posts (now)`,
+    // 爬虫游标：每条 timeline/forum 的爬取进度（kind + target_id 联合主键）
+    sql`CREATE TABLE IF NOT EXISTS xdnmb_index_cursors (
+      kind TEXT NOT NULL,
+      target_id TEXT NOT NULL,
+      page INTEGER NOT NULL DEFAULT 1,
+      round INTEGER NOT NULL DEFAULT 0,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (kind, target_id)
+    )`,
+    // pg_trgm 让中文 ILIKE 全文搜索快（Neon 默认支持）
+    sql`CREATE EXTENSION IF NOT EXISTS pg_trgm`,
+    sql`CREATE INDEX IF NOT EXISTS xdnmb_index_posts_content_trgm ON xdnmb_index_posts USING GIN (content gin_trgm_ops)`,
+    sql`CREATE INDEX IF NOT EXISTS xdnmb_index_threads_content_trgm ON xdnmb_index_threads USING GIN (content gin_trgm_ops)`,
+    sql`CREATE INDEX IF NOT EXISTS xdnmb_index_threads_title_trgm ON xdnmb_index_threads USING GIN (title gin_trgm_ops)`,
     sql`INSERT INTO settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING`,
     // 网络工具分享链接（token/绑定密钥只存 SHA-256 哈希）
     sql`CREATE TABLE IF NOT EXISTS net_share_links (
@@ -2933,10 +3053,12 @@ export type RuShareLinkInfo = {
 
 /** 各链接的唯一 IP 计数：单条分组查询，避免 N+1 */
 async function getIpCounts(): Promise<Record<string, number>> {
-  const rows = (await useDb().execute(sql`
+  // raw execute 返回 QueryResult 对象（fullResults），行在 .rows 里——不能直接当数组遍历
+  const res = await useDb().execute(sql`
     SELECT link_id AS "linkId", COUNT(DISTINCT ip_hash)::int AS "ipCount"
     FROM ru_share_bindings GROUP BY link_id
-  `)) as unknown as Array<{ linkId: string; ipCount: number }>
+  `)
+  const rows = (res as unknown as { rows?: Array<{ linkId: string; ipCount: number }> }).rows || []
   const out: Record<string, number> = {}
   for (const r of rows) out[r.linkId] = r.ipCount
   return out
@@ -3035,10 +3157,11 @@ async function pruneStaleBindings(linkId: string): Promise<void> {
 }
 
 async function countDistinctIps(linkId: string): Promise<number> {
-  const rows = (await useDb().execute(sql`
+  const res = await useDb().execute(sql`
     SELECT COUNT(DISTINCT ip_hash)::int AS "ipCount"
     FROM ru_share_bindings WHERE link_id = ${linkId}
-  `)) as unknown as Array<{ ipCount: number }>
+  `)
+  const rows = (res as unknown as { rows?: Array<{ ipCount: number }> }).rows || []
   return rows[0]?.ipCount ?? 0
 }
 
@@ -3300,5 +3423,630 @@ export async function saveSiteContent(input: {
       set: { body, updatedAt: sql`NOW()` },
     })
   return { key: input.key, lang: input.lang, body }
+}
+
+// ────────────────────────────────────────────────────────────
+// X 岛匿名版（/admin/xdnmb）：饼干设置、收藏、订阅
+// ────────────────────────────────────────────────────────────
+
+export type XdnmbTrackInfo = {
+  id: number
+  fid: number | null
+  title: string
+  createdAt: string
+  /** 订阅才有：已知最后回复 ID / 回复总数 */
+  lastReplyId?: number
+  lastReplyCount?: number
+}
+
+export async function getXdnmbSettings(): Promise<{ userhash: string; cookieName: string; feedUuid: string; tgChat: string }> {
+  if (!isDbConfigured()) return { userhash: '', cookieName: '', feedUuid: '', tgChat: '' }
+  const rows = await readWithSchemaFallback(() =>
+    useDb()
+      .select({
+        u: schema.settings.xdnmbUserhash,
+        n: schema.settings.xdnmbCookieName,
+        f: schema.settings.xdnmbFeedUuid,
+        c: schema.settings.xdnmbTgChat,
+      })
+      .from(schema.settings)
+      .where(eq(schema.settings.id, 1))
+      .limit(1),
+  )
+  return { userhash: rows[0]?.u || '', cookieName: rows[0]?.n || '', feedUuid: rows[0]?.f || '', tgChat: rows[0]?.c || '' }
+}
+
+export async function setXdnmbUserhash(v: string): Promise<void> {
+  await requireAdmin()
+  // 饼干只接受可见 ASCII 片段，去掉前后空白与可能误粘的 "userhash=" 前缀
+  const userhash = v.trim().replace(/^userhash=/, '').trim()
+  await readWithSchemaFallback(() =>
+    useDb()
+      .update(schema.settings)
+      .set({ xdnmbUserhash: userhash || null, updatedAt: sql`NOW()` })
+      .where(eq(schema.settings.id, 1)),
+  )
+  _settingsCache = null
+  // 双写 D1 settings 表（爬虫 Worker 从 D1 读 userhash，不依赖 Neon）
+  const d1 = getXdnmbD1()
+  if (d1) {
+    try { await settingsSetUserhashD1(d1, userhash) } catch { /* D1 写失败不阻断主站 */ }
+  }
+}
+
+/** 饼干显示名（7 位红叉 ID）：仅字母数字，用于识别本人发言；与饼干值成对保存 */
+export async function setXdnmbCookieName(v: string): Promise<void> {
+  await requireAdmin()
+  const cookieName = v.trim().replace(/[^A-Za-z0-9]/g, '').slice(0, 16)
+  await readWithSchemaFallback(() =>
+    useDb()
+      .update(schema.settings)
+      .set({ xdnmbCookieName: cookieName || null, updatedAt: sql`NOW()` })
+      .where(eq(schema.settings.id, 1)),
+  )
+  _settingsCache = null
+}
+
+export async function setXdnmbTgChat(v: string): Promise<void> {
+  await requireAdmin()
+  const tgChat = v.trim().replace(/^@/, '').slice(0, 64)
+  await readWithSchemaFallback(() =>
+    useDb()
+      .update(schema.settings)
+      .set({ xdnmbTgChat: tgChat || null, updatedAt: sql`NOW()` })
+      .where(eq(schema.settings.id, 1)),
+  )
+  _settingsCache = null
+}
+
+/** 订阅 ID（官方 feed uuid）：与饼干独立，允许字母数字与连字符（UUID 形态），上限 64 */
+export async function setXdnmbFeedUuid(v: string): Promise<void> {
+  await requireAdmin()
+  const feedUuid = v.trim().slice(0, 64)
+  await readWithSchemaFallback(() =>
+    useDb()
+      .update(schema.settings)
+      .set({ xdnmbFeedUuid: feedUuid || null, updatedAt: sql`NOW()` })
+      .where(eq(schema.settings.id, 1)),
+  )
+  _settingsCache = null
+}
+
+// ── X 岛饼干管理（订阅 ID 在官网用户中心获取，最多 5 个；active 存 settings.xdnmb_userhash）──
+
+export async function listXdnmbCookies(): Promise<Array<{ userhash: string; alias: string; cookieName: string }>> {
+  if (!isDbConfigured()) return []
+  const rows = await readWithSchemaFallback(() =>
+    useDb().select().from(schema.xdnmbCookies).orderBy(sql`created_at ASC`),
+  )
+  return rows.map((r) => ({ userhash: r.userhash, alias: r.alias || '', cookieName: r.cookieName || '' }))
+}
+
+export async function addXdnmbCookie(input: { userhash: string; alias?: string; cookieName?: string }): Promise<void> {
+  await requireAdmin()
+  await readWithSchemaFallback(() =>
+    useDb()
+      .insert(schema.xdnmbCookies)
+      .values({ userhash: input.userhash, alias: (input.alias || '').slice(0, 32), cookieName: (input.cookieName || '').slice(0, 16) })
+      .onConflictDoNothing(),
+  )
+}
+
+export async function setXdnmbCookieAlias(userhash: string, alias: string): Promise<void> {
+  await requireAdmin()
+  await readWithSchemaFallback(() =>
+    useDb()
+      .update(schema.xdnmbCookies)
+      .set({ alias: alias.slice(0, 32) })
+      .where(eq(schema.xdnmbCookies.userhash, userhash)),
+  )
+}
+
+export async function delXdnmbCookie(userhash: string): Promise<void> {
+  await requireAdmin()
+  await readWithSchemaFallback(() =>
+    useDb().delete(schema.xdnmbCookies).where(eq(schema.xdnmbCookies.userhash, userhash)),
+  )
+}
+
+async function listXdnmbTable(table: typeof schema.xdnmbFavs | typeof schema.xdnmbSubs): Promise<XdnmbTrackInfo[]> {
+  if (!isDbConfigured()) return []
+  const rows = await readWithSchemaFallback(() =>
+    useDb().select().from(table).orderBy(sql`created_at DESC`),
+  )
+  return rows.map((r) => ({
+    id: Number(r.id),
+    fid: r.fid == null ? null : Number(r.fid),
+    title: r.title || '',
+    createdAt: r.createdAt.toISOString(),
+    ...('lastReplyId' in r
+      ? { lastReplyId: Number((r as { lastReplyId: number }).lastReplyId ?? 0), lastReplyCount: Number((r as { lastReplyCount: number }).lastReplyCount ?? 0) }
+      : {}),
+  }))
+}
+
+export const listXdnmbFavs = (): Promise<XdnmbTrackInfo[]> => listXdnmbTable(schema.xdnmbFavs)
+export const listXdnmbSubs = (): Promise<XdnmbTrackInfo[]> => listXdnmbTable(schema.xdnmbSubs)
+
+/** 收藏 + 订阅的 ID 集合（前端高亮星标/铃铛用，一次取回） */
+export async function getXdnmbTrackedIds(): Promise<{ favs: XdnmbTrackInfo[]; subs: XdnmbTrackInfo[] }> {
+  const [favs, subs] = await Promise.all([listXdnmbFavs(), listXdnmbSubs()])
+  return { favs, subs }
+}
+
+export async function addXdnmbFav(input: { id: number; fid?: number | null; title?: string }): Promise<void> {
+  await requireAdmin()
+  await readWithSchemaFallback(() =>
+    useDb()
+      .insert(schema.xdnmbFavs)
+      .values({ id: input.id, fid: input.fid ?? null, title: (input.title || '').slice(0, 200) })
+      .onConflictDoNothing(),
+  )
+}
+
+export async function delXdnmbFav(id: number): Promise<void> {
+  await requireAdmin()
+  await useDb().delete(schema.xdnmbFavs).where(eq(schema.xdnmbFavs.id, id))
+}
+
+/** 订阅：初始游标为 0，cron 首次检查只记录现状不推送（避免订阅瞬间刷屏） */
+export async function addXdnmbSub(input: { id: number; fid?: number | null; title?: string }): Promise<void> {
+  await requireAdmin()
+  await readWithSchemaFallback(() =>
+    useDb()
+      .insert(schema.xdnmbSubs)
+      .values({ id: input.id, fid: input.fid ?? null, title: (input.title || '').slice(0, 200) })
+      .onConflictDoNothing(),
+  )
+}
+
+export async function delXdnmbSub(id: number): Promise<void> {
+  await requireAdmin()
+  await useDb().delete(schema.xdnmbSubs).where(eq(schema.xdnmbSubs.id, id))
+}
+
+/** cron 用：全量订阅（不经 requireAdmin，scheduled 事件无用户会话） */
+export async function listXdnmbSubsForCron(): Promise<XdnmbTrackInfo[]> {
+  if (!isDbConfigured()) return []
+  const rows = await readWithSchemaFallback(() => useDb().select().from(schema.xdnmbSubs))
+  return rows.map((r) => ({
+    id: Number(r.id),
+    fid: r.fid == null ? null : Number(r.fid),
+    title: r.title || '',
+    createdAt: r.createdAt.toISOString(),
+    lastReplyId: Number(r.lastReplyId ?? 0),
+    lastReplyCount: Number(r.lastReplyCount ?? 0),
+  }))
+}
+
+/** cron 用：推进订阅游标 */
+export async function updateXdnmbCursor(id: number, lastReplyId: number, lastReplyCount: number): Promise<void> {
+  if (!isDbConfigured()) return
+  await useDb()
+    .update(schema.xdnmbSubs)
+    .set({ lastReplyId, lastReplyCount, updatedAt: sql`NOW()` })
+    .where(eq(schema.xdnmbSubs.id, id))
+}
+
+// ──────────────── 我的发言（浏览时被动采集） ────────────────
+
+export type XdnmbMyPostInfo = {
+  id: number
+  tid: number
+  fid: number | null
+  isPo: boolean
+  threadTitle: string
+  content: string
+  img: string
+  ext: string
+  now: string
+  userHash: string
+  seenAt: string
+}
+
+const MY_POST_PAGE_SIZE = 30
+
+export async function listXdnmbMyPosts(page = 1): Promise<{ items: XdnmbMyPostInfo[]; total: number }> {
+  if (!isDbConfigured()) return { items: [], total: 0 }
+  const p = Math.max(1, page | 0 || 1)
+  const offset = (p - 1) * MY_POST_PAGE_SIZE
+  const [rows, cnt] = await Promise.all([
+    readWithSchemaFallback(() =>
+      useDb().select().from(schema.xdnmbMyPosts).orderBy(sql`seen_at DESC`).limit(MY_POST_PAGE_SIZE).offset(offset),
+    ),
+    useDb().select({ c: sql<number>`count(*)::int` }).from(schema.xdnmbMyPosts),
+  ])
+  return {
+    items: rows.map((r) => ({
+      id: Number(r.id),
+      tid: Number(r.tid),
+      fid: r.fid == null ? null : Number(r.fid),
+      isPo: !!r.isPo,
+      threadTitle: r.threadTitle || '',
+      content: r.content || '',
+      img: r.img || '',
+      ext: r.ext || '',
+      now: r.now || '',
+      userHash: r.userHash || '',
+      seenAt: r.seenAt.toISOString(),
+    })),
+    total: Number(cnt[0]?.c ?? 0),
+  }
+}
+
+/** 批量 upsert 浏览时发现的本人楼层（已存在的只更新最近见到时间与所属串快照） */
+export async function upsertXdnmbMyPosts(input: {
+  tid: number
+  fid?: number | null
+  threadTitle: string
+  posts: Array<{ id: number; isPo: boolean; content: string; img?: string; ext?: string; now?: string; userHash: string }>
+}): Promise<void> {
+  await requireAdmin()
+  const tid = Number(input.tid)
+  if (!Number.isFinite(tid) || tid <= 0 || input.posts.length === 0) return
+  const values = input.posts.slice(0, 40).map((p) => ({
+    id: Number(p.id),
+    tid,
+    fid: input.fid ?? null,
+    isPo: !!p.isPo,
+    threadTitle: (input.threadTitle || '').slice(0, 200),
+    content: (p.content || '').slice(0, 4000),
+    img: (p.img || '').slice(0, 120),
+    ext: (p.ext || '').slice(0, 16),
+    now: (p.now || '').slice(0, 40),
+    userHash: (p.userHash || '').slice(0, 24),
+  }))
+  await readWithSchemaFallback(() =>
+    useDb()
+      .insert(schema.xdnmbMyPosts)
+      .values(values)
+      .onConflictDoNothing(),
+  )
+}
+
+export async function delXdnmbMyPost(id: number): Promise<void> {
+  await requireAdmin()
+  await useDb().delete(schema.xdnmbMyPosts).where(eq(schema.xdnmbMyPosts.id, id))
+}
+
+// ──────────────── 本地搜索索引（爬虫填充，全论坛搜索 + >>No.xxx 反查） ────────────────
+
+/**
+ * X岛索引 D1 binding（主站只读路径）。
+ * 配置了 XDNMB_DB 时，search/find/stats/getThread 自动走 D1 边缘读（< 50ms，
+ * 不占 Worker 子请求配额）；未配置时回退 Neon 路径（回滚兜底）。
+ * Neon 中 xdnmb_index_* 表保留未删，回滚只需注释 wrangler.jsonc 的 d1_databases。
+ */
+function getXdnmbD1(): D1Database | null {
+  return (getEnv() as { XDNMB_DB?: D1Database }).XDNMB_DB ?? null
+}
+
+export type XdnmbIndexThreadInfo = {
+  id: number
+  fid: number | null
+  title: string
+  content: string
+  replyCount: number
+  lastReplyId: number
+  sage: number
+  admin: number
+  indexedAt: string
+}
+
+export type XdnmbIndexPostInfo = {
+  id: number
+  threadId: number
+  content: string
+  userHash: string
+  now: string
+  sage: number
+  admin: number
+  indexedAt: string
+}
+
+export type XdnmbIndexCursorInfo = {
+  kind: string
+  targetId: string
+  page: number
+  round: number
+  updatedAt: string
+}
+
+// upsert 串主楼（爬虫调用，不经 requireAdmin，由 cron 触发器调用）
+export async function upsertXdnmbIndexThread(input: {
+  id: number
+  fid?: number | null
+  title?: string
+  content?: string
+  replyCount?: number
+  lastReplyId?: number
+  sage?: number
+  admin?: number
+}): Promise<void> {
+  if (!isDbConfigured()) return
+  const id = Number(input.id)
+  if (!Number.isFinite(id) || id <= 0) return
+  await readWithSchemaFallback(() =>
+    useDb()
+      .insert(schema.xdnmbIndexThreads)
+      .values({
+        id,
+        fid: input.fid ?? null,
+        title: (input.title || '').slice(0, 200),
+        content: (input.content || '').slice(0, 8000),
+        replyCount: Number(input.replyCount ?? 0),
+        lastReplyId: Number(input.lastReplyId ?? 0),
+        sage: Number(input.sage ?? 0),
+        admin: Number(input.admin ?? 0),
+        indexedAt: sql`NOW()`,
+      })
+      .onConflictDoUpdate({
+        target: schema.xdnmbIndexThreads.id,
+        set: {
+          fid: input.fid ?? null,
+          title: (input.title || '').slice(0, 200),
+          content: (input.content || '').slice(0, 8000),
+          replyCount: Number(input.replyCount ?? 0),
+          lastReplyId: Number(input.lastReplyId ?? 0),
+          sage: Number(input.sage ?? 0),
+          admin: Number(input.admin ?? 0),
+          indexedAt: sql`NOW()`,
+        },
+      }),
+  )
+}
+
+// 批量 upsert 楼层（爬虫调用）
+export async function upsertXdnmbIndexPosts(posts: Array<{
+  id: number
+  threadId: number
+  content?: string
+  userHash?: string
+  now?: string
+  sage?: number
+  admin?: number
+}>): Promise<void> {
+  if (!isDbConfigured() || posts.length === 0) return
+  const values = posts.slice(0, 100).map((p) => ({
+    id: Number(p.id),
+    threadId: Number(p.threadId),
+    content: (p.content || '').slice(0, 4000),
+    userHash: (p.userHash || '').slice(0, 24),
+    now: (p.now || '').slice(0, 40),
+    sage: Number(p.sage ?? 0),
+    admin: Number(p.admin ?? 0),
+    indexedAt: sql`NOW()`,
+  }))
+  await readWithSchemaFallback(() =>
+    useDb()
+      .insert(schema.xdnmbIndexPosts)
+      .values(values)
+      .onConflictDoUpdate({
+        target: schema.xdnmbIndexPosts.id,
+        set: {
+          threadId: sql`EXCLUDED.thread_id`,
+          content: sql`EXCLUDED.content`,
+          userHash: sql`EXCLUDED.user_hash`,
+          now: sql`EXCLUDED.now`,
+          sage: sql`EXCLUDED.sage`,
+          admin: sql`EXCLUDED.admin`,
+          indexedAt: sql`NOW()`,
+        },
+      }),
+  )
+}
+
+/** 取一个串的已索引游标（lastReplyId / replyCount，用于增量判断） */
+export async function getXdnmbIndexThread(id: number): Promise<XdnmbIndexThreadInfo | null> {
+  const d1 = getXdnmbD1()
+  if (d1) return getXdnmbIndexThreadD1(d1, id)
+  if (!isDbConfigured()) return null
+  const rows = await readWithSchemaFallback(() =>
+    useDb().select().from(schema.xdnmbIndexThreads).where(eq(schema.xdnmbIndexThreads.id, id)).limit(1),
+  )
+  const r = rows[0]
+  if (!r) return null
+  return {
+    id: Number(r.id),
+    fid: r.fid == null ? null : Number(r.fid),
+    title: r.title || '',
+    content: r.content || '',
+    replyCount: Number(r.replyCount ?? 0),
+    lastReplyId: Number(r.lastReplyId ?? 0),
+    sage: Number(r.sage ?? 0),
+    admin: Number(r.admin ?? 0),
+    indexedAt: r.indexedAt.toISOString(),
+  }
+}
+
+/** >>No.xxx 直跳核心：从楼层 ID 反查父串 ID */
+export async function findXdnmbThreadByPostId(postId: number): Promise<{ threadId: number; post: XdnmbIndexPostInfo } | null> {
+  const d1 = getXdnmbD1()
+  if (d1) return findXdnmbThreadByPostIdD1(d1, postId)
+  if (!isDbConfigured()) return null
+  const rows = await readWithSchemaFallback(() =>
+    useDb().select().from(schema.xdnmbIndexPosts).where(eq(schema.xdnmbIndexPosts.id, postId)).limit(1),
+  )
+  const r = rows[0]
+  if (!r) return null
+  return {
+    threadId: Number(r.threadId),
+    post: {
+      id: Number(r.id),
+      threadId: Number(r.threadId),
+      content: r.content || '',
+      userHash: r.userHash || '',
+      now: r.now || '',
+      sage: Number(r.sage ?? 0),
+      admin: Number(r.admin ?? 0),
+      indexedAt: r.indexedAt.toISOString(),
+    },
+  }
+}
+
+export type XdnmbSearchHit = {
+  id: number
+  threadId: number
+  title: string
+  snippet: string
+  now: string
+  userHash: string
+  isMain: boolean // true=主楼命中，false=回复命中
+}
+
+/**
+ * 全论坛搜索：在本地索引里按关键词查 threads.title/content 与 posts.content。
+ * 用 pg_trgm 加速 ILIKE；中文不分词，按子串匹配（与 nmb-search 的 4get 行为一致）。
+ * 返回 threadId 去重后的命中列表（前端可进一步定位）。
+ */
+export async function searchXdnmbIndex(q: string, limit = 50): Promise<XdnmbSearchHit[]> {
+  const d1 = getXdnmbD1()
+  if (d1) return searchXdnmbIndexD1(d1, q, limit)
+  if (!isDbConfigured() || !q.trim()) return []
+  const term = q.trim().slice(0, 100)
+  const like = `%${term.replace(/[%_\\]/g, (m) => '\\' + m)}%`
+  const lmt = Math.max(1, Math.min(100, limit | 0))
+
+  // 主楼命中（threads）
+  const [threadRows, postRows] = await Promise.all([
+    readWithSchemaFallback(() =>
+      useDb()
+        .select({
+          id: schema.xdnmbIndexThreads.id,
+          threadId: schema.xdnmbIndexThreads.id,
+          title: schema.xdnmbIndexThreads.title,
+          content: schema.xdnmbIndexThreads.content,
+          now: schema.xdnmbIndexPosts.now,
+          userHash: schema.xdnmbIndexPosts.userHash,
+        })
+        .from(schema.xdnmbIndexThreads)
+        .leftJoin(schema.xdnmbIndexPosts, eq(schema.xdnmbIndexPosts.id, schema.xdnmbIndexThreads.id))
+        .where(or(ilike(schema.xdnmbIndexThreads.title, like), ilike(schema.xdnmbIndexThreads.content, like)))
+        .limit(lmt),
+    ).catch(() => []),
+    readWithSchemaFallback(() =>
+      useDb()
+        .select({
+          id: schema.xdnmbIndexPosts.id,
+          threadId: schema.xdnmbIndexPosts.threadId,
+          title: schema.xdnmbIndexThreads.title,
+          content: schema.xdnmbIndexPosts.content,
+          now: schema.xdnmbIndexPosts.now,
+          userHash: schema.xdnmbIndexPosts.userHash,
+        })
+        .from(schema.xdnmbIndexPosts)
+        .innerJoin(schema.xdnmbIndexThreads, eq(schema.xdnmbIndexThreads.id, schema.xdnmbIndexPosts.threadId))
+        .where(ilike(schema.xdnmbIndexPosts.content, like))
+        .limit(lmt * 2),
+    ).catch(() => []),
+  ])
+
+  const seen = new Set<number>()
+  const hits: XdnmbSearchHit[] = []
+  for (const r of threadRows) {
+    const tid = Number(r.threadId)
+    if (seen.has(tid)) continue
+    seen.add(tid)
+    hits.push({
+      id: Number(r.id),
+      threadId: tid,
+      title: r.title || '',
+      snippet: (r.content || '').slice(0, 200),
+      now: r.now || '',
+      userHash: r.userHash || '',
+      isMain: true,
+    })
+  }
+  for (const r of postRows) {
+    const tid = Number(r.threadId)
+    if (seen.has(tid)) continue
+    seen.add(tid)
+    hits.push({
+      id: Number(r.id),
+      threadId: tid,
+      title: r.title || '',
+      snippet: (r.content || '').slice(0, 200),
+      now: r.now || '',
+      userHash: r.userHash || '',
+      isMain: false,
+    })
+  }
+  return hits.slice(0, lmt)
+}
+
+// ──────────────── 爬虫游标（cron 推进） ────────────────
+
+export async function getXdnmbIndexCursor(kind: string, targetId: string): Promise<XdnmbIndexCursorInfo | null> {
+  if (!isDbConfigured()) return null
+  const rows = await readWithSchemaFallback(() =>
+    useDb()
+      .select()
+      .from(schema.xdnmbIndexCursors)
+      .where(and(eq(schema.xdnmbIndexCursors.kind, kind), eq(schema.xdnmbIndexCursors.targetId, targetId)))
+      .limit(1),
+  )
+  const r = rows[0]
+  if (!r) return null
+  return {
+    kind: r.kind,
+    targetId: r.targetId,
+    page: Number(r.page ?? 1),
+    round: Number(r.round ?? 0),
+    updatedAt: r.updatedAt.toISOString(),
+  }
+}
+
+export async function upsertXdnmbIndexCursor(input: {
+  kind: string
+  targetId: string
+  page: number
+  round?: number
+}): Promise<void> {
+  if (!isDbConfigured()) return
+  await readWithSchemaFallback(() =>
+    useDb()
+      .insert(schema.xdnmbIndexCursors)
+      .values({
+        kind: input.kind,
+        targetId: input.targetId,
+        page: Number(input.page),
+        round: Number(input.round ?? 0),
+        updatedAt: sql`NOW()`,
+      })
+      .onConflictDoUpdate({
+        target: [schema.xdnmbIndexCursors.kind, schema.xdnmbIndexCursors.targetId],
+        set: {
+          page: Number(input.page),
+          round: Number(input.round ?? 0),
+          updatedAt: sql`NOW()`,
+        },
+      }),
+  )
+}
+
+/** cron 用：取所有游标，决定下一轮要爬哪条时间线/版面 */
+export async function listXdnmbIndexCursors(): Promise<XdnmbIndexCursorInfo[]> {
+  if (!isDbConfigured()) return []
+  const rows = await readWithSchemaFallback(() => useDb().select().from(schema.xdnmbIndexCursors))
+  return rows.map((r) => ({
+    kind: r.kind,
+    targetId: r.targetId,
+    page: Number(r.page ?? 1),
+    round: Number(r.round ?? 0),
+    updatedAt: r.updatedAt.toISOString(),
+  }))
+}
+
+/** 取本地索引统计（前端显示覆盖量） */
+export async function getXdnmbIndexStats(): Promise<{ threads: number; posts: number; cursors: number; recrawlPending?: number; deletedThreads?: number; deletedPosts?: number }> {
+  const d1 = getXdnmbD1()
+  if (d1) return getXdnmbIndexStatsD1(d1)
+  if (!isDbConfigured()) return { threads: 0, posts: 0, cursors: 0 }
+  const [t, p, c] = await Promise.all([
+    useDb().select({ c: sql<number>`count(*)::int` }).from(schema.xdnmbIndexThreads).catch(() => [{ c: 0 }]),
+    useDb().select({ c: sql<number>`count(*)::int` }).from(schema.xdnmbIndexPosts).catch(() => [{ c: 0 }]),
+    useDb().select({ c: sql<number>`count(*)::int` }).from(schema.xdnmbIndexCursors).catch(() => [{ c: 0 }]),
+  ])
+  return { threads: Number(t[0]?.c ?? 0), posts: Number(p[0]?.c ?? 0), cursors: Number(c[0]?.c ?? 0) }
 }
 

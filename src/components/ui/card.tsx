@@ -36,6 +36,7 @@ import {
   Users,
   Inbox,
   BookA,
+  MessageSquare,
   MessageSquareWarning,
   Eraser,
   Egg,
@@ -43,6 +44,7 @@ import {
   Menu,
   Pencil,
   X,
+  Flame,
   Send,
 } from 'lucide-react'
 import { z } from 'zod'
@@ -430,6 +432,8 @@ export function AdminLayout() {
           <Link to="/admin/content" className="admin-nav-item" onClick={closeOnNav}><FileText size={17} /><span>{t('admin.nav.content')}</span></Link>
           <Link to="/admin/network" className="admin-nav-item" onClick={closeOnNav}><Globe size={17} /><span>{t('admin.nav.network')}</span></Link>
           <Link to="/admin/russian" className="admin-nav-item" onClick={closeOnNav}><BookA size={17} /><span>{t('admin.nav.russian')}</span></Link>
+          <Link to="/admin/xdnmb" className="admin-nav-item" onClick={closeOnNav}><Flame size={17} /><span>{t('admin.nav.xdnmb')}</span></Link>
+          <Link to="/admin/c233" className="admin-nav-item" onClick={closeOnNav}><MessageSquare size={17} /><span>{t('admin.nav.c233')}</span></Link>
           <Link to="/admin/settings" className="admin-nav-item" onClick={closeOnNav}><SettingsIcon size={17} /><span>{t('admin.nav.settings')}</span></Link>
           <a className="admin-nav-item" href="/" target="_blank" rel="noreferrer"><Home size={17} /><span>{t('admin.nav.site')}</span></a>
           <a className="admin-nav-item" href="/rss.xml" target="_blank" rel="noreferrer"><FileDown size={17} /><span>{t('admin.nav.rss')}</span></a>

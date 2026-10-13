@@ -27,6 +27,11 @@ const BROWSER_UA =
 // 缺失会被判定为非浏览器请求直接 403。
 const SEC_CH_UA = '"Chromium";v="126", "Not(A:Brand";v="24", "Google Chrome";v="126"'
 
+// 移动端 UA：抖音短链 v.douyin.com 对移动 UA 302 到 iesdouyin.com/share/video/{id}
+// （路径含 aweme_id）；桌面 UA 可能跳到不含 ID 的搜索/验证页。
+const MOBILE_UA =
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1'
+
 const FETCH_TEXT_LIMIT = 4 * 1024 * 1024 // 通用文本/API 抓取上限 4MiB
 const READER_HTML_LIMIT = 2 * 1024 * 1024 // 阅读模式 HTML 上限 2MiB
 const DOWNLOAD_MAX_BYTES = 200 * 1024 * 1024 // 通用下载中转上限 200MiB（超过则截断或拒绝）
@@ -1217,11 +1222,16 @@ async function handleYtSearchGet(request: Request, url: URL): Promise<Response> 
 }
 
 // ────────────────────────────────────────────────────────────
-// action=bili_playurl：代理 B站 playurl（platform=html5 免登录 MP4）。
-// 必要性：playurl 严格校验 Referer（仅接受 *.bilibili.com，第三方/空 Referer
-// 返回 403），第三方页面里的浏览器请求无法伪造 Referer，JSONP 还会被 Chrome
-// ORB 拦截；故由 Worker 转发并带上 bilibili Referer。仅返回小 JSON（视频流
-// 本身不经 Worker：直链 platform=html5 无 Referer 鉴权，浏览器 <video> 直连 CDN）。
+// action=bili_playurl：B站 playurl（platform=html5 免登录 720P MP4）解析。
+// 三层链路：浏览器 → 本 Worker（管理员/分享 cookie 鉴权）→ Azure 日本网关
+// （deploy/botapi-gateway 的 /bili-playurl，HMAC 签名，伪造 bilibili Referer）
+// → api.bilibili.com。两个硬约束使其无法在浏览器直连完成：
+//   1. playurl 仅接受 *.bilibili.com 的 Referer，第三方/空 Referer 直接 403，
+//      浏览器无法伪造 Referer，JSONP 还会被 Chrome ORB 拦截；
+//   2. Cloudflare 数据中心出口 IP 被 B站 WAF 稳定 412，故 Worker 再转一层
+//      Azure JP 网关（该出口实测 code=0）。网关不可用时直连仅作兜底。
+// 仅解析小 JSON；视频流不经任何服务器：html5 直链无 Referer/区域鉴权，
+// CDN 只校验浏览器 UA（curl 默认 UA 会 403，<video> 天然带浏览器 UA）。
 // ────────────────────────────────────────────────────────────
 
 /** 与 deploy/botapi-gateway 的 verifyToken 同算法：<exp>.<payloadB64url>.<sigB64url> */
@@ -1238,6 +1248,30 @@ async function signBiliGwToken(secret: string, payload: string, ttlMs: number): 
   const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`bili.${exp}.${payload}`))
   const sigB64 = btoa(String.fromCharCode(...new Uint8Array(sig))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
   return `${exp}.${b64(payload)}.${sigB64}`
+}
+
+/**
+ * 通过 Azure 网关 /short-resolve 解析短链（跟随 302 提取视频 ID）。
+ * Cloudflare Worker 出口 IP 被抖音风控（fetch 直接失败），短链重定向由网关出口完成；
+ * b23.tv 直连不稳时同样受益。失败返回 null（调用方走直连兜底）。
+ */
+async function resolveShortViaGateway(site: 'douyin' | 'bili', target: string): Promise<{ id: string } | null> {
+  const env = getEnv()
+  const gw = (env.TG_GATEWAY_URL || '').trim().replace(/\/+$/, '')
+  if (!gw || !env.TG_GATEWAY_SECRET) return null
+  try {
+    const token = await signBiliGwToken(env.TG_GATEWAY_SECRET, `${site}.${target}`, 5 * 60 * 1000)
+    const gwRes = await fetch(`${gw}/short-resolve?site=${site}&u=${encodeURIComponent(target)}`, {
+      headers: { 'x-sg-bili': token },
+      signal: AbortSignal.timeout(12000),
+    })
+    const gwBody = (await gwRes.json().catch(() => ({}))) as { ok?: boolean; id?: string; error?: string }
+    if (gwRes.ok && gwBody.ok && gwBody.id) return { id: gwBody.id }
+    console.warn(`[short_resolve] gateway failed (${site}):`, gwRes.status, gwBody.error || '')
+  } catch (e) {
+    console.warn(`[short_resolve] gateway error (${site}):`, e instanceof Error ? e.message : e)
+  }
+  return null
 }
 
 async function handleBiliPlayUrlGet(request: Request, url: URL): Promise<Response> {
@@ -1324,6 +1358,287 @@ async function handleBiliPlayUrlGet(request: Request, url: URL): Promise<Respons
   )
 }
 
+// ────────────────────────────────────────────────────────────
+// action=acfun_m3u8 / acfun_seg：AcFun HLS 站内代理播放
+// ────────────────────────────────────────────────────────────
+// AcFun CDN 检查 Referer（不带 → 403，带 acfun.cn → 200），Worker 直接
+// 代理即可，无需走 Azure 网关。链路：
+//   浏览器 hls.js → Worker acfun_m3u8（解析视频页 ksPlayJson → 取 m3u8
+//   → 重写 ts 相对路径为 acfun_seg 代理 URL）→ Worker acfun_seg（带
+//   Referer 拉 ts 分片）→ MSE 播放。pkey 有时效性，每次请求实时解析。
+// ────────────────────────────────────────────────────────────
+
+// AcFun 安全视频 CDN 域名白名单（SSRF 防护）
+const ACFUN_CDN_HOSTS = ['tx-safety-video.acfun.cn', 'ali-safety-video.acfun.cn']
+
+/**
+ * 从 AcFun 视频页 HTML 中解析 ksPlayJson，取最高清晰度的 m3u8 URL。
+ * ksPlayJson 是嵌入在 HTML/JS 中的 JSON 字符串（经过 JS 字符串转义），
+ * 需先反转义外层 \" → " 再 JSON.parse。
+ */
+async function resolveAcfunM3u8(acId: string): Promise<string | null> {
+  const pageUrl = `https://www.acfun.cn/v/ac${acId}`
+  let res: Response
+  try {
+    res = await fetch(pageUrl, {
+      headers: buildBrowserHeaders({ mode: 'navigate' }),
+      signal: AbortSignal.timeout(10000),
+    })
+  } catch {
+    return null
+  }
+  if (!res.ok) return null
+  const html = await res.text()
+
+  // 定位 "ksPlayJson":"..."，逐字符反转义提取内层 JSON 字符串
+  const marker = '"ksPlayJson":"'
+  const idx = html.indexOf(marker)
+  if (idx < 0) return null
+  let i = idx + marker.length
+  let jsonStr = ''
+  while (i < html.length) {
+    const ch = html[i]
+    if (ch === '\\') {
+      i++
+      if (i < html.length) jsonStr += html[i]
+    } else if (ch === '"') {
+      break // 未转义的引号 = 字符串结束
+    } else {
+      jsonStr += ch
+    }
+    i++
+  }
+  if (!jsonStr) return null
+
+  // 结构：{ adaptationSet: [{ representation: [{ url, backupUrl }] }] }
+  let play: { adaptationSet?: Array<{ representation?: Array<{ url?: string }> }> }
+  try {
+    play = JSON.parse(jsonStr)
+  } catch {
+    return null
+  }
+  return play.adaptationSet?.[0]?.representation?.[0]?.url ?? null
+}
+
+/**
+ * 重写 m3u8 内容：把 ts 相对路径解析为完整 URL（保留 m3u8 URL 的 pkey 等
+ * query 参数），再替换为 Worker acfun_seg 代理 URL，使 hls.js 经同源拉取。
+ */
+function rewriteAcfunM3u8(content: string, m3u8Url: string, selfOrigin: string): string {
+  const m3u8Parsed = new URL(m3u8Url)
+  const lines = content.split('\n')
+  return lines
+    .map((line) => {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith('#')) return line
+      // ts 分片行：解析相对路径为绝对 URL，附加 m3u8 的 query（如 pkey）
+      const resolved = new URL(trimmed, m3u8Url)
+      for (const [k, v] of m3u8Parsed.searchParams) {
+        if (!resolved.searchParams.has(k)) resolved.searchParams.set(k, v)
+      }
+      return `${selfOrigin}/api/net?action=acfun_seg&u=${encodeURIComponent(resolved.toString())}`
+    })
+    .join('\n')
+}
+
+/** action=acfun_m3u8：解析视频页 → 取 m3u8 → 重写 ts 路径 → 返回 m3u8 */
+async function handleAcfunM3u8Get(request: Request, url: URL): Promise<Response> {
+  const access = await requireNetAccess(request)
+  if (access instanceof Response) return access
+  const acId = (url.searchParams.get('ac') || '').trim()
+  if (!/^\d{3,}$/.test(acId)) return jsonError('参数 ac 非法。')
+
+  const m3u8Url = await resolveAcfunM3u8(acId)
+  if (!m3u8Url) return jsonError('AcFun 视频解析失败（未找到 ksPlayJson）。', 502)
+
+  let res: Response
+  try {
+    res = await fetch(m3u8Url, {
+      headers: buildBrowserHeaders({ mode: 'cors', referer: 'https://www.acfun.cn/' }),
+      signal: AbortSignal.timeout(10000),
+    })
+  } catch {
+    return jsonError('AcFun m3u8 请求失败（网络超时）。', 502)
+  }
+  if (!res.ok) return jsonError(`AcFun m3u8 请求失败（HTTP ${res.status}）。`, 502)
+  const content = await res.text()
+  const selfOrigin = getPublicOrigin(request)
+  const rewritten = rewriteAcfunM3u8(content, m3u8Url, selfOrigin)
+  const headers = new Headers(PRIVATE_HEADERS)
+  headers.set('Content-Type', 'application/vnd.apple.mpegurl')
+  return new Response(rewritten, { status: 200, headers })
+}
+
+/** action=acfun_seg：代理 ts 分片（带 AcFun Referer），流式返回 */
+async function handleAcfunSegGet(request: Request, url: URL): Promise<Response> {
+  const access = await requireNetAccess(request)
+  if (access instanceof Response) return access
+  const tsUrl = (url.searchParams.get('u') || '').trim()
+  if (!tsUrl) return jsonError('缺少 ts 分片 URL。')
+  // SSRF 防护：只允许 AcFun CDN 域名
+  let parsed: URL
+  try {
+    parsed = new URL(tsUrl)
+  } catch {
+    return jsonError('非法的 ts 分片 URL。')
+  }
+  if (!ACFUN_CDN_HOSTS.includes(parsed.hostname.toLowerCase())) {
+    return jsonError('非法的 ts 分片域名。')
+  }
+  let res: Response
+  try {
+    res = await fetch(tsUrl, {
+      headers: buildBrowserHeaders({ mode: 'cors', referer: 'https://www.acfun.cn/' }),
+      signal: AbortSignal.timeout(15000),
+    })
+  } catch {
+    return jsonError('ts 分片请求失败（网络超时）。', 502)
+  }
+  if (!res.ok) return jsonError(`ts 分片请求失败（HTTP ${res.status}）。`, 502)
+  const headers = new Headers(PRIVATE_HEADERS)
+  headers.set('Content-Type', 'video/mp2t')
+  headers.set('Cache-Control', 'private, max-age=3600')
+  return new Response(res.body, { status: 200, headers })
+}
+
+// ────────────────────────────────────────────────────────────
+// action=douyin_resolve：抖音短链 → aweme_id
+// ────────────────────────────────────────────────────────────
+// 抖音 share 页纯客户端渲染、API 全 403，无法在 Worker 端解析视频流。
+// 方案：前端 iframe 嵌入 www.douyin.com/video/{id}。短链 v.douyin.com/xxx
+// 无法在浏览器侧解析（CORS 302），由 Worker 跟随重定向提取 aweme_id。
+// ────────────────────────────────────────────────────────────
+
+/** 从抖音相关 URL 中提取 aweme_id（纯数字） */
+function extractDouyinId(raw: string): string | null {
+  const m = /\/(?:video|share\/video)\/(\d+)/.exec(raw)
+  return m ? m[1] : null
+}
+
+/** action=douyin_resolve：跟随短链 302 → 提取 aweme_id */
+async function handleDouyinResolveGet(request: Request, url: URL): Promise<Response> {
+  const access = await requireNetAccess(request)
+  if (access instanceof Response) return access
+  const input = (url.searchParams.get('u') || '').trim()
+  // 输入可能是整段分享口令文本（前端已尽量截出 URL，此处兜底再提取一次）
+  const m = /https?:\/\/[^\s"'<>]+/i.exec(input)
+  const raw = m ? m[0] : input
+  if (!raw) return jsonError('缺少抖音链接。')
+  let target: URL
+  try {
+    target = new URL(raw)
+  } catch {
+    return jsonError('非法的抖音链接。')
+  }
+  const host = target.hostname.toLowerCase()
+  const allowed = ['v.douyin.com', 'douyin.com', 'www.douyin.com', 'iesdouyin.com', 'www.iesdouyin.com']
+  if (!allowed.includes(host)) return jsonError('非法的抖音链接。')
+
+  // 长链可直接提取 aweme_id
+  const directId = extractDouyinId(target.toString())
+  if (directId) return Response.json({ ok: true, id: directId }, { headers: PRIVATE_HEADERS })
+
+  // 网关优先：Cloudflare 出口 IP 被抖音风控，短链 302 由 Azure 网关出口跟随
+  const viaGw = await resolveShortViaGateway('douyin', target.toString())
+  if (viaGw) return Response.json({ ok: true, id: viaGw.id }, { headers: PRIVATE_HEADERS })
+
+  // 网关不可用时直连兜底：移动端 UA 跟随 302（跳 iesdouyin.com/share/video/{id}，路径含 aweme_id）
+  let currentUrl = target.toString()
+  for (let hop = 0; hop < 5; hop++) {
+    let res: Response
+    try {
+      res = await fetch(currentUrl, {
+        redirect: 'manual',
+        headers: {
+          'User-Agent': MOBILE_UA,
+          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        },
+        signal: AbortSignal.timeout(8000),
+      })
+    } catch {
+      return jsonError('抖音短链解析失败（网络超时）。', 502)
+    }
+    if (res.status >= 300 && res.status < 400) {
+      const location = res.headers.get('location')
+      if (!location) break
+      const id = extractDouyinId(location)
+      if (id) return Response.json({ ok: true, id }, { headers: PRIVATE_HEADERS })
+      // 解析相对路径跳转，继续跟随
+      try {
+        currentUrl = new URL(location, currentUrl).toString()
+      } catch {
+        break
+      }
+      continue
+    }
+    // 非 3xx：部分场景抖音直接返回落地页，从当前 URL 再试一次
+    const finalId = extractDouyinId(currentUrl)
+    if (finalId) return Response.json({ ok: true, id: finalId }, { headers: PRIVATE_HEADERS })
+    break
+  }
+  return jsonError('无法从抖音链接提取视频 ID。', 502)
+}
+
+// ────────────────────────────────────────────────────────────
+// action=bili_resolve：b23.tv 短链 → BV/av 号
+// ────────────────────────────────────────────────────────────
+// 支持整段 B站分享口令：b23.tv 随机码短链由 Worker（优先 Azure 网关）
+// 跟随 302 提取 BV/av 号，无需再"先打开复制完整链接"。
+
+/** action=bili_resolve：跟随 b23.tv 302 → 提取 BV/av 号 */
+async function handleBiliResolveGet(request: Request, url: URL): Promise<Response> {
+  const access = await requireNetAccess(request)
+  if (access instanceof Response) return access
+  const input = (url.searchParams.get('u') || '').trim()
+  const m = /https?:\/\/[^\s"'<>]+/i.exec(input)
+  const raw = m ? m[0] : input
+  if (!raw) return jsonError('缺少 B站短链。')
+  let target: URL
+  try {
+    target = new URL(raw)
+  } catch {
+    return jsonError('非法的 B站短链。')
+  }
+  if (!['b23.tv', 'bili2233.cn'].includes(target.hostname.toLowerCase())) return jsonError('非法的 B站短链。')
+  // 路径直接是 BV/av 号的场景无需跳转
+  const direct = /\/(?:video\/)?(BV[0-9A-Za-z]{10}|av\d{6,})/.exec(target.pathname)
+  if (direct) return Response.json({ ok: true, id: direct[1] }, { headers: PRIVATE_HEADERS })
+
+  // 网关优先（出口 IP 质量），直连兜底
+  const viaGw = await resolveShortViaGateway('bili', target.toString())
+  if (viaGw) return Response.json({ ok: true, id: viaGw.id }, { headers: PRIVATE_HEADERS })
+  let currentUrl = target.toString()
+  for (let hop = 0; hop < 5; hop++) {
+    let res: Response
+    try {
+      res = await fetch(currentUrl, {
+        redirect: 'manual',
+        headers: buildBrowserHeaders({ mode: 'navigate' }),
+        signal: AbortSignal.timeout(8000),
+      })
+    } catch {
+      return jsonError('B站短链解析失败（网络超时）。', 502)
+    }
+    if (res.status >= 300 && res.status < 400) {
+      const location = res.headers.get('location')
+      if (!location) break
+      const id = /\/video\/(BV[0-9A-Za-z]{10}|av\d{6,})/.exec(location)?.[1]
+      if (id) return Response.json({ ok: true, id }, { headers: PRIVATE_HEADERS })
+      try {
+        currentUrl = new URL(location, currentUrl).toString()
+      } catch {
+        break
+      }
+      continue
+    }
+    const finalId = /\/video\/(BV[0-9A-Za-z]{10}|av\d{6,})/.exec(currentUrl)?.[1]
+    if (finalId) return Response.json({ ok: true, id: finalId }, { headers: PRIVATE_HEADERS })
+    break
+  }
+  return jsonError('无法从 B站短链提取视频 ID。', 502)
+}
+
 export const Route = createFileRoute('/api/net')({
   server: {
     handlers: {
@@ -1340,6 +1655,10 @@ export const Route = createFileRoute('/api/net')({
           if (action === 'search') return await handleSearchGet(request, url)
           if (action === 'yt_search') return await handleYtSearchGet(request, url)
           if (action === 'bili_playurl') return await handleBiliPlayUrlGet(request, url)
+          if (action === 'acfun_m3u8') return await handleAcfunM3u8Get(request, url)
+          if (action === 'acfun_seg') return await handleAcfunSegGet(request, url)
+          if (action === 'douyin_resolve') return await handleDouyinResolveGet(request, url)
+          if (action === 'bili_resolve') return await handleBiliResolveGet(request, url)
           return jsonError('未知的网络工具动作。', 404)
         } catch (e) {
           return jsonError(e instanceof Error ? e.message : '网络工具内部错误。', 500)

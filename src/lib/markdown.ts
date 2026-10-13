@@ -1,4 +1,9 @@
 import katex from 'katex'
+// mhchem 必须与主 katex 是同一实例：走 package exports 的 import 条件解析到
+// dist/contrib/mhchem.mjs（其内部 import '../katex.mjs'）。若直接引
+// dist/contrib/mhchem.js（UMD），Vite 打包后会 require 另一个 katex.js 实例，
+// \ce 宏注册到未被使用的实例上 → 渲染时 \ce 变成未知命令（红色文本）。
+import 'katex/contrib/mhchem'
 import { Marked, type Token } from 'marked'
 import { renderStickerShortcode } from './stickers'
 import { pickupCodeFromUrl } from './utils'
@@ -174,25 +179,60 @@ export function renderMarkdown(source: string, headingShift = 0) {
     .replace(/(^|[^\p{L}\p{N}#&/\\[\]()])#([\p{L}\p{N}][\p{L}\p{N}_/-]*)/gmu, (_m, pre: string, tag: string) => `${pre}MDTAG${encodeURIComponent(tag)}ENDMDTAG`)
     .replace(/\u0000(\d+)\u0000/g, (_m, i: string) => codeStash[Number(i)])
 
-  // ── 预处理 5：KaTeX（不变）──
+  // ── 预处理 5：KaTeX 与研究报告标记 ──
+  // KaTeX 支持四组定界符：$$…$$（块）、\[…\]（块，LaTeX/MathJax 标准）、$…$（行内）、\(…\)（行内）。
+  // AI 检索报告（如文献综述）常见两类标记也在此渲染：
+  //   [cite:N] / [cite:N 备注] —— 引用标记：列表行首的是来源条目锚点，其余是上标引用；
+  //   [CONFIRMED] / [MAJORITY] / [unverified] 等 —— 置信标签 → 彩色徽章。
+  // 数学与标记处理前先把行内代码/围栏代码块 stash（如示例 `$\ce{…}$` 是展示源码，
+  // 不应被渲染），全部占位替换完成后再还原代码。
+  const mathStash: string[] = []
   const mathBlocks: string[] = []
+  const citeDefs = new Set<string>()
+  const citeRefs: { id: string; note: string }[] = []
+  const confBadges: string[] = []
+  const stashCode = (m: string) => `\u0000M${mathStash.push(m) - 1}M\u0000`
+  const renderDisplay = (expression: string) => {
+    const index = mathBlocks.push(katex.renderToString(expression.trim(), {
+      displayMode: true,
+      throwOnError: false,
+      strict: false,
+    })) - 1
+    return `\n\nMATHBLOCK${index}ENDMATH\n\n`
+  }
+  const renderInline = (expression: string) => {
+    const index = mathBlocks.push(katex.renderToString(expression.trim(), {
+      displayMode: false,
+      throwOnError: false,
+      strict: false,
+    })) - 1
+    return `MATHINLINE${index}ENDMATH`
+  }
   const withPlaceholders = source
-    .replace(/\$\$([\s\S]+?)\$\$/g, (_, expression: string) => {
-      const index = mathBlocks.push(katex.renderToString(expression.trim(), {
-        displayMode: true,
-        throwOnError: false,
-        strict: false,
-      })) - 1
-      return `\n\nMATHBLOCK${index}ENDMATH\n\n`
-    })
-    .replace(/(?<!\$)\$([^\n$]+?)\$(?!\$)/g, (_, expression: string) => {
-      const index = mathBlocks.push(katex.renderToString(expression.trim(), {
-        displayMode: false,
-        throwOnError: false,
-        strict: false,
-      })) - 1
-      return `MATHINLINE${index}ENDMATH`
-    })
+    .replace(/```[\s\S]*?(?:```|$)|~~~[\s\S]*?(?:~~~|$)|`[^`\n]*`/g, stashCode)
+    // 来源条目（列表行首的 [cite:N]）→ 锚点占位，链接目标 <span id="cite-N">
+    .replace(/^([ \t]*(?:[-*+]|\d+[.)])[ \t]+)\[cite:(\d+)\]/gm,
+      (_m, prefix: string, id: string) => {
+        citeDefs.add(id)
+        return `${prefix}CITEDEF${id}ENDCITEDEF`
+      })
+    // 正文引用 [cite:N] / [cite:N 备注] → 上标占位
+    .replace(/\[cite:(\d+)(?:\s+([^\]\n]+))?\]/g,
+      (_m, id: string, note?: string) => {
+        const index = citeRefs.push({ id, note: (note || '').trim() }) - 1
+        return `CITEREF${index}ENDCITEREF`
+      })
+    // 置信标签 → 徽章占位（白名单匹配，避免误伤普通方括号文本）
+    .replace(/\[(CONFIRMED|MAJORITY|SINGLE-SOURCE|UNVERIFIED|INSUFFICIENT DATA|DISPUTED[^\]\n]{0,30})\]/gi,
+      (_m, raw: string) => {
+        const index = confBadges.push(raw.trim()) - 1
+        return `CONFBADGE${index}ENDCONFBADGE`
+      })
+    .replace(/\\\[([\s\S]+?)\\\]/g, (_m, expression: string) => renderDisplay(expression))
+    .replace(/\\\(([\s\S]+?)\\\)/g, (_m, expression: string) => renderInline(expression))
+    .replace(/\$\$([\s\S]+?)\$\$/g, (_m, expression: string) => renderDisplay(expression))
+    .replace(/(?<!\$)\$([^\n$]+?)\$(?!\$)/g, (_m, expression: string) => renderInline(expression))
+    .replace(/\u0000M(\d+)M\u0000/g, (_m, i: string) => mathStash[Number(i)])
 
   // ── 每次 renderMarkdown 调用独立的闭包状态 ──
   const footnoteRefs: string[] = []
@@ -214,11 +254,28 @@ export function renderMarkdown(source: string, headingShift = 0) {
           return `<figure class="markdown-image pickup-figure">${pickupCardHtml(href, pickup, text)}${caption}</figure>`
         }
         if (/^https:\/\//i.test(href)) {
-          const titleAttr = title ? ` title="${escapeHtml(title)}"` : ''
-          const alt = escapeHtml(text || '')
-          const caption = text && text.trim()
-            ? `<figcaption>${escapeHtml(text)}</figcaption>` : ''
-          return `<figure class="markdown-image"><img src="${escapeHtml(href)}" alt="${alt}"${titleAttr} loading="lazy" decoding="async" />${caption}</figure>`
+          // 可选尺寸标注，用于消除图片加载导致的布局偏移（CLS）：
+          //   ![说明|800x600](url)        ← alt 内管道写法（推荐）
+          //   ![说明](url "800x600")      ← title 写法
+          // 解析到尺寸则注入 width/height 属性，配合 CSS（max-width:100%;
+          // height:auto）浏览器按比例预留占位框，加载后零偏移。
+          let captionText = text || ''
+          let dims: { w: number; h: number } | null = null
+          let titleAttr = ''
+          if (title) {
+            const tm = title.match(/^(\d+)x(\d+)$/)
+            if (tm) dims = { w: parseInt(tm[1], 10), h: parseInt(tm[2], 10) }
+            else titleAttr = ` title="${escapeHtml(title)}"`
+          }
+          if (!dims) {
+            const am = captionText.match(/^(.*?)\|(\d+)x(\d+)$/)
+            if (am) { captionText = am[1]; dims = { w: parseInt(am[2], 10), h: parseInt(am[3], 10) } }
+          }
+          const sizeAttr = dims ? ` width="${dims.w}" height="${dims.h}"` : ''
+          const alt = escapeHtml(captionText)
+          const caption = captionText.trim()
+            ? `<figcaption>${escapeHtml(captionText)}</figcaption>` : ''
+          return `<figure class="markdown-image"><img src="${escapeHtml(href)}" alt="${alt}"${titleAttr}${sizeAttr} loading="lazy" decoding="async" />${caption}</figure>`
         }
         return `<span class="markdown-image-alt">[图片：${escapeHtml(text || '')}]</span>`
       },
@@ -436,6 +493,31 @@ export function renderMarkdown(source: string, headingShift = 0) {
   html = html
     .replace(/MATHBLOCK(\d+)ENDMATH/g, (_, index) => mathBlocks[Number(index)] ?? '')
     .replace(/MATHINLINE(\d+)ENDMATH/g, (_, index) => mathBlocks[Number(index)] ?? '')
+
+  // ── 恢复引用标记与置信徽章占位符 ──
+  html = html
+    // 来源条目锚点：跳转目标（scroll-margin 由 CSS 兜底，避免被吸顶栏遮挡）
+    .replace(/CITEDEF(\d+)ENDCITEDEF/g, (_m, id: string) =>
+      `<span id="cite-${id}" class="cite-def">[${id}]</span>`)
+    // 正文上标引用：有对应来源条目时链接到锚点，备注进 title
+    .replace(/CITEREF(\d+)ENDCITEREF/g, (_m, index: string) => {
+      const ref = citeRefs[Number(index)]
+      if (!ref) return ''
+      const title = ref.note ? ` title="${escapeHtml(ref.note)}"` : ''
+      const inner = citeDefs.has(ref.id)
+        ? `<a href="#cite-${ref.id}"${title}>${ref.id}</a>`
+        : String(ref.id)
+      return `<sup class="cite-ref"${title}>${inner}</sup>`
+    })
+    // 置信徽章：按语义上色（confirmed=accent、majority=purple、single-source=orange、
+    // unverified/insufficient=muted、disputed=red）
+    .replace(/CONFBADGE(\d+)ENDCONFBADGE/g, (_m, index: string) => {
+      const raw = confBadges[Number(index)]
+      if (!raw) return ''
+      const key = raw.toLowerCase().replace(/[^a-z]+/g, '-').replace(/^-+|-+$/g, '')
+      const mod = key.startsWith('disputed') ? 'disputed' : key
+      return `<span class="conf-badge conf-${mod}">${escapeHtml(raw)}</span>`
+    })
 
   // ── 后处理：追加脚注章节 ──
   if (footnoteRefs.length > 0) {

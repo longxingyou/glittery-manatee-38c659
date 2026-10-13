@@ -32,11 +32,14 @@ const GAME_FRAME_ORIGINS = [
 ]
 
 // 视频站官方外链播放器（/admin/network 视频面板 iframe 嵌入）：
-// B站官方播放器 + YouTube 隐私增强模式嵌入（视频流不经过本站服务器）
+// B站官方播放器 + YouTube 隐私增强模式嵌入 + 抖音视频页 iframe 嵌入
 const VIDEO_FRAME_ORIGINS = [
   'https://player.bilibili.com',
   'https://www.youtube-nocookie.com',
   'https://www.youtube.com',
+  // 抖音：open.douyin.com 嵌入式播放器 + www.douyin.com 视频页（均无 X-Frame-Options）
+  'https://open.douyin.com',
+  'https://www.douyin.com',
 ]
 
 const CONTENT_SECURITY_POLICY = [
@@ -45,18 +48,21 @@ const CONTENT_SECURITY_POLICY = [
   // api.bilibili.com 供视频面板 JSONP 解析 B站直链（手机端绕开外链播放器 iframe 风控）
   "script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://api.bilibili.com",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' https: data:",
+  // blob: 供 X 岛 composer 本地图片/贴纸的选择预览（createObjectURL，不发起网络请求）
+  "img-src 'self' https: data: blob:",
   // Vite 会把小于 4KB 的字体子集内联为 data: URL，需放行
   "font-src 'self' data:",
   // beacon 上报到 cloudflareinsights.com；
   // *.hf.space 是自建附件网关的 HF Space 部署。网关若托管在其他主机
   // （VPS/Koyeb/Cloudflare Tunnel 域名），其 origin 由 TG_GATEWAY_URL
   // 动态追加，见 buildSecurityHeaders()。
-  "connect-src 'self' https://cloudflareinsights.com https://static.cloudflareinsights.com https://*.hf.space",
+  // gcore.jsdelivr.net：X 岛编辑器内置芦苇娘 GIF 贴纸的图床（点选后需 fetch 为 blob 作为图片附件发送）
+  "connect-src 'self' https://cloudflareinsights.com https://static.cloudflareinsights.com https://*.hf.space https://gcore.jsdelivr.net",
   // 俄语工具箱神经语音：/api/tts 同源反代网关 mp3 供 <audio> 播放（手机无本地俄语 TTS）。
   // 网关 origin 由 TG_GATEWAY_URL 在 buildSecurityHeaders() 里动态追加；
-  // *.bilivideo.com 是 B站 html5 直链（platform=html5，无 Referer 鉴权）的视频 CDN
-  "media-src 'self' https://*.bilivideo.com",
+  // B站 html5 直链（platform=html5，无 Referer 鉴权，仅校验浏览器 UA）：
+  // *.bilivideo.com 常规节点；*.akamaized.net 为 force_host 时可能出现的 Akamai 节点
+  "media-src 'self' blob: https://*.bilivideo.com https://*.akamaized.net",
   `frame-src 'self' blob: ${[...GAME_FRAME_ORIGINS, ...VIDEO_FRAME_ORIGINS].join(' ')}`,
   "frame-ancestors 'none'",
   "base-uri 'self'",
@@ -128,6 +134,12 @@ const EGG_CONTENT_SECURITY_POLICY = [
   'sandbox allow-scripts allow-modals allow-popups allow-popups-to-escape-sandbox allow-downloads',
 ].join('; ')
 
+/** 管理类页面（/admin、/mt-setup）：HTML 不进入浏览器/CDN/三级缓存，
+ *  否则部署后旧 HTML（引用已删除的旧 hash 资产）最长可被缓存 1 小时，新功能不生效。 */
+function isAdminPagePath(pathname: string): boolean {
+  return pathname.startsWith('/admin') || pathname === '/mt-setup'
+}
+
 function withSecurityHeaders(response: Response, request: Request): Response {
   const headers = new Headers(response.headers)
   const url = new URL(request.url)
@@ -136,7 +148,7 @@ function withSecurityHeaders(response: Response, request: Request): Response {
     headers.set(name, value)
   }
   // 后台（含访客门禁卡）不允许搜索引擎收录
-  if (url.pathname.startsWith('/admin')) {
+  if (isAdminPagePath(url.pathname)) {
     headers.set('X-Robots-Tag', 'noindex, nofollow')
   }
   // 带内容哈希的静态资源（/assets/xxx-[hash].css|js）可长期缓存
@@ -156,7 +168,7 @@ function withSecurityHeaders(response: Response, request: Request): Response {
   // 但 DB 降级（仅静态文章）的响应绝不能 s-maxage：否则所有访客 10 分钟内都看不到
   // DB 文章。降级响应只给浏览器短缓存 + stale-while-revalidate，客户端补拉会修正。
   const isHtml = (response.headers.get('content-type') || '').includes('text/html')
-  const isAdmin = url.pathname.startsWith('/admin')
+  const isAdmin = isAdminPagePath(url.pathname)
   // /preview/* 的 SSR 内容随登录态/密码令牌变化（门禁 vs 含签名 URL 的预览数据），
   // 既不能进浏览器共享缓存也不能进边缘缓存：一律 private no-store。
   const isPreviewPage = url.pathname.startsWith('/preview/')
@@ -165,6 +177,10 @@ function withSecurityHeaders(response: Response, request: Request): Response {
   if (isHtml && isPreviewPage) {
     headers.set('Cache-Control', 'private, no-store, must-revalidate')
     headers.set('X-Robots-Tag', 'noindex, nofollow')
+  } else if (isHtml && isAdmin) {
+    // 管理后台 HTML 一律禁缓存：无显式 Cache-Control 时浏览器走启发式缓存，
+    // 会长期引用旧 JS bundle（静态资源带 hash 是 immutable），新功能在用户端不生效
+    headers.set('Cache-Control', 'private, no-store, must-revalidate')
   } else if (isHtml && !isAdmin && isOk && !headers.has('Cache-Control')) {
     if (dbDegraded) {
       headers.set('Cache-Control', 'public, max-age=20, stale-while-revalidate=120, stale-if-error=600')
@@ -258,10 +274,13 @@ export default {
     // 静态资源：通过 Assets 绑定服务并添加长期缓存头
     // /assets/* 文件名含内容哈希，可永久缓存
     // /stickers/* 和根目录静态文件（favicon/og 图等）变更频率极低；
+    // /sw.js 必须单独处理（.js 不在上面扩展名白名单里，否则会落到 SSR 链路 404），
+    // 并给 no-cache 以保证浏览器能及时拿到新版 SW（靠字节比对触发更新）。
     // 未命中 ASSETS 的路径（如 /rss.xml、/sitemap.xml 动态路由）会继续走 SSR
     const isStaticAsset =
       url.pathname.startsWith('/assets/') ||
       url.pathname.startsWith('/stickers/') ||
+      url.pathname === '/sw.js' ||
       /^\/[^/]+\.(?:png|jpe?g|gif|webp|svg|ico|webmanifest|txt)$/i.test(url.pathname)
 
     try {
@@ -271,6 +290,8 @@ export default {
           const headers = new Headers(assetResponse.headers)
           if (url.pathname.startsWith('/assets/')) {
             headers.set('Cache-Control', 'public, max-age=31536000, immutable')
+          } else if (url.pathname === '/sw.js') {
+            headers.set('Cache-Control', 'public, max-age=0, must-revalidate')
           } else {
             headers.set('Cache-Control', 'public, max-age=86400')
           }
@@ -294,7 +315,7 @@ export default {
       // 未快照的路径（文章页等）ASSETS 返回 404 → 落回下面的 SSR + 三级缓存链路。
       // ?preview=1 是管理员实时预览，绝不能被部署时点快照顶替。
       // /egg/ 是彩蛋原始 HTML 出口（handler 自带缓存策略），不走资产直出。
-      if (env.ASSETS && request.method === 'GET' && !url.pathname.startsWith('/admin') && !url.pathname.startsWith('/egg/') && !url.pathname.startsWith('/preview/') && url.searchParams.get('preview') !== '1') {
+      if (env.ASSETS && request.method === 'GET' && !isAdminPagePath(url.pathname) && !url.pathname.startsWith('/egg/') && !url.pathname.startsWith('/preview/') && url.searchParams.get('preview') !== '1') {
         try {
           const prerendered = await env.ASSETS.fetch(request)
           const isHtmlAsset =
@@ -318,7 +339,7 @@ export default {
       // /egg/ 彩蛋页由路由 handler 自带缓存头，不进入本缓存（管理员改彩蛋需即时生效）。
       const acceptsHtml = request.headers.get('accept')?.includes('text/html')
       const cacheableHtml =
-        acceptsHtml && !url.pathname.startsWith('/admin') && !url.pathname.startsWith('/api/') && !url.pathname.startsWith('/egg/') && !url.pathname.startsWith('/preview/')
+        acceptsHtml && !isAdminPagePath(url.pathname) && !url.pathname.startsWith('/api/') && !url.pathname.startsWith('/egg/') && !url.pathname.startsWith('/preview/')
       const kv = env.SG_CACHE
       const htmlCacheKey = `html:${url.pathname}`
       // 边缘缓存键归一化为 origin+pathname：UTM 等 query 参数不影响 HTML 内容，
@@ -359,7 +380,7 @@ export default {
 
       // ── HTML 缓存写入 ──
       const isHtml = (transformed.headers.get('content-type') || '').includes('text/html')
-      const isAdmin = url.pathname.startsWith('/admin')
+      const isAdmin = isAdminPagePath(url.pathname)
       const isOk = transformed.status >= 200 && transformed.status < 300
       const dbDegraded = transformed.headers.get('X-DB-Degraded') === '1'
       const isPreviewHtml = isPreviewRequest && isHtml && isOk && transformed.headers.get('X-Preview') === '1'
@@ -443,6 +464,7 @@ export default {
   // KV 额度优化：每次 cron 都跑 SELECT 1（0 KV 操作）；
   // 文章列表 KV 仅在计划分钟为 :00/:20/:40 时刷新（3 次/小时 = 72 次写/天，
   // 远低于免费版 1000 次写/天上限）。
+  // X岛爬虫 + TG 推送已搬到独立 Worker（crawler/），主站 cron 仅保留 warmupDb + autoRequeuePreviewFailed。
   async scheduled(event: unknown, env: AssetsEnv, ctx: ExecutionCtx): Promise<void> {
     setWorkerEnv(env)
     const scheduledTime = (event as { scheduledTime?: number } | null)?.scheduledTime
@@ -452,6 +474,7 @@ export default {
       await m.warmupDb(refreshCache)
       // 转换失败自动重试（attempts<3 + 10 分钟退避）：顺手搭 cron 的车，不额外消耗调度次数
       try { await m.autoRequeuePreviewFailed() } catch { /* 下轮 cron 再试 */ }
+      // X 岛爬虫 + TG 推送已搬到独立 Worker（crawler/），不再占用主站 cron 预算
     }))
   },
 }

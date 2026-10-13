@@ -18,6 +18,8 @@ const FeedbackManager = React.lazy(() => import('./components/ui/card').then((m)
 const SiteContentEditor = React.lazy(() => import('./components/ui/card').then((m) => ({ default: m.SiteContentEditor })))
 const NetworkTools = React.lazy(() => import('./components/network-tools').then((m) => ({ default: m.NetworkTools })))
 const RussianToolkit = React.lazy(() => import('./components/russian-toolkit').then((m) => ({ default: m.RussianToolkit })))
+const XdnmbBrowser = React.lazy(() => import('./components/xdnmb-browser').then((m) => ({ default: m.XdnmbBrowser })))
+const Chan233Browser = React.lazy(() => import('./components/chan233-browser').then((m) => ({ default: m.Chan233Browser })))
 const AdminGateWrap = React.lazy(() => import('./components/ui/card').then((m) => ({ default: m.AdminGateWrap })))
 
 type AnyLazy = LazyExoticComponent<ComponentType<unknown>>
@@ -114,6 +116,16 @@ export const getRouter = () => {
     getParentRoute: () => adminRoute,
     component: wrap(RussianToolkit as unknown as AnyLazy),
   })
+  const adminXdnmbRoute = createRoute({
+    path: 'xdnmb',
+    getParentRoute: () => adminRoute,
+    component: wrap(XdnmbBrowser as unknown as AnyLazy),
+  })
+  const adminChan233Route = createRoute({
+    path: 'c233',
+    getParentRoute: () => adminRoute,
+    component: wrap(Chan233Browser as unknown as AnyLazy),
+  })
 
   // /share：网络工具分享模式的公开页（免登录，凭 SG_SHARE cookie 访问 /api/net）
   // 不走 AdminGateWrap；页面挂载时经 /api/net?action=share_info 自检，invalid 则显示拒绝提示
@@ -157,6 +169,8 @@ export const getRouter = () => {
     adminContentRoute,
     adminNetworkRoute,
     adminRussianRoute,
+    adminXdnmbRoute,
+    adminChan233Route,
     adminSettingsRoute,
   ])
 

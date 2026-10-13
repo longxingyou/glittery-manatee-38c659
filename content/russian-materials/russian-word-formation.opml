@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>俄语构词法网络</title>
+  </head>
+  <body>
+    <outline text="构词法（Словообразование）" _note="俄语构词法完整网络 — 前缀/后缀/复合/交替/去后缀">
+      <outline text="前缀法（Приставочный способ）" _note="加前缀改变词义，词类不变">
+        <outline text="方位·运动前缀" _note="改变运动方向">
+          <outline text="при-" _note="来到：прийти, приехать" />
+          <outline text="вы-" _note="出去：выйти, выбежать" />
+          <outline text="у-" _note="离开：уйти, уехать" />
+          <outline text="от-/ото-" _note="走开：отойти, отбежать" />
+          <outline text="до-" _note="到达：дойти, доехать" />
+          <outline text="пере-" _note="穿过：перейти, переехать" />
+          <outline text="об-/обо-" _note="绕行：обойти, объехать" />
+        </outline>
+        <outline text="空间·位置前缀">
+          <outline text="на-" _note="附着：написать, положить" />
+          <outline text="за-" _note="标记：записать, заявить" />
+          <outline text="над-/надо-" _note="上方：надписать, надстроить" />
+          <outline text="под-/подо-" _note="下方：подписать, подкрасить" />
+          <outline text="между-" _note="之间：международный" />
+          <outline text="вне-" _note="外部：внеклассный" />
+        </outline>
+        <outline text="量·程度前缀">
+          <outline text="на-" _note="堆积：накопить, нарезать" />
+          <outline text="пере-" _note="过分：переделать, переоценить" />
+          <outline text="недо-" _note="不足：недоделать, недооценить" />
+          <outline text="про-" _note="透/过：прописать, прозевать" />
+        </outline>
+        <outline text="性质前缀">
+          <outline text="с-/со-" _note="合/共：сделать, соединить, сплести" />
+          <outline text="раз-/разо-" _note="分散：разбить, разобрать" />
+          <outline text="воз-/вз-/вос-" _note="向上：войти→возникать; взобраться" />
+          <outline text="низ-/нис-" _note="向下：низвергать" />
+          <outline text="пред-/предо-" _note="在前：предвидеть, предложить" />
+          <outline text="про-" _note="穿过/经过：пройти, пропустить" />
+          <outline text="бес-/без-" _note="无/缺：бесплатный, бесполезный" />
+        </outline>
+      </outline>
+      <outline text="后缀法（Суффиксальный способ）" _note="加后缀转词类或改变义">
+        <outline text="动词→名词">
+          <outline text="-ние" _note="动作结果：чтение, решение, движение" />
+          <outline text="-ка" _note="过程/工具：переписка, чистка, закуска" />
+          <outline text="-тель" _note="施事者：учитель, строитель, двигатель" />
+          <outline text="-ость" _note="抽象性质：новость, радость, опасность" />
+          <outline text="-ение" _note="过程：решение, движение, сохранение" />
+          <outline text="-ота" _note="状态：красота, высота, пустота" />
+        </outline>
+        <outline text="形容词→名词">
+          <outline text="-ость" _note="性质抽象：большой→величина, смелость" />
+          <outline text="-изна" _note="性质：новизна, темнота, дешевизна" />
+          <outline text="-ота" _note="状态：зеленота, желтизна" />
+        </outline>
+        <outline text="名词→形容词">
+          <outline text="-н-" _note="стол→столный, лес→лесной" />
+          <outline text="-ск-" _note="Москва→московский, город→городской" />
+          <outline text="-ов-" _note="отец→отцовский, моржовый" />
+          <outline text="-лив-" _note="способный→способливый, талантливый" />
+          <outline text="-чив-" _note="заботиться→заботливый, догадливый" />
+          <outline text="-ист-" _note="труд→трудный; гора→гористый" />
+        </outline>
+        <outline text="名词→动词">
+          <outline text="-ить" _note="普通变格法：парить, строить, учить" />
+          <outline text="-овать/-евать" _note="-ова: беседовать, танцевать, горевать" />
+          <outline text="-ировать" _note="舶来词缀：абонировать, копировать" />
+          <outline text="-нуть" _note="一次性：прыгнуть, стукнуть" />
+          <outline text="-ничать" _note="行为模式：хулиганить, лодырничать" />
+        </outline>
+        <outline text="形容词→副词">
+          <outline text="-о" _note="быстро, красиво, просто" />
+          <outline text="-и" _note="по-человечески, по-русски" />
+          <outline text="-ому" _note="по-новому" />
+        </outline>
+        <outline text="指小表爱后缀" _note="情感色彩">
+          <outline text="-ик/-ек" _note="столик, домик, шкафчик" />
+          <outline text="-к-" _note="ручка, девочка, собака→собачка" />
+          <outline text="-онк-" _note="小+轻贬: ручонка, книжонка" />
+          <outline text="-ушк/-юшка" _note="亲昵: хлебушко, девушшка" />
+          <outline text="-ищ-" _note="宏大: домище, ручища, голосище" />
+          <outline text="-еньк-" _note="亲昵: лёгонький, маленький" />
+        </outline>
+      </outline>
+      <outline text="前缀+后缀法" _note="同时加前后缀">
+        <outline text="бескрайний" _note="бес- + край + -ний" />
+        <outline text="бездельник" _note="без- + дело + -ник" />
+        <outline text="подорожник" _note="подо- + дорога + -ник" />
+      </outline>
+      <outline text="复合词（Сложение）">
+        <outline text="复合名词" _note="用 -о-/-е- 连接词根">
+          <outline text="половóдство" _note="половодье (半+水)" />
+          <outline text="междунарóдный" _note="между+народ" />
+          <outline text="самолёт" _note="сам(自己)+лёт(飞)" />
+          <outline text="пылесóс" _note="пыль(尘)+сос(吸)" />
+          <outline text="листопáд" _note="лист(叶)+опад(落)" />
+        </outline>
+        <outline text="复合形容词" _note="两个词根合并">
+          <outline text="темно-зелёный" _note="暗绿色的" />
+          <outline text="русско-китайский" _note="中俄的" />
+          <outline text="северо-западный" _note="西北的" />
+          <outline text="научно-технический" _note="科学技术的" />
+        </outline>
+        <outline text="缩略词">
+          <outline text="音节缩略" _note="СНГ, РФ, НИУ, МГУ" />
+          <outline text="首字母缩略" _note="ТАСС, РСФСР, ООН" />
+          <outline text="混合缩略" _note="МВД, СК РФ" />
+        </outline>
+      </outline>
+      <outline text="词根交替（Чередование）">
+        <outline text="元音交替" _note="度量变化">
+          <outline text="о/а" _note="собирать/собрать; начинать/начать" />
+          <outline text="е/и" _note="собирать/собрать; стирать/стере́ть" />
+          <outline text="о(ё)/零" _note="сосна/сосен; окно/окон" />
+        </outline>
+        <outline text="辅音交替" _note="影响词尾前的词根末辅音">
+          <outline text="г/ж/ч" _note="книга/книжный; друг/дружба" />
+          <outline text="к/ч/ц" _note="рука/ручной; птица" />
+          <outline text="х/ш" _note="муха/мучной" />
+          <outline text="д/ж/жд" _note="городить/граждать" />
+          <outline text="т/ч/щ" _note="студент/студенческий" />
+          <outline text="с/ш" _note="писать/пишу" />
+          <outline text="з/ж" _note="вязать/вяжу" />
+          <outline text="ст/щ" _note="честный/честь; плот/площать" />
+        </outline>
+      </outline>
+      <outline text="去后缀法（Бессуфиксный）" _note="去掉后缀构成新词">
+        <outline text="выход" _note="выходить→выход" />
+        <outline text="вход" _note="входить→вход" />
+        <outline text="сбор" _note="собирать→сбор" />
+        <outline text="запись" _note="записать→запись" />
+        <outline text="переход" _note="переходить→переход" />
+      </outline>
+    </outline>
+  </body>
+</opml>

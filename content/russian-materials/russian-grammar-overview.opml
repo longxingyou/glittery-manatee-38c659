@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>俄语语法体系总览</title>
+  </head>
+  <body>
+    <outline text="俄语语法体系" _note="Russian Grammar Overview — 思维导图总览，点击节点可展开/折叠">
+      <outline text="词类（Часть речи）">
+        <outline text="实词" _note="变化词类：有词形变化">
+          <outline text="名词 (существительное)" _note="性·数·格变化" />
+          <outline text="形容词 (прилагательное)" _note="性·数·格变化 + 比较级" />
+          <outline text="数词 (числительное)" _note="基数·序数·分数·集合" />
+          <outline text="代词 (местоимение)" _note="人称·物主·指示·疑问·限定" />
+          <outline text="动词 (глагол)" _note="变位·时·体·式·态" />
+          <outline text="分词 (причастие)" _note="形动词：动词→形容词性" />
+          <outline text="副动词 (деепричастие)" _note="动词→副词性" />
+        </outline>
+        <outline text="不变词类" _note="无词形变化">
+          <outline text="副词 (наречие)" _note="比较级可变" />
+          <outline text="前置词 (предлог)" _note="支配格" />
+          <outline text="连词 (союз)" _note="并列·从属" />
+          <outline text="语气词 (частица)" _note="бы/же/ли/не 等" />
+          <outline text="感叹词 (междометие)" _note="о! ах! увы!" />
+        </outline>
+      </outline>
+      <outline text="名词系统（Имя существительное）">
+        <outline text="性（Род）">
+          <outline text="阳性 (м.р.)" _note="辅音/-й/-ь结尾；如 стол, музей, день" />
+          <outline text="阴性 (ж.р.)" _note="-а/-я/-ь结尾；如 школа, земля, дверь" />
+          <outline text="中性 (ср.р.)" _note="-о/-е/-ие结尾；如 окно, море, здание" />
+          <outline text="共性名词" _note="сиротá, умнíца 等可随语境指男/女" />
+          <outline text="异格名词" _note="путь（阳性但变格如阴性）" />
+        </outline>
+        <outline text="数（Число）">
+          <outline text="单数（ед.ч.）" />
+          <outline text="复数（мн.ч.）" _note="词尾变化规则：辅音→ы, -а→ы, -о→а, -е→я 等" />
+        </outline>
+        <outline text="格（Падеж）— 6 格">
+          <outline text="第 1 格 主格 (Им.) — кто? что?" _note="主语/表语" />
+          <outline text="第 2 格 属格 (Род.) — кого? чего?" _note="所属/否定/数量" />
+          <outline text="第 3 格 与格 (Дат.) — кому? чему?" _note="间接宾语" />
+          <outline text="第 4 格 宾格 (Вин.) — кого? что?" _note="直接宾语" />
+          <outline text="第 5 格 工具格 (Твор.) — кем? чем?" _note="工具/方式" />
+          <outline text="第 6 格 前置格 (Предл.) — о ком? о чём?" _note="关于…（前置词 о/в/на）" />
+        </outline>
+        <outline text="变格法">
+          <outline text="第 1 变格法" _note="阳性辅音/-о结尾 + 中性" />
+          <outline text="第 2 变格法" _note="-а/-я结尾阴性" />
+          <outline text="第 3 变格法" _note="-ь结尾软变化（дверь, мать, путь）" />
+        </outline>
+      </outline>
+      <outline text="动词系统（Глагол）">
+        <outline text="变位（Спряжение）">
+          <outline text="第一变位 (Е спр.)" _note="-ать/-ять/-еть 部分动词；читать, писать" />
+          <outline text="第二变位 (И спр.)" _note="-ить + 部分 -ать/-еть；говорить, смотреть" />
+          <outline text="不定变位" _note="бежать, хотеть, дать 等混合变位" />
+        </outline>
+        <outline text="时（Время）">
+          <outline text="现在时" _note="未完成体变位 = 正在进行" />
+          <outline text="过去时" _note="去 -ть + -л(а/о/и)；如 читал/читала/читало/читали" />
+          <outline text="将来时">
+            <outline text="完成体将来时" _note="完成体变位 = 将来完成" />
+            <outline text="未完成体将来时" _note="быть + 未完成体不定式 = 将来持续" />
+          </outline>
+        </outline>
+        <outline text="体（Вид）">
+          <outline text="未完成体 (НСВ)" _note="читать — 过程/持续/重复" />
+          <outline text="完成体 (СВ)" _note="прочитать — 结果/完成/一次性" />
+          <outline text="体对偶" _note="НСВ↔СВ 对应关系：前缀法/词根交替/后缀法" />
+        </outline>
+        <outline text="式（Наклонение）">
+          <outline text="陈述式" _note="三种时态变位" />
+          <outline text="命令式" _note="第二人称 -й(те)/-и(те)；第一人称 давай(те)+不定式；第三人称 пусть" />
+          <outline text="假定式" _note="过去时 + бы；如 читал бы" />
+        </outline>
+        <outline text="态（Залог）">
+          <outline text="主动态" _note="主语发出动作" />
+          <outline text="被动态" _note="-ся 形式/被动形动词；如 строится, построенный" />
+          <outline text="反身/中动" _note="-ся：умываться, начинаться" />
+        </outline>
+        <outline text="非限定形式">
+          <outline text="不定式 (инфинитив)" _note="-ть/-ти；如 читать, нести" />
+          <outline text="形动词 (причастие)" _note="现在/过去 × 主动/被动" />
+          <outline text="副动词 (деепричастие)" _note="未完成体 -а/-я；完成体 -в/-вши" />
+        </outline>
+      </outline>
+      <outline text="形容词系统（Имя прилагательное）">
+        <outline text="变格" _note="与名词性数格一致：硬变化/软变化" />
+        <outline text="比较级">
+          <outline text="简单形式" _note="-ее/-е + 词根交替；быстрее, дешевле" />
+          <outline text="复合形式" _note="более + 原级；более красивый" />
+        </outline>
+        <outline text="最高级">
+          <outline text="简单形式" _note="最 + -ейш；красивейший" />
+          <outline text="复合形式" _note="самый + 原级；самый красивый" />
+        </outline>
+        <outline text="短尾形式" _note="去词尾 -ый→-；красив, красивá, красиво" />
+      </outline>
+      <outline text="句法（Синтаксис）">
+        <outline text="句子成分">
+          <outline text="主语 (подлежащее)" _note="第 1 格" />
+          <outline text="谓语 (сказуемое)" _note="动词/名词/形容词性" />
+          <outline text="宾语 (дополнение)" _note="直接(第4格)/间接(第3格等)" />
+          <outline text="定语 (определение)" _note="形容词/形动词/数词" />
+          <outline text="状语 (обстоятельство)" _note="副词/第5格" />
+        </outline>
+        <outline text="句型">
+          <outline text="简单句" _note="一个主谓结构" />
+          <outline text="并列复合句" _note="и, а, но, или 等连接" />
+          <outline text="主从复合句">
+            <outline text="定语从句" _note="который 等" />
+            <outline text="状语从句" _note="原因/目的/条件/让步/时间" />
+            <outline text="说明从句" _note="что, чтобы 引导" />
+          </outline>
+        </outline>
+        <outline text="无连接词复合句" _note="用标点直接连接" />
+      </outline>
+      <outline text="构词法（Словообразование）">
+        <outline text="前缀法（приставочный）" _note="при-/вы-/у-/пере- 等改变义" />
+        <outline text="后缀法（суффиксальный）" _note="-ость, -тель, -ник 等转类" />
+        <outline text="前缀+后缀法" _note="同时加前后缀" />
+        <outline text="复合词（сложение）" _note="междугородный, половодство" />
+        <outline text="词根交替（чередование）" _note="г/ж, к/ч, д/жд 等" />
+        <outline text="去后缀法（бессуфиксный）" _note="выход, вход" />
+      </outline>
+      <outline text="正字法与语音（Орфография и фонетика）">
+        <outline text="33 字母 = 10 元音 + 21 辅音 + 2 不发音符号" />
+        <outline text="重音（Ударение）" _note="自由重音；移动影响元音弱化" />
+        <outline text="元音弱化（Редукция）" _note="о→а, е→и（非重读音节）" />
+        <outline text="辅音清浊化" _note="词尾清化；浊前清、清前浊" />
+        <outline text="硬软音符号" _note="ъ 分隔前缀；ь 软化" />
+      </outline>
+    </outline>
+  </body>
+</opml>

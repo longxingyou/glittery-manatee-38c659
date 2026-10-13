@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>俄语动词体系网络</title>
+  </head>
+  <body>
+    <outline text="动词体系（Глагол）" _note="俄语动词的变位·时·体·式·态完整网络">
+      <outline text="两种变位法">
+        <outline text="第一变位法 (Е спряжение)" _note="词尾: -у(-ю), -ешь, -ет, -ем, -ете, -ут(-ют)">
+          <outline text="читáть" _note="НСВ (未完成体)">
+            <outline text="я читáю | ты читáешь | он/она читáет" />
+            <outline text="мы читáем | вы читáете | они читáют" />
+          </outline>
+          <outline text="писáть" _note="НСВ；词根交替 с→ш">
+            <outline text="я пишý | ты пúшешь | он пúшет" />
+            <outline text="мы пúшем | вы пúшете | они пúшут" />
+          </outline>
+          <outline text="жить" _note="НСВ；词根交替">
+            <outline text="живý, живёшь, живёт, живём, живёте, живýт" />
+          </outline>
+        </outline>
+        <outline text="第二变位法 (И спряжение)" _note="词尾: -у(-ю), -ишь, -ит, -им, -ите, -ат(-ят)">
+          <outline text="говорúть" _note="НСВ">
+            <outline text="я говорю | ты говорúшь | он говорúт" />
+            <outline text="мы говорúм | вы говорúте | они говорúт" />
+          </outline>
+          <outline text="смотрéть" _note="НСВ">
+            <outline text="смотрю, смóтришь, смóтрит, смóтрим, смóтрите, смóтрят" />
+          </outline>
+          <outline text="стáять" _note="НСВ；词根交替 в→вл">
+            <outline text="стáю, стáвишь, стáвит, стáвим, стáвите, стáвят" />
+          </outline>
+        </outline>
+        <outline text="混合变位" _note="特殊情况">
+          <outline text="бежáть" _note="单数第一变位, 复数第二变位" />
+          <outline text="хотéть" _note="单数第一变位, 复数第二变位" />
+          <outline text="дáть, есть" _note="古斯拉夫变位词尾" />
+        </outline>
+      </outline>
+      <outline text="时态（Время）">
+        <outline text="现在时" _note="仅未完成体有">
+          <outline text="НСВ 变位 = 正在进行/经常进行" />
+          <outline text="例: Я читаю книгу. (我正在读书)" />
+        </outline>
+        <outline text="过去时" _note="去 -ть + -л">
+          <outline text="阳性: читал" _note="он читал" />
+          <outline text="阴性: читала" _note="она читала" />
+          <outline text="中性: читало" _note="оно читало" />
+          <outline text="复数: читали" _note="они читали" />
+          <outline text="无 -л 形式" _note="нести→нёс, нестила→несла; беречь→берёг" />
+        </outline>
+        <outline text="将来时">
+          <outline text="完成体将来时 (СВ)" _note="СВ 变位 = 将来完成" />
+          <outline text="未完成体将来时 (НСВ)" _note="быть + 不定式; 如 буду читать" />
+          <outline text="例: Прочитáю (我将读完) vs Буду читать (我将读)" />
+        </outline>
+      </outline>
+      <outline text="体（Вид）— 核心概念">
+        <outline text="未完成体 (НСВ)" _note="强调过程、持续、重复">
+          <outline text="читáть, строить, писáть" />
+          <outline text="有现在时变位" />
+          <outline text="常配: долго, часто, всегда, обычно" />
+        </outline>
+        <outline text="完成体 (СВ)" _note="强调结果、完成、一次性">
+          <outline text="прочитáть, построить, написáть" />
+          <outline text="无现在时变位（仅有将来时）" />
+          <outline text="常配: вдруг, наконец, уже, быстро" />
+        </outline>
+        <outline text="体对偶构成法">
+          <outline text="前缀法" _note="НСВ + 前缀 → СВ: читать→прочитать, строить→построить" />
+          <outline text="后缀法" _note="СВ 去后缀 -ну-/-и- → НСВ: решить→решать, бросить→бросать" />
+          <outline text="词根交替法" _note="собрать(СВ)↔собирать(НСВ); shifts: а/и, о/а" />
+          <outline text="异根法" _note="говорить(НСВ)↔сказать(СВ); брать↔взять" />
+          <outline text="去前缀法" _note="НСВ 本身含前缀: приходить↔прийти" />
+        </outline>
+        <outline text="运动动词定向/不定向对偶" _note="独有体对">
+          <outline text="定向 (однонаправленный)" _note="идти, ехать, бежать — 朝一个方向走" />
+          <outline text="不定向 (неоднонаправленный)" _note="ходить, ездить, бегать — 多方向/往返/往返" />
+          <outline text="加前缀变化" _note="приходить/прийти, уходить/уйти 等 14 组方向对偶" />
+        </outline>
+      </outline>
+      <outline text="式（Наклонение）">
+        <outline text="陈述式" _note="三种时态变位" />
+        <outline text="命令式">
+          <outline text="第二人称" _note="ты: -й/-и/-ь; вы: 加 -те">
+            <outline text="第 1 变位: читай(те), пиши(те), режь(те)" />
+            <outline text="第 2 变位: говори(те), смотри(те), стой(те)" />
+          </outline>
+          <outline text="第一人称" _note="давай(те) + НСВ不定式 / давай(те) + 过去时复数">
+            <outline text="Давай читать! / Давайте споём!" />
+          </outline>
+          <outline text="第三人称" _note="пусть/пускай + 第3人称">
+            <outline text="Пусть он придёт. (让他来吧)" />
+          </outline>
+        </outline>
+        <outline text="假定式" _note="过去时 + бы">
+          <outline text="Я читал бы. (我会读的)" />
+          <outline text="Если бы я знал, я бы пришёл. (如果我知道，我就来了)" />
+          <outline text="бы 可在动词前后、从句句首/句末移动" />
+        </outline>
+      </outline>
+      <outline text="态（Залог）">
+        <outline text="主动态" _note="主语发出动作: Мальчик читает книгу." />
+        <outline text="被动态">
+          <outline text="-ся 形式" _note="Книга читается мальчиком." />
+          <outline text="被动形动词" _note="Книга, прочитанная мальчиком,..." />
+          <outline text="短尾被动形动词" _note="Книга прочитана. (书被读完了)" />
+        </outline>
+        <outline text="反身/中动" _note="-ся: умываться, начинаться, нравиться" />
+      </outline>
+      <outline text="非限定形式">
+        <outline text="不定式 (инфинитив)" _note="-ть/-ти: читать, нести, беречь" />
+        <outline text="形动词 (причастие)">
+          <outline text="现在主动" _note="-ущий/-ющий: читающий (正在读的)" />
+          <outline text="过去主动" _note="-вший: читавший (读过/正在读过的)" />
+          <outline text="现在被动" _note="-емый/-имый: читаемый (被读的)" />
+          <outline text="过去被动" _note="-нн(-ённ)/-т/-енн: прочитанный (被读过的)" />
+          <outline text="短尾被动形动词" _note="прочитан, прочитана, прочитано, прочитаны" />
+        </outline>
+        <outline text="副动词 (деепричастие)">
+          <outline text="未完成体" _note="-а/-я: читая (读着)" />
+          <outline text="完成体" _note="-в/-вши/-ши: прочитав (读完之后)" />
+        </outline>
+      </outline>
+      <outline text="前缀与运动动词">
+        <outline text="14 组方向前缀">
+          <outline text="в- (进入)" _note="войти/входить" />
+          <outline text="вы- (出去)" _note="выйти/выходить" />
+          <outline text="под- (靠近)" _note="подойти/подходить" />
+          <outline text="от- (离开)" _note="отойти/отходить" />
+          <outline text="до- (到达)" _note="дойти/доходить" />
+          <outline text="пере- (穿过)" _note="перейти/переходить" />
+          <outline text="у- (远离)" _note="уйти/уходить" />
+          <outline text="при- (来到)" _note="прийти/приходить" />
+          <outline text="об- (绕过)" _note="обойти/обходить" />
+          <outline text="за- (顺路)" _note="зайти/заходить" />
+          <outline text="на- (碰到)" _note="найти/находить" />
+          <outline text="с- (下来)" _note="сойти/сходить" />
+          <outline text="про- (经过)" _note="пройти/проходить" />
+          <outline text="из- (从内出)" _note="изойти/исходить" />
+        </outline>
+        <outline text="加前缀后全变完成体定向 + 配 НСВ 不定向" _note="прийти(СВ定向) ↔ приходить(НСВ不定向)" />
+      </outline>
+    </outline>
+  </body>
+</opml>

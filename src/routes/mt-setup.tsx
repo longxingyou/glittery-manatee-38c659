@@ -12,6 +12,10 @@ interface MtStatus {
   hasConfig: boolean
   hasSession: boolean
   chat: { id: string } | null
+  /** 自建本地 Bot API 网关是否已配置（TG_GATEWAY_URL/SECRET） */
+  gateway: boolean
+  /** Bot 存储（tg1）状态：token 在 Worker secret，chatId 在 secret 或 KV */
+  bot: { token: boolean; chatId: string | null } | null
 }
 interface MtCreds {
   apiId: number
@@ -280,14 +284,53 @@ function MtSetupPage() {
         <h1>{t('mts.title')}</h1>
         <p className="mts-muted" dangerouslySetInnerHTML={{ __html: t('mts.intro') }} />
 
-        <dl className="mts-status">
-          <dt>{t('mts.status.session')}</dt>
-          <dd className={status?.hasSession ? 'ok' : 'no'}>
-            {status?.hasSession ? t('mts.status.bound') : t('mts.status.none')}
-          </dd>
-          <dt>{t('mts.status.channel')}</dt>
-          <dd className={boundChat ? 'ok' : 'no'}>{boundChat ? boundChat.id : t('mts.status.none')}</dd>
-        </dl>
+        <section className="mts-group">
+          <h2 className="mts-group-title">
+            {t('mts.group.bot')}
+            <span className="mts-tag">{t('mts.tag.default')}</span>
+          </h2>
+          <dl className="mts-status">
+            <dt>Bot token</dt>
+            <dd className={status?.bot?.token ? 'ok' : 'no'}>
+              {status?.bot?.token ? t('mts.status.ok') : t('mts.status.none')}
+            </dd>
+            <dt>{t('mts.bot.chat')}</dt>
+            <dd className={status?.bot?.chatId ? 'ok' : 'no'}>
+              {status?.bot?.chatId || t('mts.status.none')}
+            </dd>
+            <dt>{t('mts.bot.gateway')}</dt>
+            <dd className={status?.gateway ? 'ok' : 'no'}>
+              {status?.gateway ? t('mts.status.ok') : t('mts.status.none')}
+            </dd>
+          </dl>
+          <p className="mts-muted">{t('mts.bot.note')}</p>
+          <div className="mts-actions">
+            <a className="mts-btn" href="/api/comments?action=tg-probe" target="_blank" rel="noreferrer">
+              {t('mts.bot.bind.page')}
+            </a>
+            {status?.bot?.token && status?.bot?.chatId && (
+              <a className="mts-btn" href="/api/comments?action=tg-selftest" target="_blank" rel="noreferrer">
+                {t('mts.bot.selftest')}
+              </a>
+            )}
+          </div>
+        </section>
+
+        <section className="mts-group">
+          <h2 className="mts-group-title">
+            {t('mts.group.mt')}
+            <span className="mts-tag alt">{t('mts.tag.fallback')}</span>
+          </h2>
+          <dl className="mts-status">
+            <dt>{t('mts.status.session')}</dt>
+            <dd className={status?.hasSession ? 'ok' : 'no'}>
+              {status?.hasSession ? t('mts.status.bound') : t('mts.status.none')}
+            </dd>
+            <dt>{t('mts.status.channel')}</dt>
+            <dd className={boundChat ? 'ok' : 'no'}>{boundChat ? boundChat.id : t('mts.status.none')}</dd>
+          </dl>
+          <p className="mts-muted" dangerouslySetInnerHTML={{ __html: t('mts.mt.note') }} />
+        </section>
 
         {error && <p className="mts-err" role="alert">{error}</p>}
 
@@ -380,40 +423,48 @@ function MtSetupPage() {
 
       <style>{`
         .mts-page { min-height: 100vh; display: flex; justify-content: center; padding: 48px 16px;
-          background: var(--bg, #0d1117); color: var(--text, #e6edf3); }
-        .mts-card { width: 100%; max-width: 640px; background: var(--surface, #161b22);
-          border: 1px solid var(--border, #30363d); border-radius: 12px; padding: 28px; }
+          background: var(--bg); color: var(--text); }
+        .mts-card { width: 100%; max-width: 640px; background: var(--panel);
+          border: 1px solid var(--line); border-radius: 12px; padding: 28px; }
         .mts-card h1 { font-size: 20px; margin: 0 0 8px; }
         .mts-card h2 { font-size: 15px; margin: 18px 0 8px; }
-        .mts-muted { color: var(--text-dim, #8b949e); font-size: 13px; line-height: 1.7; }
-        .mts-muted a { color: var(--accent, #4cc2ff); }
-        .mts-err { color: #f85149; font-size: 13px; line-height: 1.6; }
-        .mts-status { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; margin: 16px 0; font-size: 13px; }
-        .mts-status dt { color: var(--text-dim, #8b949e); }
-        .mts-status dd.ok { color: #3fb950; margin: 0; }
-        .mts-status dd.no { color: #8b949e; margin: 0; }
-        .mts-step { margin-top: 8px; border-top: 1px solid var(--border, #30363d); padding-top: 8px; }
-        .mts-label { display: block; font-size: 13px; margin: 10px 0; color: var(--text-dim, #8b949e); }
+        .mts-muted { color: var(--muted); font-size: 13px; line-height: 1.7; }
+        .mts-muted a { color: var(--accent-2); }
+        .mts-err { color: var(--red); font-size: 13px; line-height: 1.6; }
+        .mts-status { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; margin: 10px 0; font-size: 13px; }
+        .mts-status dt { color: var(--muted); }
+        .mts-status dd.ok { color: var(--status); margin: 0; word-break: break-all; }
+        .mts-status dd.no { color: var(--faint); margin: 0; }
+        .mts-group { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 4px; }
+        .mts-group-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .mts-tag { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 999px;
+          background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent);
+          border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+        .mts-tag.alt { background: transparent; color: var(--muted);
+          border-color: var(--line); }
+        .mts-actions .mts-btn { text-decoration: none; }
+        .mts-step { margin-top: 8px; border-top: 1px solid var(--line); padding-top: 8px; }
+        .mts-label { display: block; font-size: 13px; margin: 10px 0; color: var(--muted); }
         .mts-label input { display: block; width: 100%; margin-top: 4px; padding: 8px 10px; font-size: 14px;
-          background: var(--bg, #0d1117); color: var(--text, #e6edf3);
-          border: 1px solid var(--border, #30363d); border-radius: 8px; box-sizing: border-box; }
+          background: var(--bg); color: var(--text);
+          border: 1px solid var(--line); border-radius: 8px; box-sizing: border-box; }
         .mts-btn { display: inline-block; margin: 6px 8px 0 0; padding: 8px 16px; font-size: 13px; cursor: pointer;
-          background: transparent; color: var(--text, #e6edf3); border: 1px solid var(--border, #30363d);
+          background: transparent; color: var(--text); border: 1px solid var(--line);
           border-radius: 8px; }
-        .mts-btn.primary { background: var(--accent, #1f6feb); border-color: var(--accent, #1f6feb); color: #fff; }
-        .mts-btn.danger { color: #f85149; border-color: #f8514955; }
+        .mts-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+        .mts-btn.danger { color: var(--red); border-color: color-mix(in srgb, var(--red) 35%, transparent); }
         .mts-btn:disabled { opacity: .55; cursor: default; }
-        .mts-sep { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--border, #30363d); }
+        .mts-sep { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
         .mts-channels { list-style: none; padding: 0; margin: 10px 0; max-height: 320px; overflow: auto; }
         .mts-channel-btn { display: block; width: 100%; text-align: left; padding: 10px 12px; margin-bottom: 6px;
-          background: var(--bg, #0d1117); border: 1px solid var(--border, #30363d); border-radius: 8px;
-          color: var(--text, #e6edf3); cursor: pointer; }
-        .mts-channel-btn:hover { border-color: var(--accent, #1f6feb); }
+          background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+          color: var(--text); cursor: pointer; }
+        .mts-channel-btn:hover { border-color: var(--accent); }
         .mts-channel-title { display: block; font-size: 14px; }
-        .mts-channel-meta { display: block; font-size: 12px; color: var(--text-dim, #8b949e); margin-top: 2px; }
-        .mts-foot { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border, #30363d);
+        .mts-channel-meta { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+        .mts-foot { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line);
           font-size: 13px; }
-        .mts-foot a { color: var(--accent, #4cc2ff); }
+        .mts-foot a { color: var(--accent-2); }
       `}</style>
     </main>
   )

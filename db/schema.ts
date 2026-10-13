@@ -1,4 +1,4 @@
-import { bigserial, boolean, index, integer, pgTable, primaryKey, serial, text, timestamp } from 'drizzle-orm/pg-core'
+import { bigint, bigserial, boolean, index, integer, pgTable, primaryKey, serial, text, timestamp } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 
 // 自建账户体系（替代 Netlify Identity）：PBKDF2 密码哈希 + 邮箱验证 + 找回密码令牌
@@ -206,8 +206,109 @@ export const settings = pgTable('settings', {
   bannedWords: text('banned_words'), // 违禁词，逗号/换行分隔；与内置默认表合并生效
   netShareEnabled: boolean('net_share_enabled').notNull().default(false), // 网络工具分享模式总开关
   ruShareEnabled: boolean('ru_share_enabled').notNull().default(false), // 俄语工具箱分享模式总开关
+  xdnmbUserhash: text('xdnmb_userhash'), // 当前使用的 X 岛饼干（xdnmb_cookies 表中选中的一条，请求 Cookie 用）
+  xdnmbCookieName: text('xdnmb_cookie_name'), // 饼干显示名（7 位红叉 ID，识别"我的发言"用）
+  xdnmbFeedUuid: text('xdnmb_feed_uuid'), // X 岛订阅 ID（官方 Api/feed 用的 uuid，与饼干独立；首次打开设置自动生成）
+  xdnmbTgChat: text('xdnmb_tg_chat'), // X 岛订阅更新推送到的 Telegram chat_id
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
+
+// X 岛匿名版：收藏的串（仅管理员，/admin/xdnmb 使用）
+export const xdnmbFavs = pgTable('xdnmb_favs', {
+  id: bigint('id', { mode: 'number' }).primaryKey(), // 串 ID
+  fid: bigint('fid', { mode: 'number' }), // 所属版面 ID（快照）
+  title: text('title').notNull().default(''), // 标题快照（无标题存首行摘要）
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+// X 岛匿名版：订阅的串（cron 每 5 分钟检查新回复 → Telegram 推送）
+export const xdnmbSubs = pgTable('xdnmb_subs', {
+  id: bigint('id', { mode: 'number' }).primaryKey(),
+  fid: bigint('fid', { mode: 'number' }),
+  title: text('title').notNull().default(''),
+  lastReplyId: bigint('last_reply_id', { mode: 'number' }).notNull().default(0), // 已推送的最后一条回复 ID
+  lastReplyCount: integer('last_reply_count').notNull().default(0), // 已知回复总数
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+// X 岛匿名版：我的发言（官方无"按饼干查历史"接口，浏览串时被动采集 user_hash 匹配的楼层）
+export const xdnmbMyPosts = pgTable('xdnmb_my_posts', {
+  id: bigint('id', { mode: 'number' }).primaryKey(), // 楼层 ID（主楼时等于 tid）
+  tid: bigint('tid', { mode: 'number' }).notNull(), // 所属串 ID
+  fid: bigint('fid', { mode: 'number' }),
+  isPo: boolean('is_po').notNull().default(false), // 是否为主楼/发串
+  threadTitle: text('thread_title').notNull().default(''), // 所属串标题快照
+  content: text('content').notNull().default(''), // 净化后 HTML（截断保存）
+  img: text('img').notNull().default(''),
+  ext: text('ext').notNull().default(''),
+  now: text('now').notNull().default(''), // X 岛原始时间字符串
+  userHash: text('user_hash').notNull().default(''),
+  seenAt: timestamp('seen_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+// X 岛匿名版：饼干管理。订阅 ID 是论坛身份凭据，在官网用户中心（nmbxd.com/Member）
+// 登录后可为同一订阅 ID 获取最多 5 个饼干；alias 为本地备注（参考黎明岛），用于管理多个身份。
+export const xdnmbCookies = pgTable('xdnmb_cookies', {
+  userhash: text('userhash').primaryKey(), // 饼干值（官网二维码 JSON 的 cookie 字段，URL 编码形态）
+  alias: text('alias').notNull().default(''), // 备注（如"日常号"），仅本地身份管理用
+  cookieName: text('cookie_name').notNull().default(''), // 7 位显示 ID（二维码 JSON 的 name 字段，帖子上的 ID）
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+// X 岛本地搜索索引 ── 串（主楼）
+// 通过爬取 timeline/forum 页面填充，用于解决两个问题：
+// 1. >>No.xxx 回帖号直跳：posts.thread_id 反查父串
+// 2. 全论坛搜索（比 nmb-search 覆盖面更广，含时间线/版面所有公开串）
+export const xdnmbIndexThreads = pgTable(
+  'xdnmb_index_threads',
+  {
+    id: bigint('id', { mode: 'number' }).primaryKey(), // 串 ID
+    fid: bigint('fid', { mode: 'number' }), // 所属版面 ID
+    title: text('title').notNull().default(''), // 标题（纯文本，无标题存首行摘要）
+    content: text('content').notNull().default(''), // 主楼正文（纯文本，去 HTML，便于搜索）
+    replyCount: integer('reply_count').notNull().default(0),
+    lastReplyId: bigint('last_reply_id', { mode: 'number' }).notNull().default(0), // 已索引的末楼 ID（增量判断）
+    sage: integer('sage').notNull().default(0),
+    admin: integer('admin').notNull().default(0),
+    indexedAt: timestamp('indexed_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index('xdnmb_index_threads_fid_idx').on(table.fid)],
+)
+
+// X 岛本地搜索索引 ── 楼层（主楼 + 回复）
+// id 是回帖号；thread_id 反查父串，是 >>No.xxx 直跳的核心数据
+export const xdnmbIndexPosts = pgTable(
+  'xdnmb_index_posts',
+  {
+    id: bigint('id', { mode: 'number' }).primaryKey(), // 楼层 ID（回帖号）
+    threadId: bigint('thread_id', { mode: 'number' }).notNull(), // 父串 ID
+    content: text('content').notNull().default(''), // 纯文本（去 HTML），用于全文搜索
+    userHash: text('user_hash').notNull().default(''),
+    now: text('now').notNull().default(''), // X 岛原始时间字符串
+    sage: integer('sage').notNull().default(0),
+    admin: integer('admin').notNull().default(0),
+    indexedAt: timestamp('indexed_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('xdnmb_index_posts_thread_idx').on(table.threadId),
+    index('xdnmb_index_posts_now_idx').on(table.now),
+  ],
+)
+
+// X 岛本地搜索索引 ── 爬虫游标（每条 timeline/forum 的爬取进度）
+// 每 5 分钟 cron 扫一条时间线/版面，增量推进；全量爬完后游标重置回 0 触发新一轮
+export const xdnmbIndexCursors = pgTable(
+  'xdnmb_index_cursors',
+  {
+    kind: text('kind').notNull(), // 'timeline' | 'forum'
+    targetId: text('target_id').notNull(), // 时间线 ID 或版面 ID
+    page: integer('page').notNull().default(1), // 下次要爬的页码
+    round: integer('round').notNull().default(0), // 第几轮全量爬取
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.kind, table.targetId] })],
+)
 
 // 网络工具分享链接（/api/net 免登录访问）。token 与设备绑定密钥只存 SHA-256 哈希；
 // bound_hash 为空表示尚未被任何人打开，先打开者独占绑定（"只能一个人"）

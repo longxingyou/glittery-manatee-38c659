@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>俄语名词变格网络</title>
+  </head>
+  <body>
+    <outline text="名词变格系统" _note="Имя существительное — 名词的性·数·格变化网络">
+      <outline text="三种变格法">
+        <outline text="第 1 变格法（硬变化）" _note="阳性辅音/-о/-й 词干 + 中性 -о/-е">
+          <outline text="阳性 стóл" _note="辅音词尾">
+            <outline text="单数: стол-á-ý-стол-столóм-столé" _note="N: стол | G: столá | D: столý | A: стол | I: столóм | P: о столé" />
+            <outline text="复数: столы-ов-ам-ы-ами-ах" _note="N: столы | G: столóв | D: столáм | A: столы | I: столáми | P: о столáх" />
+          </outline>
+          <outline text="中性 окнó" _note="-о 词尾">
+            <outline text="单数: окно-а-у-о-ом-е" _note="N: окно | G: окнá | D: окнý | A: окно | I: окнóм | P: об окне" />
+            <outline text="复数: окна-он(零)-ам-а-ами-ах" _note="N: окна | G: óкон | D: окнáм | A: окна | I: окнáми | P: об окнáх" />
+          </outline>
+        </outline>
+        <outline text="第 2 变格法" _note="-а/-я 词尾（阴性为主，个别阳性人名）">
+          <outline text="阴性 шкóла" _note="-а 硬变化">
+            <outline text="单数: школа-ы-е-у-ой-е" _note="N: школа | G: шкóлы | D: шкóле | A: шкóлу | I: шкóлой | P: о шкóле" />
+            <outline text="复数: школы-ол-ам-ы-ами-ах" _note="N: школы | G: шкóл | D: шкóлам | A: школы | I: шкóлами | P: о шкóлах" />
+          </outline>
+          <outline text="阴性 землú" _note="-я 软变化">
+            <outline text="单数: земля-и-е-ю-ёй-е" _note="N: землý | G: землú | D: землé | A: зéмлю | I: зéмлёй | P: о землé" />
+            <outline text="复数: земли-ель-ям-и-ями-ях" _note="N: зéмли | G: земéль | D: землúм | A: зéмли | I: землúми | P: о землúх" />
+          </outline>
+        </outline>
+        <outline text="第 3 变格法" _note="-ь 软变化（阴性为主）">
+          <outline text="阴性 двéрь" _note="-ь 软词尾">
+            <outline text="单数: дверь-и-и-ерь-ью-и" _note="N: дверь | G: двéри | D: двéри | A: дверь | I: двéрью | P: о двéри" />
+            <outline text="复数: двери-ей-ам-и-ями-ах" _note="N: двéри | G: дверéй | D: дверáм | A: двéри | I: дверáми | P: о дверáх" />
+          </outline>
+        </outline>
+      </outline>
+      <outline text="特殊变化">
+        <outline text="异格名词 путь" _note="阳性但变格如第 3 变格法：пýть-и-и-уть-ём-и">
+          <outline text="复数: пути-ей-ям-и-ями-ях" _note="N: путú | G: путéй | D: путúм | A: путú | I: путúми | P: о путúх" />
+        </outline>
+        <outline text="共性名词" _note="сиротá, умнíца 等，按所指性别选择修饰词" />
+        <outline text="缩略词不变格" _note="СНГ, НИУ 等" />
+        <outline text="不变化名词" _note="кофе(阳), шоссе(中), метро(中) 等" />
+      </outline>
+      <outline text="前置词支配格">
+        <outline text="仅第 2 格" _note="без, для, до, из, от, ради, у, из-под, из-за" />
+        <outline text="仅第 3 格" _note="благодаря, вопреки, навстречу" />
+        <outline text="仅第 4 格" _note="про, через, сквозь, под, за, на, в(方向)" />
+        <outline text="仅第 5 格" _note="за(之后), между, над, перед, под, с" />
+        <outline text="第 6 格" _note="о/об, в, на, при, по(位置)" />
+        <outline text="多格前置词">
+          <outline text="в/на" _note="第 4 格(方向) ↔ 第 6 格(位置)" />
+          <outline text="с/со" _note="第 2 格(从) ↔ 第 5 格(与)" />
+          <outline text="о/об/обо" _note="第 4 格(碰) ↔ 第 6 格(关于)" />
+        </outline>
+      </outline>
+      <outline text="移动重音类型">
+        <outline text="固定重音" _note="столá → столóв 重音不变" />
+        <outline text="移动重音" _note="окнó → óкнен → окнá 重音移动" />
+        <outline text="词干重音 vs 词尾重音" _note="影响元音弱化模式" />
+      </outline>
+      <outline text="词干末辅音交替">
+        <outline text="г/ж/ч" _note="книга → кни́ги; друг → дру́жба" />
+        <outline text="к/ч/ц" _note="рука → ру́ки; око → о́чи(古)" />
+        <outline text="х/ш" _note="муха → му́хи" />
+        <outline text="д/ж/жд" _note="город → города,但 сажать" />
+        <outline text="т/ч/щ" _note="студент → студенческий" />
+        <outline text="с/ш" _note="писать → пишу" />
+        <outline text="з/ж" _note="вязать → вяжу" />
+        <outline text="ст/щ" _note="честный → честь" />
+      </outline>
+    </outline>
+  </body>
+</opml>

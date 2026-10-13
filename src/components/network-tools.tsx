@@ -56,7 +56,7 @@ interface ShareLinkInfo {
   bound: boolean
 }
 
-function buildNetUrl(action: 'gh' | 'fetch' | 'reader' | 'search' | 'share_info' | 'yt_search' | 'download' | 'bili_playurl', params: Record<string, string>): string {
+function buildNetUrl(action: 'gh' | 'fetch' | 'reader' | 'search' | 'share_info' | 'yt_search' | 'download' | 'bili_playurl' | 'acfun_m3u8' | 'douyin_resolve' | 'bili_resolve', params: Record<string, string>): string {
   const u = new URL(NET_API, window.location.origin)
   u.searchParams.set('action', action)
   for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v)
@@ -254,17 +254,37 @@ function CopyButton({ text, label, copiedKey, onCopied }: { text: string; label:
 // worker.ts 已放行：script-src api.bilibili.com（JSONP）、media-src *.bilivideo.com。
 // ────────────────────────────────────────────────────────────
 
-/** 从粘贴内容解析 B站/YouTube 视频标识；b23.tv 短链无法在浏览器侧解析（CORS），需先打开复制长链 */
-function parseVideoInput(raw: string): { site: 'bili' | 'yt'; id: string } | null {
+/** 从粘贴内容解析 B站/YouTube/抖音/AcFun 视频标识；支持整段 App 分享口令文本 */
+function parseVideoInput(raw: string): { site: 'bili' | 'yt' | 'douyin' | 'acfun'; id: string; needsResolve?: boolean; url?: string } | null {
   const s = raw.trim()
   if (!s) return null
+  // B站
   const bv = /BV[0-9A-Za-z]{10}/.exec(s)
   if (bv) return { site: 'bili', id: bv[0] }
   const av = /(?:^|[^\w])av(\d{6,})/i.exec(s)
   if (av) return { site: 'bili', id: `av${av[1]}` }
+  // B站短链（b23.tv / bili2233.cn，新版 App 分享常用后者）：
+  // Worker（优先 Azure 网关）跟随 302 提取 BV/av 号，保留原域名（短码不跨域通用）
+  const b23 = /(?:https?:\/\/)?(b23\.tv|bili2233\.cn)\/([0-9A-Za-z]+)/i.exec(s)
+  if (b23) return { site: 'bili', id: '', needsResolve: true, url: `https://${b23[1]}/${b23[2]}` }
+  // YouTube
   const yt = /(?:youtube\.com\/(?:watch\?[^#\s]*?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([0-9A-Za-z_-]{11})/.exec(s)
   if (yt) return { site: 'yt', id: yt[1] }
   if (/^[0-9A-Za-z_-]{11}$/.test(s)) return { site: 'yt', id: s }
+  // 抖音长链（www.douyin.com/video/{id} 或 iesdouyin.com/share/video/{id}）
+  const dyLong = /(?:douyin|iesdouyin)\.com\/(?:video|share\/video)\/(\d+)/.exec(s)
+  if (dyLong) return { site: 'douyin', id: dyLong[1] }
+  // 抖音短链 v.douyin.com/xxx：从口令文本截出纯 URL，交给 Worker 跟随 302 提取 aweme_id
+  const dyShort = /(?:https?:\/\/)?v\.douyin\.com\/([0-9A-Za-z][0-9A-Za-z_-]*)/i.exec(s)
+  if (dyShort) return { site: 'douyin', id: '', needsResolve: true, url: `https://v.douyin.com/${dyShort[1]}` }
+  // AcFun：桌面视频页 acfun.cn/v/ac{id}；App 分享 m.acfun.cn/v/?ac={id}
+  const acPage = /acfun\.cn\/v\/ac(\d+)/i.exec(s)
+  if (acPage) return { site: 'acfun', id: acPage[1] }
+  const acParam = /acfun\.cn\/[^\s]*?[?&]ac=(\d+)/i.exec(s) || /[?&]ac=(\d+)/i.exec(s)
+  if (acParam) return { site: 'acfun', id: acParam[1] }
+  // 兜底：口令文本里裸写的 ac 号
+  const acBare = /(?:^|[^\w])ac(\d{6,})(?!\d)/i.exec(s)
+  if (acBare) return { site: 'acfun', id: acBare[1] }
   return null
 }
 
@@ -342,7 +362,7 @@ function isTouchDevice(): boolean {
 function VideoPanel() {
   const t = useT()
   const [raw, setRaw] = React.useState('')
-  const [video, setVideo] = React.useState<{ site: 'bili' | 'yt'; id: string } | null>(null)
+  const [video, setVideo] = React.useState<{ site: 'bili' | 'yt' | 'douyin' | 'acfun'; id: string } | null>(null)
   const [error, setError] = React.useState('')
   const [q, setQ] = React.useState('')
   const [items, setItems] = React.useState<YtSearchItem[] | null>(null)
@@ -355,17 +375,37 @@ function VideoPanel() {
   const [streamErr, setStreamErr] = React.useState('')
   const [streamIdx, setStreamIdx] = React.useState(0)
 
-  const play = () => {
+  const play = async () => {
     setError('')
     const v = parseVideoInput(raw)
     if (!v) { setError(t('admin.net.video.invalid')); return }
-    setVideo(v)
+    // b23.tv / v.douyin.com 短链：Worker（优先 Azure 网关）跟随 302 提取视频 ID
+    if (v.needsResolve) {
+      setBusy(true)
+      try {
+        const res = await fetch(buildNetUrl(v.site === 'bili' ? 'bili_resolve' : 'douyin_resolve', { u: v.url || raw }), { credentials: 'same-origin' })
+        const data = (await res.json().catch(() => ({}))) as NetEnvelope
+        if (!res.ok || data.ok === false || !data.id) {
+          setError(data.error || t('admin.net.video.dyfail'))
+          setBusy(false)
+          return
+        }
+        v.id = data.id
+      } catch (e) {
+        setError(e instanceof Error ? e.message : t('admin.net.video.dyfail'))
+        setBusy(false)
+        return
+      }
+      setBusy(false)
+    }
+    setVideo({ site: v.site, id: v.id })
     setPageIdx(0)
     setStreamIdx(0)
     setBiliInfo(null)
     setStreams([])
     setStreamState('loading')
-    setMode(v.site === 'bili' && isTouchDevice() ? 'native' : 'embed')
+    // B站手机端默认直链；AcFun 仅 hls 直链；抖音仅嵌入；桌面默认嵌入
+    setMode(v.site === 'bili' && isTouchDevice() ? 'native' : v.site === 'acfun' ? 'native' : 'embed')
   }
 
   const search = async () => {
@@ -419,18 +459,69 @@ function VideoPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [biliId, mode, pageIdx])
 
+  // AcFun HLS 站内直链播放：动态加载 hls.js → 通过 Worker acfun_m3u8
+  // 代理获取重写后的 m3u8（ts 路径已替换为 acfun_seg 同源代理）→ MSE 播放。
+  // enableWorker: false 避免 blob: worker 被 CSP script-src 拦截。
+  const acfunId = video?.site === 'acfun' ? video.id : null
+  const acfunVideoRef = React.useRef<HTMLVideoElement>(null)
+  const hlsRef = React.useRef<{ destroy: () => void } | null>(null)
+  const [acfunState, setAcfunState] = React.useState<'loading' | 'ok' | 'error'>('loading')
+  React.useEffect(() => {
+    if (!acfunId) return
+    let cancelled = false
+    setAcfunState('loading')
+    ;(async () => {
+      try {
+        const Hls = (await import('hls.js')).default
+        if (cancelled) return
+        const hls = new Hls({ enableWorker: false })
+        hlsRef.current = hls
+        const el = acfunVideoRef.current
+        if (!el || cancelled) return
+        hls.attachMedia(el)
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          if (!cancelled) setAcfunState('ok')
+        })
+        hls.on(Hls.Events.ERROR, (_evt, data) => {
+          if (data.fatal && !cancelled) setAcfunState('error')
+        })
+        hls.loadSource(buildNetUrl('acfun_m3u8', { ac: acfunId }))
+      } catch {
+        if (!cancelled) setAcfunState('error')
+      }
+    })()
+    return () => {
+      cancelled = true
+      hlsRef.current?.destroy()
+      hlsRef.current = null
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [acfunId])
+
   // 参数严格按 B站官方外链播放器文档（https://player.bilibili.com/）：
   // aid/bvid 选一；p=分集；autoplay/danmaku 为布尔。
   const embedSrc = video
     ? video.site === 'bili'
       ? `https://player.bilibili.com/player.html${video.id.startsWith('av') ? `?aid=${video.id.slice(2)}` : `?bvid=${video.id}`}&p=${pageIdx + 1}&autoplay=0&danmaku=0`
-      : `https://www.youtube-nocookie.com/embed/${video.id}?autoplay=0&rel=0`
+      : video.site === 'yt'
+        ? `https://www.youtube-nocookie.com/embed/${video.id}?autoplay=0&rel=0`
+        : video.site === 'douyin'
+          // 抖音官方嵌入式播放器（开放平台现行地址）：
+          // - www.douyin.com/video/{id}：手机端 iframe 有登录墙，黑屏
+          // - open.douyin.com/platform/resource/embed：已迁移，现返回 Gatsby 官网静态页，黑屏
+          // - open.douyin.com/player/video：现行官方播放器（移动端 SPA，实测 200 无 XFO）
+          ? `https://open.douyin.com/player/video?vid=${video.id}&autoplay=0`
+          : '' // acfun 不走 iframe
     : ''
 
   const appDeepLink = video
     ? video.site === 'bili'
       ? `bilibili://video/${video.id.startsWith('av') ? video.id.slice(2) : video.id}`
-      : `vnd.youtube:${video.id}`
+      : video.site === 'yt'
+        ? `vnd.youtube:${video.id}`
+        : video.site === 'douyin'
+          ? `snssdk1128://aweme/detail/${video.id}`
+          : ''
     : ''
 
   return (
@@ -443,17 +534,17 @@ function VideoPanel() {
         <input
           value={raw}
           onChange={(e) => { setRaw(e.target.value); setError('') }}
-          onKeyDown={(e) => { if (e.key === 'Enter') play() }}
+          onKeyDown={(e) => { if (e.key === 'Enter') void play() }}
           placeholder={t('admin.net.video.placeholder')}
           spellCheck={false}
           style={{ flex: 1, minWidth: 240 }}
         />
-        <button type="button" className="primary-button" onClick={play}>{t('admin.net.video.play')}</button>
+        <button type="button" className="primary-button" disabled={busy} onClick={() => void play()}>{busy ? '…' : t('admin.net.video.play')}</button>
       </div>
       {error && <div className="banner error" style={{ marginTop: 10 }}>{error}</div>}
       {video && (
         <>
-          {/* 模式切换：B站支持嵌入/直链；YouTube 仅嵌入 */}
+          {/* 模式切换：仅 B站支持嵌入/直链双模式；抖音/AcFun 固定单模式 */}
           {video.site === 'bili' && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
               <button
@@ -473,17 +564,56 @@ function VideoPanel() {
             </div>
           )}
 
-          {mode === 'embed' || video.site === 'yt' ? (
-            <div style={{ position: 'relative', marginTop: 12, width: '100%', aspectRatio: '16 / 9', background: '#000', borderRadius: 8, overflow: 'hidden' }}>
-              <iframe
-                key={embedSrc}
-                src={embedSrc}
-                title={t('admin.net.video.title')}
-                allowFullScreen
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
-                referrerPolicy="no-referrer"
-                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 0 }}
-              />
+          {mode === 'embed' || video.site === 'yt' || video.site === 'douyin' ? (
+            <>
+              <div
+                style={
+                  video.site === 'douyin'
+                    // 抖音开放平台播放器内部是固定「手机竖屏」布局（video 区 contain
+                    // 居中，自带标题/作者栏），容器必须模拟手机竖屏才能完整显示：
+                    // - 宽度封顶 430px 按 9:16.2 等比（多出的 0.2 给播放器自带 UI）；
+                    // - max-height 用 svh（手机小视口，扣除动态地址栏），避免底部被裁；
+                    // - 横屏视频由播放器内部 contain 处理（与抖音 App 一致），需全画面
+                    //   可点播放器全屏按钮旋转观看；人为拉宽容器反而会裁掉画面。
+                    ? { position: 'relative', margin: '12px auto 0', width: 'min(100%, 430px)', aspectRatio: '9 / 16.2', maxHeight: '72svh', background: '#000', borderRadius: 8, overflow: 'hidden' }
+                    : { position: 'relative', marginTop: 12, width: '100%', aspectRatio: '16 / 9', background: '#000', borderRadius: 8, overflow: 'hidden' }
+                }
+              >
+                <iframe
+                  key={embedSrc}
+                  src={embedSrc}
+                  title={t('admin.net.video.title')}
+                  allowFullScreen
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+                  referrerPolicy="no-referrer"
+                  style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 0 }}
+                />
+              </div>
+              {video.site === 'douyin' && (
+                <div style={{ marginTop: 6, fontSize: 12, color: 'var(--muted)' }}>{t('admin.net.video.embedhint')}</div>
+              )}
+            </>
+          ) : video.site === 'acfun' ? (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ position: 'relative', width: '100%', aspectRatio: '16 / 9', background: '#000', borderRadius: 8, overflow: 'hidden' }}>
+                <video
+                  ref={acfunVideoRef}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', background: '#000' }}
+                />
+                {acfunState === 'loading' && (
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c9d1d9', fontSize: 14, background: '#000' }}>
+                    {t('admin.net.video.resolving')}
+                  </div>
+                )}
+                {acfunState === 'error' && (
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center', justifyContent: 'center', padding: 20, textAlign: 'center', color: '#f85149', fontSize: 13, background: '#000' }}>
+                    <span>{t('admin.net.video.hlsfail')}</span>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <div style={{ marginTop: 12 }}>
@@ -553,10 +683,20 @@ function VideoPanel() {
 
           {/* 外部打开兜底：新窗口顶层播放（已验证手机正常）/ 唤起 App */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 8, fontSize: 12 }}>
-            <a href={embedSrc} target="_blank" rel="noreferrer">
+            <a
+              href={
+                video.site === 'acfun'
+                  ? `https://www.acfun.cn/v/ac${video.id}`
+                  : video.site === 'douyin'
+                    ? `https://www.iesdouyin.com/share/video/${video.id}/`
+                    : embedSrc
+              }
+              target="_blank"
+              rel="noreferrer"
+            >
               {t('admin.net.video.openplayer')} <ExternalLink size={12} style={{ verticalAlign: '-2px' }} />
             </a>
-            <a href={appDeepLink}>{t('admin.net.video.openapp')}</a>
+            {appDeepLink && <a href={appDeepLink}>{t('admin.net.video.openapp')}</a>}
           </div>
         </>
       )}

@@ -269,6 +269,10 @@ export const Route = createRootRoute({
           : []),
       ],
       links: [
+        // 参考 cpolar 的 dns-prefetch 策略：提前解析 DNS，省 1 个 RTT。
+        // 对联通慢链路（跨境高延迟）尤其有意义。
+        // preconnect 需要目标域名支持且可能浪费连接，暂不加。
+        ...(origin ? [{ rel: 'dns-prefetch', href: origin }] : []),
         { rel: 'manifest', href: '/site.webmanifest' },
         // iOS 不读 manifest icons，主屏幕图标需单独声明
         { rel: 'apple-touch-icon', href: '/icon-192.png' },
@@ -363,6 +367,17 @@ function RootComponent() {
 
   // 客户端挂载后按需加载已选字体的 CSS（data-font 属性已由内联脚本在首帧前置好）
   useEffect(() => { initFontPrefs() }, [])
+
+  // 生产环境注册 Service Worker，提供离线阅读已访问文章的能力。
+  // 策略为导航 network-first（在线始终新鲜）、静态资源 cache-first，对在线用户零影响。
+  // 开发环境不注册，避免干扰 Vite HMR。
+  useEffect(() => {
+    if (!import.meta.env.PROD) return
+    if (!('serviceWorker' in navigator)) return
+    const register = () => { navigator.serviceWorker.register('/sw.js').catch(() => {}) }
+    if (document.readyState === 'complete') register()
+    else window.addEventListener('load', register, { once: true })
+  }, [])
 
   // 客户端同步标题到站点设置
   if (typeof document !== 'undefined') {

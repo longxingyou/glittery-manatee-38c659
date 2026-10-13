@@ -375,33 +375,62 @@ export function CommentSection({ postSlug }: { postSlug: string }) {
     if (msg) flash(msg)
   }
 
+  // 乐观更新：先本地插入临时评论，提交成功后 reload 以服务端数据替换；失败则回滚。
+  // 临时 id 取负值，避免与服务端真实 id 冲突；mine:true 让作者可立即编辑/删除。
+  const buildOptimistic = (text: string, parentId: number | null): CommentItem => ({
+    id: -Date.now() - Math.floor(Math.random() * 1000),
+    parentId,
+    userName: user?.name ?? me.email ?? '',
+    body: text,
+    createdAt: new Date().toISOString(),
+    editedAt: null,
+    status: 'published',
+    likes: 0,
+    mine: true,
+    signature: '',
+    tags: [],
+  })
+
   const submit = async () => {
     if (!me.email) { openAuth(); return }
     if (body.trim().length < 2) return
     setSending(true); setNotice(t('comments.submitting'))
+    const snapshot = body
+    const optimistic = buildOptimistic(snapshot, null)
+    setComments((prev) => [...prev, optimistic])
+    setBody('')
     try {
       const response = await fetch('/api/comments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ postSlug, body }),
+        body: JSON.stringify({ postSlug, body: snapshot }),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || t('comments.err.submit'))
-      setBody('')
       await reload(t('comments.published'))
-    } catch (error) { setNotice(error instanceof Error ? error.message : t('comments.err.submit')) }
-    finally { setSending(false) }
+    } catch (error) {
+      setComments((prev) => prev.filter((c) => c.id !== optimistic.id))
+      setBody(snapshot)
+      setNotice(error instanceof Error ? error.message : t('comments.err.submit'))
+    } finally { setSending(false) }
   }
 
   const handleReply = async (parentId: number, text: string) => {
-    const response = await fetch('/api/comments', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ postSlug, body: text, parentId }),
-    })
-    const data = await response.json()
-    if (!response.ok) throw new Error(data.error || t('comments.err.reply'))
-    await reload(t('comments.reply.published'))
+    const optimistic = buildOptimistic(text, parentId)
+    setComments((prev) => [...prev, optimistic])
+    try {
+      const response = await fetch('/api/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postSlug, body: text, parentId }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || t('comments.err.reply'))
+      await reload(t('comments.reply.published'))
+    } catch (error) {
+      setComments((prev) => prev.filter((c) => c.id !== optimistic.id))
+      throw error
+    }
   }
 
   const handleEdited = async (id: number, text: string) => {

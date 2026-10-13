@@ -1394,7 +1394,9 @@ async function handleMtStatusGet(): Promise<Response> {
     return Response.json({ error: '需要管理员登录。' }, { status: 401 })
   }
   const mt = await import('../lib/mtproto-store.js')
-  const [cfg, session, chat] = await Promise.all([mt.getMtConfig(), mt.getMtSession(), mt.getMtChat()])
+  const [cfg, session, chat, botChatId] = await Promise.all([
+    mt.getMtConfig(), mt.getMtSession(), mt.getMtChat(), getStorageChatId(),
+  ])
   return Response.json({
     configured: !!(cfg && session && chat),
     // 自建本地 Bot API 网关可用（大文件优先走它，无需 MTProto 个人会话）
@@ -1402,6 +1404,11 @@ async function handleMtStatusGet(): Promise<Response> {
     hasConfig: !!cfg,
     hasSession: !!session,
     chat: chat ? { id: chat.id } : null,
+    // Bot 存储（tg1）状态：与 MTProto 个人账号相互独立，/mt-setup 页一并展示避免误导
+    bot: {
+      token: !!getEnv().TG_BOT_TOKEN,
+      chatId: botChatId || null,
+    },
   }, { headers: PRIVATE_NO_STORE })
 }
 

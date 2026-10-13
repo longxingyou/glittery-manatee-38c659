@@ -6,12 +6,17 @@ on:
   schedule:
     # UTC 19:00 = Asia/Shanghai 03:00
     - cron: '0 19 * * *'
-  workflow_dispatch: # 允许手动触发
+  workflow_dispatch: # 允许手动触发；max_pages=0 可做全历史枚举（耗时长）
+    inputs:
+      max_pages:
+        description: '每版面扫描页数上限（0=不封顶）'
+        required: false
+        default: '20'
 
 jobs:
   catalog:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -27,4 +32,5 @@ jobs:
           XDNMB_USERHASH: ${{ secrets.XDNMB_USERHASH }}
           TG_GATEWAY_URL: ${{ secrets.TG_GATEWAY_URL }}
           TG_GATEWAY_SECRET: ${{ secrets.TG_GATEWAY_SECRET }}
+          MAX_PAGES_PER_BOARD: ${{ github.event.inputs.max_pages || '20' }}
         run: node scripts/xdnmb-catalog-full.mjs

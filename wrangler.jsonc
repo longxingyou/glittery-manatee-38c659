@@ -44,6 +44,15 @@
       "id": "cefb4baf6a094e62b437af1874466fc6"
     }
   ],
+  // X岛本地搜索索引：从 Neon 迁移到 D1（5GB / 5M 读 / 10万写 / 天，无计算小时概念）。
+  // 主站只读（search/find/stats），爬虫 Worker 读写。未配置时 db/index.ts 的 shim 自动回退 Neon。
+  "d1_databases": [
+    {
+      "binding": "XDNMB_DB",
+      "database_name": "xdnmb-index",
+      "database_id": "c6253cf1-b0c7-4f0a-89e4-fc3a79ac2c91"
+    }
+  ],
   // 附件二进制存储在 Telegram 云端（经 Bot API 代理转发/取回）：
   // 完全免费、无配额、无需绑卡；分片 ≤19 MiB 绕开 bot 上传 50MB / 下载 20MB 限制。
   // 需要 secrets：TG_BOT_TOKEN（bot token）、TG_STORAGE_CHAT_ID（存文件的私有频道/群组）。

@@ -1,0 +1,30 @@
+# X岛 catalog 全版面补充扫描（每日 03:00 Asia/Shanghai = 19:00 UTC 前一天）
+# 一次性扫完所有版面所有页，发现的未索引串入队 D1 recrawl_queue
+name: XDNMB Catalog Full Scan
+
+on:
+  schedule:
+    # UTC 19:00 = Asia/Shanghai 03:00
+    - cron: '0 19 * * *'
+  workflow_dispatch: # 允许手动触发
+
+jobs:
+  catalog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run catalog full scan
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          XDNMB_USERHASH: ${{ secrets.XDNMB_USERHASH }}
+          TG_GATEWAY_URL: ${{ secrets.TG_GATEWAY_URL }}
+          TG_GATEWAY_SECRET: ${{ secrets.TG_GATEWAY_SECRET }}
+        run: node scripts/xdnmb-catalog-full.mjs

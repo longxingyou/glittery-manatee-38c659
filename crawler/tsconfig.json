@@ -1,0 +1,13 @@
+{
+  "extends": "../tsconfig.json",
+  "include": [
+    "src/**/*.ts",
+    "../src/lib/xdnmb-api.ts",
+    "../src/lib/xdnmb-types.ts",
+    "../db/d1.ts"
+  ],
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {}
+  }
+}

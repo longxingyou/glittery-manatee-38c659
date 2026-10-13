@@ -1,0 +1,29 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "xdnmb-crawler",
+  "main": "./src/worker.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  // 5min: timeline 增量 + recrawl diff；6h: catalog 全版面翻页枚举
+  "triggers": {
+    "crons": ["*/5 * * * *", "0 */6 * * *"]
+  },
+  // 与主站共享同一 D1 数据库（主站只读，爬虫读写）
+  "d1_databases": [
+    {
+      "binding": "XDNMB_DB",
+      "database_name": "xdnmb-index",
+      "database_id": "c6253cf1-b0c7-4f0a-89e4-fc3a79ac2c91"
+    }
+  ],
+  "vars": {
+    "PUBLIC_ORIGIN": "https://wow.xn--fpr224a.mom"
+  },
+  "observability": {
+    "enabled": true
+  }
+  // secrets (wrangler secret put, 或 .dev.vars 本地开发)：
+  //   TG_GATEWAY_URL      Azure 网关地址（X岛 API 转发，绕过 CF Worker 403）
+  //   TG_GATEWAY_SECRET   网关 HMAC 共享密钥
+  //   TG_GATEWAY_DL_URL   可选，下载专用地址（缺省同 TG_GATEWAY_URL）
+}

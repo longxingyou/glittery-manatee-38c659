@@ -1,0 +1,30 @@
+# X岛长串深度爬取（每周一 04:00 Asia/Shanghai = 周日 20:00 UTC）
+# 爬取 reply_count > 200 的长串所有页，填充中段楼层索引
+name: XDNMB Deep Crawl
+
+on:
+  schedule:
+    # UTC 20:00 Sunday = Asia/Shanghai 04:00 Monday
+    - cron: '0 20 * * 0'
+  workflow_dispatch: # 允许手动触发
+
+jobs:
+  deep-crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run deep crawl
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          XDNMB_USERHASH: ${{ secrets.XDNMB_USERHASH }}
+          TG_GATEWAY_URL: ${{ secrets.TG_GATEWAY_URL }}
+          TG_GATEWAY_SECRET: ${{ secrets.TG_GATEWAY_SECRET }}
+        run: node scripts/xdnmb-deep-crawl.mjs

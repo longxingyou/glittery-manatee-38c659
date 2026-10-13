@@ -35,23 +35,6 @@ const D1_API = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/d
 const X_API = 'https://api.nmb.best/api'
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
 
-// ── D1 REST API ──
-
-async function d1Query(sql, params = []) {
-  const res = await fetch(D1_API, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${CF_API_TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sql, params }),
-  })
-  if (!res.ok) {
-    const txt = await res.text()
-    throw new Error(`D1 API ${res.status}: ${txt.slice(0, 300)}`)
-  }
-  const json = await res.json()
-  if (!json.success) throw new Error(`D1 错误: ${JSON.stringify(json.errors ?? json).slice(0, 300)}`)
-  return json.result?.[0]?.results ?? []
-}
-
 // ── 网关签名 ──
 
 function signGwToken(payload, ttlMs) {
@@ -139,14 +122,45 @@ function flattenForumIds(groups) {
   const ids = []
   for (const g of groups) {
     for (const f of g.forums || []) {
-      if (f.id) ids.push({ id: f.id, name: f.name || f.showName || f.id })
+      // 过滤伪版面（如"时间线" id=-1，showf 会报"该板块不存在"）
+      const n = Number(f.id)
+      if (f.id && Number.isFinite(n) && n > 0) ids.push({ id: n, name: f.name || f.showName || f.id })
     }
   }
   return ids
 }
 
+/** 批量条件入队（每页 1 次 D1 REST 调用，替代逐帖 2 次） */
+async function enqueueStale(items) {
+  if (!items.length) return 0
+  const params = []
+  for (const it of items) params.push(it.tid, it.replyCount)
+  const rows = items.map(() => '(?, ?)').join(',')
+  const res = await fetch(D1_API, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${CF_API_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sql:
+        `WITH v(tid, rc) AS (VALUES ${rows}) ` +
+        `INSERT INTO xdnmb_index_recrawl_queue (thread_id, due_at, status, attempts, updated_at) ` +
+        `SELECT v.tid, 0, 'pending', 0, unixepoch() FROM v ` +
+        `WHERE NOT EXISTS (SELECT 1 FROM xdnmb_index_threads t WHERE t.id = v.tid AND t.deleted_at IS NULL AND t.reply_count >= v.rc) ` +
+        `ON CONFLICT(thread_id) DO UPDATE SET due_at = MIN(excluded.due_at, due_at), status = 'pending', updated_at = unixepoch()`,
+      params,
+    }),
+  })
+  const json = await res.json()
+  if (!json.success) throw new Error(`D1 错误: ${JSON.stringify(json.errors ?? json).slice(0, 300)}`)
+  return Number(json.result?.[0]?.meta?.changes ?? 0)
+}
+
+// 每个版面每晚只扫前 MAX_PAGES 页（近期活跃串都在前几页）；
+// 全历史枚举是低频任务：手动触发时设 MAX_PAGES_PER_BOARD=0 不封顶。
+const MAX_PAGES = Math.max(0, Number(process.env.MAX_PAGES_PER_BOARD || 20))
+const CONCURRENCY = 6 // GitHub Actions 无 subrequest 限制，适度并发压缩墙钟时间
+
 async function main() {
-  console.log('[catalog-full] 开始全版面扫描')
+  console.log(`[catalog-full] 开始全版面扫描（每版面上限 ${MAX_PAGES || '∞'} 页，并发 ${CONCURRENCY}）`)
   const uh = XDNMB_USERHASH
 
   // 1. 获取版面列表
@@ -158,53 +172,42 @@ async function main() {
   let queued = 0
   let errors = 0
 
-  // 2. 逐版面翻页扫描
+  // 2. 逐版面：按 CONCURRENCY 分批并发翻页，遇空页提前结束
   for (const f of fids) {
     let page = 1
-    let emptyPages = 0
-    while (emptyPages < 3) { // 连续 3 个空页 = 版面扫完
-      let posts
-      try {
-        posts = await xFetch(`showf?id=${encodeURIComponent(f.id)}&page=${page}`, uh)
-      } catch (e) {
-        errors++
-        console.error(`[catalog-full] ${f.name} page ${page} 错误: ${e.message}`)
-        break
-      }
-      if (!posts || !posts.length) {
-        emptyPages++
-        page++
-        continue
-      }
-      emptyPages = 0
-
-      for (const p of posts) {
-        const tid = Number(p.id)
-        if (!Number.isFinite(tid) || tid <= 0) continue
-        const replyCount = Number(p.ReplyCount ?? 0)
-        // 检查 D1 是否已有此串
-        const rows = await d1Query(
-          'SELECT reply_count FROM xdnmb_index_threads WHERE id = ?1 AND deleted_at IS NULL LIMIT 1',
-          [tid],
-        )
-        const existing = rows[0]
-        if (!existing || Number(existing.reply_count) < replyCount) {
-          // 入队 recrawl（dueAt=0 立即待爬）
-          await d1Query(
-            `INSERT INTO xdnmb_index_recrawl_queue (thread_id, due_at, status, attempts, updated_at)
-             VALUES (?1, 0, 'pending', 0, unixepoch())
-             ON CONFLICT(thread_id) DO UPDATE SET due_at = 0, status = 'pending', updated_at = unixepoch()`,
-            [tid],
-          )
-          queued++
+    let done = false
+    while (!done && (MAX_PAGES === 0 || page <= MAX_PAGES)) {
+      const batchEnd = MAX_PAGES === 0 ? page + CONCURRENCY - 1 : Math.min(page + CONCURRENCY - 1, MAX_PAGES)
+      const pages = []
+      for (let p = page; p <= batchEnd; p++) pages.push(p)
+      const results = await Promise.all(
+        pages.map(async (p) => {
+          try {
+            return await xFetch(`showf?id=${encodeURIComponent(f.id)}&page=${p}`, uh)
+          } catch (e) {
+            errors++
+            console.error(`[catalog-full] ${f.name} page ${p} 错误: ${e.message}`)
+            return null
+          }
+        }),
+      )
+      for (const posts of results) {
+        if (posts === null) continue // 本页失败，下一批继续
+        if (!posts.length) { done = true; continue }
+        scanned++
+        const items = posts
+          .map((p) => ({ tid: Number(p.id), replyCount: Number(p.ReplyCount ?? 0) }))
+          .filter((it) => Number.isFinite(it.tid) && it.tid > 0)
+        try {
+          queued += await enqueueStale(items)
+        } catch (e) {
+          errors++
+          console.error(`[catalog-full] ${f.name} 入队失败: ${e.message}`)
         }
       }
-      scanned++
-      page++
-      // 每 50 页打印一次进度
-      if (page % 50 === 0) console.log(`[catalog-full] ${f.name} page ${page}...`)
+      page = batchEnd + 1
     }
-    console.log(`[catalog-full] ${f.name} 扫完 (${page} 页)`)
+    console.log(`[catalog-full] ${f.name} 扫完（至 page ${page - 1}）`)
   }
 
   console.log(`[catalog-full] 完成：扫描 ${scanned} 页，入队 ${queued} 串，错误 ${errors}`)

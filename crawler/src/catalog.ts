@@ -1,6 +1,6 @@
 /**
  * 版面 catalog 全枚举：每 6h cron 遍历版面翻页，发现新串或
- * reply_count 落后的入队 recrawl（dueAt=0 立即待爬）。
+ * reply_count 落后的按 tid 稳定摊平入队 recrawl。
  *
  * cursor 续传：每轮只跑 CATALOG_BUDGET 个版面页（subrequest），
  * 下次 6h cron 从上次位置继续。D1 调用不计 subrequest 上限。
@@ -22,8 +22,11 @@ import {
 } from '../../db/d1.js'
 
 const CATALOG_BUDGET = 40 // X岛 subrequest + D1 查询双预算（留 10 余量）
-/** 未收录串的排期窗口：30 天。按 tid 稳定取模摊平，避免整批 due=0 挤爆回扫预算 */
-const RECRAWL_SPREAD_SEC = 30 * 24 * 3600
+/**
+ * 未收录串的排期窗口：4 天。按 tid 稳定取模摊平，避免整批 due=0 挤爆回扫预算。
+ * 窗口 ≈ 积压量 / 日消化能力（Worker 约 2300 + GitHub 队列消化器约 3000）。
+ */
+const RECRAWL_SPREAD_SEC = 4 * 24 * 3600
 
 export interface CatalogResult {
   forumsScanned: number
@@ -85,8 +88,8 @@ export async function runCatalogCycle(
     }
 
     // 批量条件入队（1 次查询/页）：新串 / deleted / reply_count 落后 → 立即待爬
-    // 按 tid 稳定摊到未来 30 天（≈600/天）而非 due=0：整批"立即到期"会占满
-    // 5/tick 的回扫预算，导致 7 天的删帖 diff 永远排不上队。
+    // 按 tid 稳定摊到未来 4 天（≈4700/天）而非 due=0：整批"立即到期"会挤爆
+    // 回扫预算，导致 7 天的删帖 diff 永远排不上队。
     const nowSec = Math.floor(Date.now() / 1000)
     const items = posts
       .map((p) => {

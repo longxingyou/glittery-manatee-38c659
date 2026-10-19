@@ -13,7 +13,7 @@ on:
       limit:
         description: '每轮认领到期串数上限'
         required: false
-        default: '200'
+        default: '250'
       concurrency:
         description: '并发串数'
         required: false
@@ -33,7 +33,7 @@ jobs:
       - name: Drain recrawl queue
         env:
           MODE: queue
-          QUEUE_LIMIT: ${{ github.event.inputs.limit || '200' }}
+          QUEUE_LIMIT: ${{ github.event.inputs.limit || '250' }}
           QUEUE_CONCURRENCY: ${{ github.event.inputs.concurrency || '4' }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}

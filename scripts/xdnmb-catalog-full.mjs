@@ -3,8 +3,8 @@
  *
  * 爬虫 Worker 的 6h catalog cron 有 45 subrequest 预算限制，每轮只能扫
  * ~5 个版面 × 10 页。此脚本在 GitHub Actions 中运行（无 subrequest 限制），
- * 一次性扫完所有版面所有页，发现的未索引串入队 D1 recrawl_queue（dueAt=0），
- * 由爬虫 Worker 5min cron 拉取并完整爬取。
+ * 一次性扫完所有版面所有页，发现的未索引串按 tid 稳定摊平（4 天窗口）入队
+ * D1 recrawl_queue，由爬虫 Worker 5min cron 与队列消化器 Action 拉取并完整爬取。
  *
  * 环境变量（GitHub Secrets）：
  *   CLOUDFLARE_API_TOKEN    有 D1 写权限的 API token
@@ -143,7 +143,7 @@ async function enqueueStale(items) {
       sql:
         `WITH v(tid, rc) AS (VALUES ${rows}) ` +
         `INSERT INTO xdnmb_index_recrawl_queue (thread_id, due_at, status, attempts, updated_at) ` +
-        `SELECT v.tid, unixepoch() + (v.tid % 2592000), 'pending', 0, unixepoch() FROM v ` +
+        `SELECT v.tid, unixepoch() + (v.tid % 345600), 'pending', 0, unixepoch() FROM v ` +
         `WHERE NOT EXISTS (SELECT 1 FROM xdnmb_index_threads t WHERE t.id = v.tid AND t.deleted_at IS NULL AND t.reply_count >= v.rc) ` +
         `ON CONFLICT(thread_id) DO UPDATE SET due_at = MIN(excluded.due_at, due_at), status = 'pending', updated_at = unixepoch()`,
       params,

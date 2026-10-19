@@ -54,7 +54,7 @@ export default {
           // 5min: timeline + recrawl（共享 50-subrequest 预算）
           const tr = await runTimelineCycle(db, gw)
           console.log('[crawler] timeline:', tr ? JSON.stringify(tr) : 'null')
-          const rr = await runRecrawlCycle(db, gw, 5)
+          const rr = await runRecrawlCycle(db, gw, 8)
           console.log('[crawler] recrawl:', JSON.stringify(rr))
         }
       })().catch((e) => console.error('[crawler] cycle failed:', e instanceof Error ? (e.stack || e.message) : e)),
@@ -103,7 +103,7 @@ export default {
           return Response.json({ ok: true, mode, result: await runCatalogCycle(db, gw) })
         }
         const timeline = await runTimelineCycle(db, gw)
-        const recrawl = await runRecrawlCycle(db, gw, 5)
+        const recrawl = await runRecrawlCycle(db, gw, 8)
         return Response.json({ ok: true, mode, timeline, recrawl })
       } catch (e) {
         return Response.json(

@@ -1,16 +1,21 @@
 /**
- * X岛长串深度爬取（GitHub Actions weekly 运行）。
+ * X岛批量爬取（GitHub Actions 运行）。两种模式（MODE 环境变量）：
  *
- * 爬虫 Worker 的 5min timeline cron 只取首页+末页（快速模式），
- * 回复数 > 200 的长串中段楼层不会被索引。此脚本在 GitHub Actions 中运行
- * （无 subrequest 限制），逐页爬取长串所有楼层，通过 D1 REST API 写入。
+ *   MODE=parse（默认）：长串深度爬取（weekly cron）
+ *     Worker 的 5min timeline cron 只取首页+末页（快速模式），回复数 > 200 的
+ *     长串中段楼层不会被索引。此模式逐页爬取长串所有楼层，通过 D1 REST API 写入。
+ *     算法：查 reply_count > 200 且已索引楼层数 < reply_count 的串 → 逐页爬取 →
+ *     每批最多 50 个串，每串最多 100 页。
  *
- * 算法：
- * 1. 查 D1 中 reply_count > 200 且已索引楼层数 < reply_count 的串
- * 2. 对每个串逐页爬取（thread?id=X&page=N），upsert 所有楼层到 D1
- * 3. 每批最多 50 个串，每串最多 100 页，控制在 20 分钟内
+ *   MODE=queue：回扫队列消化器（每 2h cron）
+ *     认领 xdnmb_index_recrawl_queue 中 status='pending' 且已到期的串（due_at 升序），
+ *     完整爬取后标 done（下次 due = now + 7d）；失败退避 6h，attempts ≥ 5 标 failed。
+ *     catalog 扫到但尚未收录的积压串即由此消化，直接扩大搜索覆盖。
  *
- * 环境变量（GitHub Secrets）：
+ * 环境变量：
+ *   MODE                     运行模式：parse（默认）| queue
+ *   QUEUE_LIMIT              queue 模式每轮认领上限（默认 200）
+ *   QUEUE_CONCURRENCY        queue 模式并发串数（默认 4）
  *   CLOUDFLARE_API_TOKEN    有 D1 写权限的 API token
  *   CLOUDFLARE_ACCOUNT_ID   Cloudflare 账号 ID
  *   D1_DATABASE_ID          xdnmb-index 的 database_id
@@ -42,6 +47,15 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 const PAGE_SIZE = 19
 const MAX_THREADS = 50
 const MAX_PAGES_PER_THREAD = 100
+
+/** parse（默认，长串深爬）| queue（消化 recrawl_queue 积压） */
+const MODE = (process.env.MODE || 'parse').toLowerCase()
+const QUEUE_LIMIT = Math.max(1, Number(process.env.QUEUE_LIMIT || 200))
+const QUEUE_CONCURRENCY = Math.max(1, Number(process.env.QUEUE_CONCURRENCY || 4))
+const QUEUE_RETRY_SEC = 6 * 3600 // 失败退避 6h；attempts ≥ 5 → failed
+const QUEUE_DONE_SEC = 7 * 24 * 3600 // 成功 → done，下次回扫 7 天后（与 Worker 一致）
+/** D1 单查询最多 100 个绑定参数；每条楼层 7 列 → 每语句最多 14 行，取 10 留余量 */
+const POSTS_PER_STMT = 10
 
 // ── D1 REST API ──
 
@@ -162,29 +176,92 @@ async function upsertThreadD1(tid, fid, title, content, replyCount, lastReplyId,
   )
 }
 
-async function upsertPostD1(id, threadId, content, userHash, now, sage, admin) {
-  await d1Query(
-    `INSERT INTO xdnmb_index_posts (id, thread_id, content, user_hash, now, sage, admin, indexed_at, deleted_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, unixepoch(), NULL)
-     ON CONFLICT(id) DO UPDATE SET
-       thread_id = excluded.thread_id, content = excluded.content,
-       user_hash = excluded.user_hash, now = excluded.now,
-       sage = excluded.sage, admin = excluded.admin,
-       indexed_at = unixepoch(), deleted_at = NULL`,
-    [Number(id), Number(threadId), (content || '').slice(0, 4000),
-     (userHash || '').slice(0, 24), (now || '').slice(0, 40),
-     Number(sage ?? 0), Number(admin ?? 0)],
-  )
+/** 批量 upsert 楼层：一条多行 VALUES 语句 = 1 次 D1 REST 调用，替代逐帖 1 次 */
+async function upsertPostsBatchD1(rows) {
+  for (let i = 0; i < rows.length; i += POSTS_PER_STMT) {
+    const chunk = rows.slice(i, i + POSTS_PER_STMT)
+    const params = []
+    for (const r of chunk) {
+      params.push(
+        Number(r.id), Number(r.threadId), (r.content || '').slice(0, 4000),
+        (r.userHash || '').slice(0, 24), (r.now || '').slice(0, 40),
+        Number(r.sage ?? 0), Number(r.admin ?? 0),
+      )
+    }
+    const values = chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, unixepoch(), NULL)').join(',')
+    await d1Query(
+      `INSERT INTO xdnmb_index_posts (id, thread_id, content, user_hash, now, sage, admin, indexed_at, deleted_at)
+       VALUES ${values}
+       ON CONFLICT(id) DO UPDATE SET
+         thread_id = excluded.thread_id, content = excluded.content,
+         user_hash = excluded.user_hash, now = excluded.now,
+         sage = excluded.sage, admin = excluded.admin,
+         indexed_at = unixepoch(), deleted_at = NULL`,
+      params,
+    )
+  }
 }
 
 // ── 主流程 ──
 
-async function main() {
+/**
+ * 完整爬取一个串：首页探测总页数 → 逐页内联楼层 → 批量写 D1。
+ * 单页失败不中断其余页；返回 { ok, mainPost, replyCount, lastReplyId, pages, posts, errors }。
+ */
+async function crawlThreadFull(tid, uh) {
+  let mainPost
+  try {
+    mainPost = await xFetch(`thread?id=${encodeURIComponent(tid)}&page=1`, uh)
+  } catch (e) {
+    return { ok: false, error: e.message, pages: 0, posts: 0, errors: 1 }
+  }
+  const replyCount = Number(mainPost.ReplyCount ?? 0)
+  const lastPageNum = Math.min(Math.max(1, Math.ceil(replyCount / PAGE_SIZE)), MAX_PAGES_PER_THREAD)
+
+  const seen = new Set()
+  const rows = []
+  let lastReplyId = tid
+  let pages = 1
+  let errors = 0
+
+  const collect = (r) => {
+    const rid = Number(r.id)
+    if (!Number.isFinite(rid) || rid <= 0 || seen.has(rid)) return
+    seen.add(rid)
+    if (rid > lastReplyId) lastReplyId = rid
+    if (r.user_hash === 'Tips') return
+    rows.push({
+      id: rid, threadId: tid, content: toPlain(r.content),
+      userHash: String(r.user_hash || ''), now: String(r.now || ''),
+      sage: r.sage, admin: r.admin,
+    })
+  }
+
+  for (const r of [mainPost, ...(mainPost.Replies || [])]) collect(r)
+  for (let pg = 2; pg <= lastPageNum; pg++) {
+    try {
+      const page = await xFetch(`thread?id=${encodeURIComponent(tid)}&page=${pg}`, uh)
+      for (const r of page.Replies || []) collect(r)
+      pages++
+    } catch (e) {
+      errors++
+      console.error(`[crawl] 串 ${tid} page ${pg} 错误: ${e.message}`)
+    }
+  }
+
+  try {
+    await upsertPostsBatchD1(rows)
+  } catch (e) {
+    return { ok: false, error: e.message, pages, posts: 0, errors: errors + 1 }
+  }
+  return { ok: true, mainPost, replyCount, lastReplyId, pages, posts: rows.length, errors }
+}
+
+/** MODE=parse：长串深爬（reply_count > 200 但楼层不全的串） */
+async function deepCrawl() {
   console.log('[deep-crawl] 开始长串深度爬取')
   const uh = XDNMB_USERHASH
 
-  // 1. 查 D1 中需要深度爬取的串
-  // reply_count > 200 且已索引楼层数 < reply_count
   const threads = await d1Query(
     `SELECT t.id, t.reply_count, t.title,
             (SELECT COUNT(*) FROM xdnmb_index_posts p WHERE p.thread_id = t.id AND p.deleted_at IS NULL) AS post_count
@@ -202,69 +279,108 @@ async function main() {
 
   for (const t of threads) {
     const tid = Number(t.id)
-    const replyCount = Number(t.reply_count)
-    const lastPageNum = Math.max(1, Math.ceil(replyCount / PAGE_SIZE))
-    console.log(`[deep-crawl] 串 ${tid} (${t.title?.slice(0, 30) || ''}) reply_count=${replyCount} ${lastPageNum} 页`)
-
-    const seenIds = new Set()
-    let lastReplyId = tid
-    let threadMainPost = null
-    let pagesCrawled = 0
-
-    for (let pg = 1; pg <= Math.min(lastPageNum, MAX_PAGES_PER_THREAD); pg++) {
-      try {
-        const page = await xFetch(`thread?id=${encodeURIComponent(tid)}&page=${pg}`, uh)
-        if (pg === 1) {
-          threadMainPost = page
-        }
-        // 收集楼层
-        const allOnPage = [page, ...(page.Replies || [])]
-        for (const r of allOnPage) {
-          const rid = Number(r.id)
-          if (!Number.isFinite(rid) || rid <= 0 || seenIds.has(rid)) continue
-          seenIds.add(rid)
-          if (r.user_hash === 'Tips') continue
-          if (rid > lastReplyId) lastReplyId = rid
-          await upsertPostD1(rid, tid, toPlain(r.content), String(r.user_hash || ''), String(r.now || ''), r.sage, r.admin)
-          totalPosts++
-        }
-        pagesCrawled++
-      } catch (e) {
-        totalErrors++
-        console.error(`[deep-crawl] 串 ${tid} page ${pg} 错误: ${e.message}`)
-      }
-    }
+    console.log(`[deep-crawl] 串 ${tid} (${t.title?.slice(0, 30) || ''}) reply_count=${Number(t.reply_count)}`)
+    const r = await crawlThreadFull(tid, uh)
+    totalPosts += r.posts
+    totalErrors += r.errors
 
     // 更新串主楼（title/content/replyCount/lastReplyId）
-    if (threadMainPost) {
+    if (r.ok && r.mainPost) {
       await upsertThreadD1(
         tid,
-        threadMainPost.fid ?? null,
-        threadTitleFrom(threadMainPost),
-        toPlain(threadMainPost.content),
-        replyCount,
-        lastReplyId,
-        threadMainPost.sage,
-        threadMainPost.admin,
+        r.mainPost.fid ?? null,
+        threadTitleFrom(r.mainPost),
+        toPlain(r.mainPost.content),
+        Number(t.reply_count),
+        r.lastReplyId,
+        r.mainPost.sage,
+        r.mainPost.admin,
       )
     }
 
     // 安排 7 天后回扫
-    const nowSec = Math.floor(Date.now() / 1000)
     await d1Query(
       `INSERT INTO xdnmb_index_recrawl_queue (thread_id, due_at, status, attempts, updated_at)
        VALUES (?1, ?2, 'pending', 0, unixepoch())
        ON CONFLICT(thread_id) DO UPDATE SET due_at = excluded.due_at, status = 'pending', updated_at = unixepoch()`,
-      [tid, nowSec + 7 * 24 * 3600],
+      [tid, Math.floor(Date.now() / 1000) + 7 * 24 * 3600],
     )
 
-    console.log(`[deep-crawl] 串 ${tid} 完成：${pagesCrawled} 页，${seenIds.size} 楼层`)
+    console.log(`[deep-crawl] 串 ${tid} 完成：${r.pages} 页，${r.posts} 楼层`)
   }
 
   console.log(`[deep-crawl] 完成：${threads.length} 串，${totalPosts} 楼层，${totalErrors} 错误`)
 }
 
+/** MODE=queue：认领到期的积压串，完整爬取后标 done（消化 1.8 万条未收录积压） */
+async function drainQueue() {
+  const uh = XDNMB_USERHASH
+  const rows = await d1Query(
+    `SELECT thread_id FROM xdnmb_index_recrawl_queue
+     WHERE status = 'pending' AND due_at <= unixepoch()
+     ORDER BY due_at ASC LIMIT ?1`,
+    [QUEUE_LIMIT],
+  )
+  console.log(`[queue-drain] 认领到期 ${rows.length} 条（上限 ${QUEUE_LIMIT}，并发 ${QUEUE_CONCURRENCY}）`)
+  if (!rows.length) return
+
+  let ok = 0
+  let failed = 0
+  let posts = 0
+  let cursor = 0
+
+  const runOne = async (tid) => {
+    try {
+      const r = await crawlThreadFull(tid, uh)
+      if (!r.ok || !r.mainPost) throw new Error(r.error || '爬取失败')
+      await upsertThreadD1(
+        tid,
+        r.mainPost.fid ?? null,
+        threadTitleFrom(r.mainPost),
+        toPlain(r.mainPost.content),
+        r.replyCount,
+        r.lastReplyId,
+        r.mainPost.sage,
+        r.mainPost.admin,
+      )
+      await d1Query(
+        `UPDATE xdnmb_index_recrawl_queue
+         SET status = 'done', attempts = 0, due_at = unixepoch() + ?1, updated_at = unixepoch()
+         WHERE thread_id = ?2`,
+        [QUEUE_DONE_SEC, tid],
+      )
+      ok++
+      posts += r.posts
+    } catch (e) {
+      failed++
+      try {
+        await d1Query(
+          `UPDATE xdnmb_index_recrawl_queue
+           SET due_at = unixepoch() + ?1, attempts = attempts + 1,
+               status = CASE WHEN attempts + 1 >= 5 THEN 'failed' ELSE 'pending' END,
+               updated_at = unixepoch()
+           WHERE thread_id = ?2`,
+          [QUEUE_RETRY_SEC, tid],
+        )
+      } catch { /* 标记失败也不阻塞后续 */ }
+      console.error(`[queue-drain] 串 ${tid} 失败: ${e.message}`)
+    }
+  }
+
+  const worker = async () => {
+    while (cursor < rows.length) await runOne(Number(rows[cursor++].thread_id))
+  }
+  await Promise.all(Array.from({ length: QUEUE_CONCURRENCY }, worker))
+
+  console.log(`[queue-drain] 完成：成功 ${ok} 串 / 失败 ${failed} 串 / 写入 ${posts} 楼层`)
+}
+
+async function main() {
+  if (MODE === 'queue') return drainQueue()
+  return deepCrawl()
+}
+
 main().catch((e) => {
-  console.error('[deep-crawl] 致命错误:', e)
+  console.error('[crawl] 致命错误:', e)
   process.exit(1)
 })

@@ -1,0 +1,44 @@
+# X岛回扫队列消化器（每 2 小时）：认领到期积压串，完整爬取并入索引。
+# 与爬虫 Worker 5min cron 分工：Worker 每轮只做 8 个（subrequest 预算受限），
+# 本 Action 每轮可消化数百个（GitHub Actions 无 subrequest 限制），
+# 用于快速收敛 catalog 扫到但尚未收录的积压串 → 直接扩大搜索覆盖。
+name: XDNMB Queue Drain
+
+on:
+  schedule:
+    # 每 2 小时（UTC 偶数点）
+    - cron: '0 */2 * * *'
+  workflow_dispatch: # 允许手动触发
+    inputs:
+      limit:
+        description: '每轮认领到期串数上限'
+        required: false
+        default: '200'
+      concurrency:
+        description: '并发串数'
+        required: false
+        default: '4'
+
+jobs:
+  drain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Drain recrawl queue
+        env:
+          MODE: queue
+          QUEUE_LIMIT: ${{ github.event.inputs.limit || '200' }}
+          QUEUE_CONCURRENCY: ${{ github.event.inputs.concurrency || '4' }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          XDNMB_USERHASH: ${{ secrets.XDNMB_USERHASH }}
+          TG_GATEWAY_URL: ${{ secrets.TG_GATEWAY_URL }}
+          TG_GATEWAY_SECRET: ${{ secrets.TG_GATEWAY_SECRET }}
+        run: node scripts/xdnmb-deep-crawl.mjs

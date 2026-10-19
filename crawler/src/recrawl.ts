@@ -1,8 +1,8 @@
 /**
  * 删帖 diff 回扫：定期重新拉串首页+末页，diff 楼层 ID 集合，
- * 缺失的标记 deleted_at。每 5min cron 内剩余预算做 5 个串。
+ * 缺失的标记 deleted_at。每 5min cron 内剩余预算做 8 个串。
  *
- * 预算：5 threads × 2 fetch = 10 subrequest，加 timeline 22 = 32 < 50。
+ * 预算：8 threads × 2 fetch = 16 subrequest，加 timeline 22 = 38 < 50。
  */
 import { getThread, type XdGateway } from '../../src/lib/xdnmb-api.js'
 import {

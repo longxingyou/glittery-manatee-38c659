@@ -22,6 +22,8 @@ import {
 } from '../../db/d1.js'
 
 const CATALOG_BUDGET = 40 // X岛 subrequest + D1 查询双预算（留 10 余量）
+/** 未收录串的排期窗口：30 天。按 tid 稳定取模摊平，避免整批 due=0 挤爆回扫预算 */
+const RECRAWL_SPREAD_SEC = 30 * 24 * 3600
 
 export interface CatalogResult {
   forumsScanned: number
@@ -83,8 +85,14 @@ export async function runCatalogCycle(
     }
 
     // 批量条件入队（1 次查询/页）：新串 / deleted / reply_count 落后 → 立即待爬
+    // 按 tid 稳定摊到未来 30 天（≈600/天）而非 due=0：整批"立即到期"会占满
+    // 5/tick 的回扫预算，导致 7 天的删帖 diff 永远排不上队。
+    const nowSec = Math.floor(Date.now() / 1000)
     const items = posts
-      .map((p) => ({ tid: Number(p.id), replyCount: Number(p.ReplyCount ?? 0), dueAt: 0 }))
+      .map((p) => {
+        const tid = Number(p.id)
+        return { tid, replyCount: Number(p.ReplyCount ?? 0), dueAt: nowSec + (tid % RECRAWL_SPREAD_SEC) }
+      })
       .filter((it) => Number.isFinite(it.tid) && it.tid > 0)
     if (items.length) {
       try {

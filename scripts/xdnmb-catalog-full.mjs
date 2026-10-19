@@ -143,7 +143,7 @@ async function enqueueStale(items) {
       sql:
         `WITH v(tid, rc) AS (VALUES ${rows}) ` +
         `INSERT INTO xdnmb_index_recrawl_queue (thread_id, due_at, status, attempts, updated_at) ` +
-        `SELECT v.tid, 0, 'pending', 0, unixepoch() FROM v ` +
+        `SELECT v.tid, unixepoch() + (v.tid % 2592000), 'pending', 0, unixepoch() FROM v ` +
         `WHERE NOT EXISTS (SELECT 1 FROM xdnmb_index_threads t WHERE t.id = v.tid AND t.deleted_at IS NULL AND t.reply_count >= v.rc) ` +
         `ON CONFLICT(thread_id) DO UPDATE SET due_at = MIN(excluded.due_at, due_at), status = 'pending', updated_at = unixepoch()`,
       params,

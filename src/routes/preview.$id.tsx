@@ -287,6 +287,13 @@ function MarkdownView({ text }: { text: string }) {
   const ref = useRef<HTMLDivElement>(null)
   const html = useMemo(() => ruStressOutsideTags(renderMarkdown(text)), [text])
   useMermaidLazy(ref)
+  // SPA 动态渲染后浏览器已错过 #hash 滚动时机，手动补齐锚点跳转
+  useEffect(() => {
+    const hash = decodeURIComponent(window.location.hash.slice(1))
+    if (!hash) return
+    const el = ref.current?.querySelector(`[id="${CSS.escape(hash)}"]`)
+    if (el) el.scrollIntoView({ block: 'start' })
+  }, [html])
   return <article ref={ref} className="markdown-body pv-md" dangerouslySetInnerHTML={{ __html: html }} />
 }
 
@@ -752,6 +759,8 @@ function DownloadFallback({ info, token, navigate }: { info: AttachmentPreviewIn
     downloads: 0,
     createdAt: '',
     locked: false,
+    // 仅用于渲染下载按钮；实际门禁由 action=file 服务端按登录态/guestVisible/token 再次校验
+    guestVisible: false,
     gwDl: info.fileUrl || null,
   }
   return (

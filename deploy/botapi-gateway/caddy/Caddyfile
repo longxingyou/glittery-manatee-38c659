@@ -11,8 +11,42 @@
 	}
 }
 
+# 文渊（redbean 单文件）使用的绝对路径前缀（Next.js SPA + /api/* 路由）。
+# 与网关自身路由（/、/healthz、/tts、/bili-playurl、/dl、/xdnmb、/bot*）无冲突。
+# 注意：wen.com 以 systemd 跑在宿主机上，caddy 容器内访问需用 host.docker.internal。
+(wenPaths) {
+	@wenPaths path /_next/* /api/* /icon.svg /nah.user.js /admin* /bookmarks* /tags* /reset-password* /conflicts* /discard* /duplicate* /export* /history* /pin /pin/* /resolve* /revisions/* /rollback* /mod /mod/*
+	# redbean 静态资源只发 Last-Modified、不发 Cache-Control，浏览器启发式缓存
+	# 会让热更后的 chunk 长时间不生效；no-cache 强制每次校验（304 开销极小）。
+	handle @wenPaths {
+		header Cache-Control "no-cache"
+		reverse_proxy host.docker.internal:8091
+	}
+}
+
 gw.xn--fpr224a.mom {
-	reverse_proxy gateway:8080
+	# 文渊文档内的相对链接形如 /?did=xxx&dt=yyy（目录页 [[catalog]] 与正文互跳）。
+	# 根路径 / 同时是网关入口，故仅当带 did 查询参数时 307 跳进 /wen/，把用户留在文渊里。
+	# 注意：redir 首个路径样式参数会被当成内联 matcher，必须用命名 matcher。
+	@wenDocLink {
+		path /
+		query did=*
+	}
+	redir @wenDocLink /wen/?{query} 307
+	# /wen（无尾斜杠）→ /wen/，否则落到网关兜底 404
+	@wenRoot path /wen
+	redir @wenRoot /wen/ 308
+	# /wen/* 剥前缀后转发到文渊（根页面）
+	handle_path /wen/* {
+		header Cache-Control "no-cache"
+		reverse_proxy host.docker.internal:8091
+	}
+	# 文渊绝对路径前缀
+	import wenPaths
+	# 兜底：网关原有路由（healthz/tts/bili-playurl/dl/xdnmb/bot*）
+	handle {
+		reverse_proxy gateway:8080
+	}
 }
 
 # 下载专用域（手机整文件直下）：DNS A 记录先灰云签发证书，再开橙云代理。

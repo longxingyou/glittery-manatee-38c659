@@ -233,11 +233,14 @@ export async function handleSitemap(request: Request): Promise<Response> {
 type FullAttachmentRow = NonNullable<Awaited<ReturnType<typeof dbApi.getAttachmentFullRow>>>
 async function authorizeAttachment(url: URL): Promise<{ row: FullAttachmentRow } | Response> {
   const user = await dbApi.getCurrentUser()
-  if (!user) return Response.json({ authRequired: true, error: '请先登录后查看与下载附件。' }, { status: 401 })
   const id = Number(url.searchParams.get('id'))
   if (!Number.isInteger(id) || id <= 0) return Response.json({ error: '附件标识不合法。' }, { status: 400 })
   const row = await dbApi.getAttachmentFullRow(id)
   if (!row) return Response.json({ error: '附件不存在。' }, { status: 404 })
+  // 登录用户放行所有附件；游客仅放行「游客可见」附件（密码锁仍需下方有效令牌）
+  if (!user && !row.guestVisible) {
+    return Response.json({ authRequired: true, error: '请先登录后查看与下载附件。' }, { status: 401 })
+  }
   const token = url.searchParams.get('token') || ''
   if (row.passwordHash && row.passwordSalt) {
     if (!token) return Response.json({ locked: true, error: '此附件已加密，请提供密码后下载。' }, { status: 401 })
@@ -279,11 +282,14 @@ async function handleFileUrlsGet(url: URL): Promise<Response> {
 // 导航到网关，请求不经过 action=file 路径；前端用 sendBeacon 把计数打到这里。
 async function handleRecordDownloadPost(url: URL): Promise<Response> {
   const user = await dbApi.getCurrentUser()
-  if (!user) return Response.json({ authRequired: true, error: '请先登录后查看与下载附件。' }, { status: 401 })
   const id = Number(url.searchParams.get('id'))
   if (!Number.isInteger(id) || id <= 0) return Response.json({ error: '附件标识不合法。' }, { status: 400 })
   const row = await dbApi.getAttachmentFullRow(id)
   if (!row) return Response.json({ error: '附件不存在。' }, { status: 404 })
+  // 游客仅能为「游客可见」附件补记下载；其余附件维持登录门禁
+  if (!user && !row.guestVisible) {
+    return Response.json({ authRequired: true, error: '请先登录后查看与下载附件。' }, { status: 401 })
+  }
   // 密码锁附件走令牌下载路径（action=file 自带计数），不下发 gwDl，此处不重复计
   if (row.passwordHash && row.passwordSalt) return new Response(null, { status: 204 })
   await dbApi.recordDownload(id)
@@ -526,11 +532,14 @@ async function handleFileGet(request: Request, url: URL): Promise<Response> {
 // POST /api/comments?action=token&id=ID {password} → 返回下载令牌
 async function handleTokenPost(request: Request, url: URL): Promise<Response> {
   const user = await dbApi.getCurrentUser()
-  if (!user) return Response.json({ authRequired: true, error: '请先登录后查看与下载附件。' }, { status: 401 })
   const id = Number(url.searchParams.get('id'))
   if (!Number.isInteger(id) || id <= 0) return Response.json({ error: '附件标识不合法。' }, { status: 400 })
   const row = await dbApi.getAttachmentFullRow(id)
   if (!row) return Response.json({ error: '附件不存在。' }, { status: 404 })
+  // 游客仅能对「游客可见」附件取令牌（无密码直签 / 有密码仍需密码正确）；其余 401
+  if (!user && !row.guestVisible) {
+    return Response.json({ authRequired: true, error: '请先登录后查看与下载附件。' }, { status: 401 })
+  }
   if (!row.passwordHash || !row.passwordSalt) {
     // 未上锁的无需令牌——直接签发短期令牌用于下载计数
     const secret = await dbApi.getTokenSecret()

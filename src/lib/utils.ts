@@ -86,6 +86,8 @@ export type AttachmentPublic = {
   downloads: number
   createdAt: string
   locked: boolean
+  /** true = 游客（未登录）也可列出/预览/下载；默认 false（仅登录用户）。密码锁仍单独生效。 */
+  guestVisible: boolean
   /** true = MTProto 直传附件（服务端单响应窗口仅 16MiB，前端须走 Range 下载器） */
   stream?: boolean
   /** Office 附件的 PDF 预览转换状态：null = 未入队/直渲格式无此状态 */
@@ -101,6 +103,8 @@ export type CategoryLabel = {
   name: string
   nameEn: string | null
   nameRu: string | null
+  /** 该分类下文章数（DB + 静态）；仅分类列表接口返回，缺失按 0 处理（降级场景） */
+  count?: number
 }
 
 export type CategoryInfo = CategoryLabel & {

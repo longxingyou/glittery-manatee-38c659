@@ -221,6 +221,16 @@ const HTML_KV_WRITE_THROTTLE_MS = 600_000
 const htmlMemCache = new TtlCache<string>(30)
 const htmlKvWriteMark = new TtlCache<1>(200)
 
+// 构建版本：由 vite define 注入（见 vite.config.ts 的 __BUILD_ID__）。
+// 用于给 HTML 缓存建键 —— 缓存体是 SSR 出来的完整外壳，里面写死了
+// `assets/index-<hash>.js`；重新构建后 hash 变化、旧文件被删，若沿用旧键
+// 就会把「指向已删除 chunk 的外壳」继续发 1 小时，浏览器动态 import 404、
+// 整页白屏。加上版本后缀后，新构建天然读不到旧条目（旧条目随 TTL 自行回收）。
+// 未经构建（如 tsx 直跑测试、未替换 define）时退化为 "dev"，行为等同于从前。
+declare const __BUILD_ID__: string | undefined
+const BUILD_ID: string = typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev'
+const HTML_CACHE_VERSION = `v=${BUILD_ID}`
+
 /** 用缓存的 HTML body 构造响应（必须重新附加安全头，缓存体里只有 SSR 内容）。 */
 function cachedHtmlResponse(body: string, cacheStatus: string): Response {
   const headers = new Headers(buildSecurityHeaders())
@@ -341,10 +351,12 @@ export default {
       const cacheableHtml =
         acceptsHtml && !isAdminPagePath(url.pathname) && !url.pathname.startsWith('/api/') && !url.pathname.startsWith('/egg/') && !url.pathname.startsWith('/preview/')
       const kv = env.SG_CACHE
-      const htmlCacheKey = `html:${url.pathname}`
-      // 边缘缓存键归一化为 origin+pathname：UTM 等 query 参数不影响 HTML 内容，
-      // 避免 ?utm_source=xxx 之类链接把缓存打散成大量碎片
-      const edgeCacheUrl = `${url.origin}${url.pathname}`
+      // 缓存键含构建版本：新构建读不到旧外壳（见 HTML_CACHE_VERSION 注释）
+      const htmlCacheKey = `html:${HTML_CACHE_VERSION}:${url.pathname}`
+      // 边缘缓存键同样带版本。用查询参数而不是路径 —— 路径参与 CF 缓存键匹配，
+      // 且 ?__v= 不影响 ASSETS/SSR 的行为（worker 只按 pathname 路由）。
+      // 之前的边缘键是 origin+pathname，与 KV 键一样会被旧版本污染。
+      const edgeCacheUrl = `${url.origin}${url.pathname}?__v=${BUILD_ID}`
       // 管理员实时预览（?preview=1 且带登录 cookie）：绕过内存/edge/KV 全部读缓存，
       // 强制 SSR 拿 DB 最新内容（改稿即时可见）；是否真正为管理员由 loader 内
       // requireAdmin 把关，非管理员只是多走一次 SSR，无信息泄漏。
@@ -471,10 +483,23 @@ export default {
     const minute = scheduledTime ? new Date(scheduledTime).getMinutes() : new Date().getMinutes()
     const refreshCache = minute % 20 === 0
     ctx.waitUntil(import('./db/index.js').then(async (m) => {
-      await m.warmupDb(refreshCache)
-      // 转换失败自动重试（attempts<3 + 10 分钟退避）：顺手搭 cron 的车，不额外消耗调度次数
-      try { await m.autoRequeuePreviewFailed() } catch { /* 下轮 cron 再试 */ }
+      // Neon 免费 compute 额度优化：X岛搜索已走 D1 边缘读，不再每 5 分钟 SELECT 1 保活
+      // （否则 Neon 永不休眠，~730h/月烧光免费额度）。仅 :00/:20/:40 刷文章列表 KV 时
+      // 顺带预热一次，DB 闲置时允许自动休眠；评论/登录/附件首个请求承担一次冷启动。
+      if (refreshCache) await m.warmupDb(true)
+      // 转换失败自动重试（attempts<3 + 10 分钟退避）：同样只在 20 分钟节拍跑，
+      // 避免每 5 分钟的 UPDATE 又把 Neon 唤醒
+      if (refreshCache) try { await m.autoRequeuePreviewFailed() } catch { /* 下轮 cron 再试 */ }
       // X 岛爬虫 + TG 推送已搬到独立 Worker（crawler/），不再占用主站 cron 预算
     }))
+    // 文渊 → OSCA 桶对账同步：revision 变了重传、文渊删了桶里跟着删。
+    // 覆盖文渊 UI 直接编辑/删除（Worker 路由感知不到）；每拍限量防子请求超限。
+    if (refreshCache) {
+      ctx.waitUntil(
+        import('./src/lib/wenyuan-sync.js')
+          .then((m) => m.runWenyuanOscaSync())
+          .catch((e) => console.warn('[wenyuan-osca-sync]', e instanceof Error ? e.message : e)),
+      )
+    }
   },
 }

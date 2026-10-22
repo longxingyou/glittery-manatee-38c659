@@ -44,6 +44,9 @@ services:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
+    # 让 caddy 容器能反代到宿主机上跑的 systemd 服务（文渊 redbean :8091）
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - gateway
 

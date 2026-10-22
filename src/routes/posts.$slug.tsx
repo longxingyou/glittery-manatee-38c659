@@ -306,7 +306,7 @@ function RouteComponent() {
           <AttachmentPanel postSlug={post.slug} />
           <CommentSection postSlug={post.slug} />
           </article>
-          <ArticleOutline containerRef={articleRef} slug={post.slug} initialHeadings={initialHeadings} />
+          <ArticleOutline containerRef={articleRef} docId={post.slug} initialHeadings={initialHeadings} />
         </div>
       </div>
     </div>

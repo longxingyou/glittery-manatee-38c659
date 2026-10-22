@@ -8,12 +8,15 @@
     "build": "vite build",
     "snapshot": "node scripts/snapshot-pages.mjs",
     "migrate-xdnmb-to-d1": "node scripts/migrate-xdnmb-to-d1.mjs",
+    "migrate-neon-merge": "node scripts/migrate-neon-merge.mjs",
     "xdnmb-catalog-full": "node scripts/xdnmb-catalog-full.mjs",
     "xdnmb-deep-crawl": "node scripts/xdnmb-deep-crawl.mjs",
     "preview": "vite preview",
     "deploy": "vite build && node scripts/snapshot-pages.mjs && wrangler deploy",
     "cf-typegen": "wrangler types",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify:ru": "tsx scripts/verify-ru-all.ts",
+    "verify:ru-browser": "node scripts/browser-verify-share.mjs"
   },
   "dependencies": {
     "@fontpkg/smiley-sans": "^2.0.4",

@@ -40,6 +40,10 @@ import { myCommentsFn } from './user-fns'
 import { adminCommentsFn } from './admin-user-fns'
 import { foldPostsForLang, type CategoryLabel, type PostData } from '@/lib/utils'
 
+// 侧边栏分类树的展示阈值：达到该数量出现框内筛选；未展开时默认只露前 N 个
+const CAT_FILTER_THRESHOLD = 8
+const CAT_REVEAL = 7
+
 export function SiteShell({ children, categories }: { children: React.ReactNode; categories: CategoryLabel[] }) {
   const t = useT()
   const lang = useLang()
@@ -51,11 +55,32 @@ export function SiteShell({ children, categories }: { children: React.ReactNode;
   const activeArchive = decodedPath === '/archive' || decodedPath.startsWith('/archive/')
   const activeAdmin = decodedPath === '/admin' || decodedPath.startsWith('/admin/')
   const activeCat = (name: string) => decodedPath === `/category/${name}`
-  // 侧边栏分类按当前语言的展示名排序（链接仍用权威中文名）
+  // 侧边栏分类排序：先按文章数（DB+静态）降序——热门分类在前、0 篇新分类在末尾
+  // 但仍可见；数量相同再按当前语言展示名排序（链接仍用权威中文名）。
   const sortedCategories = useMemo(() => {
     const locale = lang === 'zh' ? 'zh-CN' : lang === 'ru' ? 'ru-RU' : 'en'
-    return [...categories].sort((a, b) => catName(a.name).localeCompare(catName(b.name), locale))
+    return [...categories].sort((a, b) => {
+      const diff = (b.count ?? 0) - (a.count ?? 0)
+      return diff !== 0 ? diff : catName(a.name).localeCompare(catName(b.name), locale)
+    })
   }, [categories, catName, lang])
+  // 分类很多时：整组可折叠、标题下可框内筛选（中/英/俄任一命中）、默认限量 + 展开
+  const [catCollapsed, setCatCollapsed] = useState(false)
+  const [catFilter, setCatFilter] = useState('')
+  const [catShowAll, setCatShowAll] = useState(false)
+  const filtering = catFilter.trim().length > 0
+  const filteredCategories = useMemo(() => {
+    const q = catFilter.trim().toLowerCase()
+    if (!q) return sortedCategories
+    return sortedCategories.filter((c) =>
+      [c.name, c.nameEn, c.nameRu].some((v) => (v || '').toLowerCase().includes(q)),
+    )
+  }, [sortedCategories, catFilter])
+  const visibleCategories =
+    !filtering && !catShowAll && filteredCategories.length > CAT_REVEAL
+      ? filteredCategories.slice(0, CAT_REVEAL)
+      : filteredCategories
+  const hiddenCatCount = filteredCategories.length - visibleCategories.length
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [adminBadge, setAdminBadge] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -183,19 +208,63 @@ export function SiteShell({ children, categories }: { children: React.ReactNode;
             <ShieldCheck size={15} /><span>{t('shell.admin.file')}</span>
           </Link>
         )}
-        <div className="tree-caption">{t('shell.categories')}</div>
-        {sortedCategories.map((category) => (
-          <Link
-            key={category.name}
-            to="/category/$category"
-            params={{ category: category.name }}
-            className={`tree-item${activeCat(category.name) ? ' selected' : ''}`}
-            onClick={() => setSidebarOpen(false)}
-          >
-            <span className="file-dot" />
-            <span>{catName(category.name)}.md</span>
-          </Link>
-        ))}
+        <button
+          type="button"
+          className="tree-caption tree-caption-btn"
+          aria-expanded={!catCollapsed}
+          onClick={() => setCatCollapsed((v) => !v)}
+        >
+          <ChevronDown size={12} className={`tree-caption-chevron${catCollapsed ? ' collapsed' : ''}`} />
+          {t('shell.categories')}
+        </button>
+        {!catCollapsed && (
+          <>
+            {categories.length >= CAT_FILTER_THRESHOLD && (
+              <div className="tree-filter-wrap">
+                <Search size={12} />
+                <input
+                  type="text"
+                  className="tree-filter"
+                  value={catFilter}
+                  placeholder={t('shell.cat.filter')}
+                  aria-label={t('shell.cat.filter')}
+                  onChange={(e) => { setCatFilter(e.target.value); setCatShowAll(false) }}
+                />
+                {catFilter && (
+                  <button type="button" className="tree-filter-clear" aria-label={t('common.close')} onClick={() => setCatFilter('')}>
+                    <X size={11} />
+                  </button>
+                )}
+              </div>
+            )}
+            {visibleCategories.map((category) => (
+              <Link
+                key={category.name}
+                to="/category/$category"
+                params={{ category: category.name }}
+                className={`tree-item${activeCat(category.name) ? ' selected' : ''}`}
+                onClick={() => setSidebarOpen(false)}
+              >
+                <span className="file-dot" />
+                <span className="tree-item-label">{catName(category.name)}.md</span>
+                {category.count ? <span className="tree-count" aria-hidden>{category.count}</span> : null}
+              </Link>
+            ))}
+            {filtering && visibleCategories.length === 0 && (
+              <div className="tree-empty">{t('shell.cat.empty')}</div>
+            )}
+            {!filtering && hiddenCatCount > 0 && (
+              <button type="button" className="tree-caption tree-more" onClick={() => setCatShowAll(true)}>
+                {t('shell.cat.more', { n: hiddenCatCount })}
+              </button>
+            )}
+            {!filtering && catShowAll && sortedCategories.length > CAT_REVEAL && (
+              <button type="button" className="tree-caption tree-more" onClick={() => setCatShowAll(false)}>
+                {t('shell.cat.less')}
+              </button>
+            )}
+          </>
+        )}
         <div className="tree-caption">{t('shell.subscribe')}</div>
         <a className="tree-item" href="/rss.xml" target="_blank" rel="noreferrer" onClick={() => setSidebarOpen(false)}>
           <Rss size={15} /><span>{t('shell.rss.file')}</span>

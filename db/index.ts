@@ -323,6 +323,7 @@ const schemaStatements = [
       size_bytes INTEGER NOT NULL DEFAULT 0,
       password_hash TEXT,
       password_salt TEXT,
+      guest_visible BOOLEAN NOT NULL DEFAULT FALSE,
       downloads INTEGER NOT NULL DEFAULT 0,
       preview_state TEXT,
       preview_attempts INTEGER NOT NULL DEFAULT 0,
@@ -331,6 +332,7 @@ const schemaStatements = [
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`,
     sql`ALTER TABLE attachments ADD COLUMN IF NOT EXISTS storage_key TEXT`,
+    sql`ALTER TABLE attachments ADD COLUMN IF NOT EXISTS guest_visible BOOLEAN NOT NULL DEFAULT FALSE`,
     sql`ALTER TABLE attachments ADD COLUMN IF NOT EXISTS preview_state TEXT`,
     sql`ALTER TABLE attachments ADD COLUMN IF NOT EXISTS preview_attempts INTEGER NOT NULL DEFAULT 0`,
     sql`ALTER TABLE attachments ADD COLUMN IF NOT EXISTS preview_at TIMESTAMPTZ`,
@@ -1084,6 +1086,31 @@ export function invalidatePublishedCache(slug?: string, categories?: string[]) {
   }
 }
 
+/**
+ * 分类增删改后失效含侧边栏分类树 / 分类页标题的边缘 HTML。
+ * 分类变更不影响已发布文章清单，故只清 html:*（首页、归档、相关分类页），
+ * 不动 posts:published / post:* 数据缓存（省一次 Neon 全表回源）。
+ * 硬加载若命中构建期静态快照（HIT-ASSET），由 __root 客户端分类补拉兜底。
+ * @param names 受影响的分类权威名（新建/改译名/删除传当前名；改名传 [旧名, 新名]）
+ */
+export function invalidateCategoryHtml(names: string[] = []): void {
+  const kv = getEnv().SG_CACHE
+  void safeKvDelete(kv, 'html:/')
+  void safeKvDelete(kv, 'html:/archive')
+  const paths = ['/', '/archive']
+  for (const raw of names) {
+    const name = (raw ?? '').trim()
+    if (!name) continue
+    const enc = encodeURIComponent(name)
+    void safeKvDelete(kv, `html:/category/${enc}`)
+    paths.push(`/category/${enc}`)
+  }
+  const origin = getWorkerOrigin()
+  if (origin) {
+    for (const p of paths) void edgeCacheDelete(`${origin}${p}`)
+  }
+}
+
 // 单篇文章内存缓存（同 isolate 5 分钟，零 KV 成本；容量 40 防止长文 content 撑大内存）；
 // HTML 边缘缓存命中时根本不会走到这里，这里只兜 SSR 场景（冷 colo/HTML KV 也 miss）。
 const SINGLE_POST_MEM_TTL = 300_000
@@ -1583,6 +1610,7 @@ export async function createCategory(
     .onConflictDoNothing()
   const row = (await useDb().select({ id: schema.categories.id, name: schema.categories.name }).from(schema.categories).where(eq(schema.categories.name, trimmed)).limit(1))[0]
   if (!row) throw new Error('分类创建失败。')
+  invalidateCategoryHtml([trimmed])
   return row
 }
 
@@ -1617,6 +1645,7 @@ export async function saveCategory(input: {
     if (!current) throw new Error('分类不存在或已被删除。')
     if (current.name === name) {
       await db.update(schema.categories).set({ nameEn, nameRu }).where(eq(schema.categories.id, current.id))
+      invalidateCategoryHtml([name])
       return { id: current.id, name }
     }
     // 权威名变更：静态文章仍引用旧名时禁止（会与 Markdown frontmatter 脱节）
@@ -1634,6 +1663,8 @@ export async function saveCategory(input: {
       sql`UPDATE posts SET categories = array_replace(categories, ${current.name}, ${name}) WHERE ${current.name} = ANY(categories)`,
     )
     await db.update(schema.categories).set({ name, nameEn, nameRu }).where(eq(schema.categories.id, current.id))
+    // 权威名变更：新旧分类页 + 首页/归档侧边栏都要失效
+    invalidateCategoryHtml([current.name, name])
     return { id: current.id, name }
   }
 
@@ -1645,6 +1676,7 @@ export async function saveCategory(input: {
     .limit(1))[0]
   if (existing) {
     await db.update(schema.categories).set({ nameEn, nameRu }).where(eq(schema.categories.id, existing.id))
+    invalidateCategoryHtml([name])
     return { id: existing.id, name }
   }
   const [ins] = await db
@@ -1652,6 +1684,7 @@ export async function saveCategory(input: {
     .values({ name, nameEn, nameRu })
     .returning({ id: schema.categories.id, name: schema.categories.name })
   if (!ins) throw new Error('分类创建失败。')
+  invalidateCategoryHtml([ins.name])
   return ins
 }
 
@@ -1667,6 +1700,7 @@ export async function deleteCategory(id: number): Promise<void> {
   // 从 DB 文章的分类数组中剔除
   await useDb().execute(sql`UPDATE posts SET categories = array_remove(categories, ${rows[0]!.name}) WHERE ${rows[0]!.name} = ANY(categories)`)
   await useDb().delete(schema.categories).where(eq(schema.categories.id, id))
+  invalidateCategoryHtml([rows[0]!.name])
 }
 
 // ============================================================
@@ -1702,6 +1736,7 @@ function toPublic(row: {
   downloads: number
   createdAt: Date | string
   passwordHash: string | null
+  guestVisible?: boolean | null
   storageKey?: string | null
   previewState?: string | null
 }): AttachmentPublic {
@@ -1714,13 +1749,17 @@ function toPublic(row: {
     downloads: row.downloads,
     createdAt: new Date(row.createdAt).toISOString(),
     locked: !!row.passwordHash,
+    guestVisible: !!row.guestVisible,
     previewState: row.previewState ?? null,
     // 大窗口/小窗口回源都由前端 Range 下载器拼接（见 attachment-download.ts）
     ...(attachmentNeedsStream(row.storageKey) ? { stream: true as const } : {}),
   }
 }
 
-export async function listAttachmentsPublic(postSlug: string): Promise<AttachmentPublic[]> {
+export async function listAttachmentsPublic(
+  postSlug: string,
+  opts: { guestOnly?: boolean } = {},
+): Promise<AttachmentPublic[]> {
   // 本地无 DB：附件面板隐藏
   if (!isDbConfigured()) return []
   // 读优先（稳态零 DDL）+ 超时重试
@@ -1735,6 +1774,7 @@ export async function listAttachmentsPublic(postSlug: string): Promise<Attachmen
             mimeType: schema.attachments.mimeType,
             sizeBytes: schema.attachments.sizeBytes,
             downloads: schema.attachments.downloads,
+            guestVisible: schema.attachments.guestVisible,
             previewState: schema.attachments.previewState,
             createdAt: schema.attachments.createdAt,
             passwordHash: schema.attachments.passwordHash,
@@ -1746,16 +1786,18 @@ export async function listAttachmentsPublic(postSlug: string): Promise<Attachmen
       { timeoutMs: 7000 },
     ),
   )
+  // 游客只能看到显式开放的附件；务必先过滤再签发网关直链（避免为隐藏附件签名 URL）。
+  const visibleRows = opts.guestOnly ? rows.filter((r) => r.guestVisible) : rows
   // 网关已配置时，为非密码锁的 tg1 附件签发整文件直连地址，随列表下发。
   // 手机浏览器直接导航到 gw 域名可由系统下载器接管；Worker 跨站 302 链在
   // 部分移动浏览器上无法唤起下载。密码锁附件解锁前不下发（门禁不绕过）。
   const gw = gatewayConfig()
-  const list = rows.map(toPublic)
+  const list = visibleRows.map(toPublic)
   if (gw) {
     await Promise.all(
       list.map(async (item, i) => {
         if (item.locked) return
-        const manifest = decodeAttachmentManifest(rows[i].storageKey)
+        const manifest = decodeAttachmentManifest(visibleRows[i].storageKey)
         if (!manifest) return
         try {
           item.gwDl = await gwDlUrl(
@@ -1782,6 +1824,7 @@ export async function listAttachmentsAdmin(postSlug?: string): Promise<Attachmen
         mimeType: schema.attachments.mimeType,
         sizeBytes: schema.attachments.sizeBytes,
         downloads: schema.attachments.downloads,
+        guestVisible: schema.attachments.guestVisible,
         createdAt: schema.attachments.createdAt,
         passwordHash: schema.attachments.passwordHash,
         storageKey: schema.attachments.storageKey,
@@ -1841,6 +1884,7 @@ export async function insertAttachment(params: {
       mimeType: schema.attachments.mimeType,
       sizeBytes: schema.attachments.sizeBytes,
       downloads: schema.attachments.downloads,
+      guestVisible: schema.attachments.guestVisible,
       createdAt: schema.attachments.createdAt,
       passwordHash: schema.attachments.passwordHash,
       storageKey: schema.attachments.storageKey,
@@ -1861,6 +1905,7 @@ export async function getAttachmentByStorageKey(storageKey: string): Promise<Att
             mimeType: schema.attachments.mimeType,
             sizeBytes: schema.attachments.sizeBytes,
             downloads: schema.attachments.downloads,
+            guestVisible: schema.attachments.guestVisible,
             previewState: schema.attachments.previewState,
             createdAt: schema.attachments.createdAt,
             passwordHash: schema.attachments.passwordHash,
@@ -1885,6 +1930,7 @@ export async function getAttachmentFullRow(id: number): Promise<{
   sizeBytes: number
   passwordHash: string | null
   passwordSalt: string | null
+  guestVisible: boolean
   previewState: string | null
 } | null> {
   // 读优先（稳态零 DDL）；content 为 base64 大字段，超时给足 9s
@@ -1902,6 +1948,7 @@ export async function getAttachmentFullRow(id: number): Promise<{
             sizeBytes: schema.attachments.sizeBytes,
             passwordHash: schema.attachments.passwordHash,
             passwordSalt: schema.attachments.passwordSalt,
+            guestVisible: schema.attachments.guestVisible,
             previewState: schema.attachments.previewState,
           })
           .from(schema.attachments)
@@ -1926,6 +1973,16 @@ export async function setAttachmentPassword(id: number, password: string | null)
   await useDb()
     .update(schema.attachments)
     .set({ passwordHash: hash, passwordSalt: salt })
+    .where(eq(schema.attachments.id, id))
+}
+
+/** 切换附件「游客可见」：默认 false（需登录）。ensureSchema 兜底补列（新部署首调）。 */
+export async function setAttachmentGuestVisible(id: number, visible: boolean): Promise<void> {
+  await requireAdmin()
+  await ensureSchema()
+  await useDb()
+    .update(schema.attachments)
+    .set({ guestVisible: visible })
     .where(eq(schema.attachments.id, id))
 }
 

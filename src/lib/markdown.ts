@@ -103,13 +103,19 @@ function decodeEntities(s: string): string {
 }
 
 /**
- * 从 renderMarkdown 产物中提取 h2-h4 大纲（与 article-outline 的 DOM 提取同口径：
+ * 从 renderMarkdown 产物中提取大纲（与 article-outline 的 DOM 提取同口径：
  * 剔除尾部 # 锚点链接、实体解码）。纯字符串解析，SSR 阶段可用——
  * 让大纲按钮直接进入首屏 HTML，不依赖客户端水合才出现（弱网下水合可能延迟或失败）。
+ *
+ * 默认 h2–h4（文章页正文口径）；课程精讲用 renderMarkdown(src, 1) 渲染，
+ * 标题整体下移一级，实际落在 h3–h5，因此需要显式放宽上下界。
  */
-export function extractHeadingsFromHtml(html: string): MarkdownHeading[] {
+export function extractHeadingsFromHtml(html: string, minLevel = 2, maxLevel = 4): MarkdownHeading[] {
   const out: MarkdownHeading[] = []
-  for (const m of html.matchAll(/<h([2-4])\s+id="([^"]+)"[^>]*>([\s\S]*?)<\/h\1>/g)) {
+  const lo = Math.min(minLevel, maxLevel)
+  const hi = Math.max(minLevel, maxLevel)
+  const re = new RegExp(`<h([${lo}-${hi}])\\s+id="([^"]+)"[^>]*>([\\s\\S]*?)<\\/h\\1>`, 'g')
+  for (const m of html.matchAll(re)) {
     // 剥离尾部 <a class="anchor">#</a> 与其余标签，得到纯文本
     const inner = m[3].replace(/<a[^>]*class="anchor"[^>]*>[\s\S]*?<\/a>/, '')
     const text = decodeEntities(inner.replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim()
@@ -398,7 +404,10 @@ export function renderMarkdown(source: string, headingShift = 0) {
         level: 'block',
         start(src: string) { return src.match(/^> \[!/m)?.index },
         tokenizer(src: string) {
-          const head = /^> \[!(\w+)(?:\|(\w+))?\][ \t]*([+-])?[ \t]*([^\n]*)\n?/.exec(src)
+          // 折叠标记必须**紧跟** ] 之后（`[!tip]- 标题`）。允许 ] 与记号之间有空格的写法会
+          // 把「> [!warning] -ь 结尾的词」这类以词素开头的标题误判为折叠块，并吃掉首字符。
+          // 因此这里要求记号与 ] 相邻；`[!tip] - 标题` 一律视为标题文本。
+          const head = /^> \[!(\w+)(?:\|(\w+))?\](?:([+-])(?=[ \t]|$))?[ \t]*([^\n]*)\n?/.exec(src)
           if (!head) return
           const rawType = head[1].toLowerCase()
           const type = CALLOUT_ALIASES[rawType] ?? rawType

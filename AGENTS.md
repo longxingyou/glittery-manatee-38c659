@@ -28,3 +28,26 @@ Syntax Garden is a TanStack Start application deployed on Cloudflare Workers (`w
 ## Non-obvious Decisions
 
 The blog content remains static for fast builds and straightforward editorial workflows, while comments use server-side persistence. Auth is fully self-hosted (no third-party identity widget): `/api/auth` issues signed JWTs, stores only token hashes for verification/reset links, and sets cookies directly on the returned `Response`. Without `RESEND_API_KEY` configured, new accounts are auto-confirmed (local development only). Raw HTML in Markdown is escaped, while KaTeX output is inserted only from locally rendered formula expressions.
+
+## Resource Consumption & Quota Register
+
+This register tracks all free-tier quotas and mitigations. Check monthly; treat any threshold breach as a deployment blocker until resolved.
+
+| Service | Quota / Limit | Current Mitigation | Risk Level | Action if Exceeded |
+|---------|--------------|-------------------|------------|-------------------|
+| **Neon Compute** | 500 h/month (free) | `warmupDb` reduced to 20-min cadence inside `refreshCache` (was every 5 min). Cold starts acceptable. | Low | If approaching limit again, increase cron interval to 60 min or remove warmup entirely. |
+| **Neon Storage** | 500 MB | Static posts + comments only. Monitor via Neon dashboard. | Low | Prune old comments / migrate to D1 if >400 MB. |
+| **Cloudflare Workers** | 100,000 req/day | `wenyuan-sync` batched at ≤12 PUT + ≤10 DELETE per 20-min tick. | Low | Increase tick interval or add request sampling. |
+| **CF KV Writes (SG_CACHE)** | 1,000/day | `wenyuan-sync` only writes state when `updated > 0`. Cache writes minimized. | Low | Batch more aggressively or switch to D1 for sync state. |
+| **CF D1 (XDNMB_DB)** | 100,000 writes/day | Read-only for main site; crawler writes controlled. | Low | Reduce crawl frequency or shard index. |
+| **Resend** | Free tier (domain not verified) | Registration/reset emails only. | Medium | Verify domain or switch to SMTP relay if volume grows. |
+| **OSCA Storage** | 1 TB | Daily Wenyuan backup adds ~70 MB/day (~2.1 GB/month). | Very Low | N/A for foreseeable future. |
+| **Azure VPS Bandwidth** | ~100 GB/month (student) | Daily SCP pull of ~70 MB for backup = ~2.1 GB/month. | Low | Monitor Azure Cost Management; reduce backup frequency if needed. |
+
+**Monitoring procedure** (monthly, first week):
+1. Neon Dashboard → Usage → Compute hours.
+2. Cloudflare Dashboard → Workers → Analytics (requests) + KV → SG_CACHE (writes).
+3. Azure Portal → Cost Management → Bandwidth.
+4. OSCA Dashboard → Storage usage.
+
+If any metric exceeds 70 % of quota, open an issue and adjust before the 90 % mark.

@@ -134,6 +134,25 @@ kbd { color: var(--faint); border: 1px solid var(--line); border-radius: 3px; pa
 .tree-item.selected { background: color-mix(in srgb, var(--accent-2) 8%, transparent); color: var(--text); border-left-color: var(--accent-2); }
 .tree-caption { margin: 15px 14px 6px; color: var(--faint); font: 10px ui-monospace, monospace; text-transform: uppercase; }
 .file-dot { width: 7px; height: 7px; border-radius: 2px; border: 1px solid var(--accent); transform: rotate(45deg); }
+/* 分类标题可折叠：复用 tree-caption 字形，重设为整行按钮（VS Code 风格） */
+.tree-caption-btn { display: flex; align-items: center; gap: 5px; background: none; border: 0; text-align: left; cursor: pointer; }
+.tree-caption-btn:hover { color: var(--muted); }
+.tree-caption-chevron { transition: transform .15s ease; }
+.tree-caption-chevron.collapsed { transform: rotate(-90deg); }
+/* 分类名过长省略，把计数徽标留在右侧（手机端防溢出） */
+.tree-item-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-count { font: 10px ui-monospace, monospace; color: var(--faint); }
+/* 分类框内筛选（分类名超过阈值时出现） */
+.tree-filter-wrap { position: relative; display: flex; align-items: center; margin: 0 12px 6px; color: var(--faint); }
+.tree-filter-wrap > svg { position: absolute; left: 7px; pointer-events: none; }
+.tree-filter { width: 100%; height: 24px; padding: 0 22px 0 24px; border-radius: 4px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); font-size: 11px; outline: none; }
+.tree-filter:focus { border-color: var(--accent); }
+.tree-filter::placeholder { color: var(--faint); text-transform: none; }
+.tree-filter-clear { position: absolute; right: 5px; display: flex; align-items: center; padding: 2px; border: 0; background: none; color: var(--faint); cursor: pointer; }
+.tree-filter-clear:hover { color: var(--text); }
+.tree-more { display: block; margin: 4px 14px 6px; padding: 0 0 0 25px; background: none; border: 0; text-align: left; cursor: pointer; }
+.tree-more:hover { color: var(--muted); }
+.tree-empty { margin: 2px 14px 6px 25px; font: 10px ui-monospace, monospace; color: var(--faint); text-transform: none; }
 .sidebar-note { margin: auto 12px 12px; padding: 11px; border: 1px dashed var(--line); border-radius: 5px; color: var(--muted); display: flex; gap: 8px; line-height: 1.5; }
 .sidebar-note svg { flex: none; color: var(--accent); margin-top: 2px; }
 .sidebar-mobile-head { display: none; }
@@ -592,6 +611,10 @@ kbd { color: var(--faint); border: 1px solid var(--line); border-radius: 3px; pa
 .chip.lock { background: color-mix(in srgb, var(--orange) 12%, transparent); border-color: color-mix(in srgb, var(--orange) 40%, var(--line)); color: var(--orange); }
 .chip.unlock { background: color-mix(in srgb, var(--accent) 10%, transparent); border-color: color-mix(in srgb, var(--accent) 38%, var(--line)); color: var(--accent); }
 .chip.more { color: var(--faint); }
+/* 附件行「游客可见」开关：沿用 chip lock/unlock 配色，补齐按钮交互 */
+.chip-guest-toggle { font-family: inherit; line-height: 1; cursor: pointer; }
+.chip-guest-toggle:hover { color: var(--text); border-color: color-mix(in srgb, currentColor 45%, var(--line)); }
+.chip-guest-toggle:disabled { opacity: .6; cursor: default; }
 .chip-mini { display: inline-grid; place-items: center; width: 13px; height: 13px; border-radius: 3px; background: var(--panel-2); font: 8px ui-monospace, monospace; color: var(--accent-2); margin-right: 3px; }
 
 .badge { display: inline-block; padding: 2px 8px; font: 10px ui-monospace, monospace; border-radius: 10px; letter-spacing: .04em; }
@@ -1961,7 +1984,14 @@ button.title-command:hover { color: var(--text); border-color: var(--accent-2); 
 .ru-mat-chip { flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--muted); font-size: 12px; cursor: pointer; white-space: nowrap; transition: border-color .15s, color .15s; }
 .ru-mat-chip:hover { border-color: var(--accent-2); color: var(--accent-2); }
 .ru-mat-chip.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--text); font-weight: 600; }
-@media (max-width: 640px) { .ru-mat-chip { padding: 4px 9px; font-size: 11.5px; } }
+/* 手机端：可点元素加高到站点统一的 38px 触控基准（与 .ru-tab / .outline-fab 一致）。
+   横滑行内只加大高度，不缩小字号，避免标签变小反而更难认。 */
+@media (max-width: 640px) {
+  .ru-mat-chip { padding: 0 12px; min-height: 38px; font-size: 12.5px; }
+  .ru-mat-btn { padding: 0 12px; min-height: 38px; font-size: 12.5px; }
+  .ru-mat-row { gap: 7px; padding: 3px 0 5px; }
+  .ru-mat-label { font-size: 11.5px; }
+}
 .ru-mat-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin: 0 0 6px; }
 .ru-mat-title { color: var(--text); font-weight: 700; font-size: 15px; }
 .ru-mat-hint { color: var(--muted); font-size: 12px; }
@@ -1970,6 +2000,13 @@ button.title-command:hover { color: var(--text); border-color: var(--accent-2); 
 .ru-mat-btn:hover { border-color: var(--accent-2); color: var(--accent-2); }
 .ru-mat-btn.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--text); }
 .ru-mat-panel { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); padding: 12px 14px; overflow: hidden; }
+/* 手机端防「宽表格撑破外层」：
+   .panel 与 .ru-mat-print 是两层 grid 子项，默认 min-width:auto 会取内容的
+   min-content —— 即课程精讲里最宽那张表的列宽之和（实测 405–500px）。于是
+   .admin-dashboard 的网格轨道被顶到 439px，而容器只有 390px，整块右侧被裁掉。
+   归零后轨道回到容器宽度，宽表格自己在本行内横向滚动即可。*/
+.admin-dashboard > .panel { min-width: 0; }
+.ru-mat-print { min-width: 0; }
 .ru-mat-canvas { height: min(72vh, 640px); display: flex; border: 1px dashed var(--line); border-radius: 6px; overflow: hidden; }
 .ru-mat-svg { flex: 1; width: 100%; background: var(--bg); touch-action: none; }
 /* 打印（打印按钮给 body 加 ru-mat-printing）：只保留材料区，
@@ -1990,6 +2027,53 @@ button.title-command:hover { color: var(--text); border-color: var(--accent-2); 
   body.ru-mat-printing .ru-mat-svg { width: 100% !important; height: auto !important; }
   body.ru-mat-printing .ru-mat-print tr { page-break-inside: avoid; }
   body.ru-mat-printing .ru-mat-print .markdown-body table { border-color: #bbb; }
+}
+
+/* ── 俄语工具箱：课程精讲（复用 .ru-mat-* 骨架，仅补内容区差异） ── */
+/* 正文默认随页面流动，不自建滚动容器：每课 25–80KB，在手机上进「滚动里套滚动」
+   很难用，而且正文只占一小条、上下都被自己的滚动条切断。
+   小节导航统一交给 ArticleOutline（右下角大纲钮 / 宽屏停靠侧栏 / 窄屏底部抽屉），
+   与文章页同一套交互与样式，因此这里不再另设左目录。*/
+.ru-les-panel { padding: 0; overflow: hidden; }
+.ru-les-body { padding: 14px 16px; }
+/* ≥1410px：与文章页一致，大纲停靠为右侧粘性侧栏（占布局空间、阅读时常驻）。
+   用 overflow: clip 而非 hidden —— clip 不产生滚动容器，
+   粘性侧栏才能相对外层滚动容器（.admin-content 或 window）正常粘住。*/
+@media (min-width: 1410px) {
+  .ru-les-panel { display: flex; align-items: flex-start; gap: 22px; overflow: clip; }
+  .ru-les-panel > .ru-les-body { flex: 1 1 auto; min-width: 0; }
+}
+/* 教材分组：一册书一段，段头是书名 + 册别；段内按「逐课精讲 / 全局」分行横向滑动 */
+/* min-width: 0 必需：.ru-mat-row 是横向滚动容器，直接做 grid 子项时浏览器
+   （overflow ≠ visible 时 min-width 自动为 0）能让它收缩；一旦像现在这样多包了
+   一层 .ru-les-book，那层的 min-width 变回 auto，行按 min-content（最长标签行）
+   就会把 dashboard 的 grid 轨道撑到 896px —— 手机上整页横向裁切、右侧看不见。*/
+.ru-les-book { min-width: 0; }
+.ru-les-book + .ru-les-book { margin-top: 9px; }
+.ru-les-book-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin: 0 0 3px; }
+.ru-les-book-name { color: var(--text); font-size: 12.5px; font-weight: 700; }
+.ru-les-book-hint { color: var(--faint); font-size: 11px; }
+/* 预留位：同系列后续教材接入前的占位，可见但不可点 */
+.ru-les-slot-note { margin: 0; padding: 5px 10px; border: 1px dashed var(--line); border-radius: 6px; color: var(--faint); font-size: 11.5px; line-height: 1.5; }
+/* 重读元音高亮：与词汇点读同一方案（组合锐音符在多数字体下错位，改由 CSS 绘制）。
+   此处作用于 markdown-body 内的 <span class="stressed">，覆盖正文/表格/列表全部俄语文本 */
+.ru-les-body .stressed {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
+/* 课程精讲正文里的标题层级比语法手册更密（## + ### + ####），
+   收紧上边距，避免长课文里段落被切得过碎 */
+.ru-les-body.markdown-body h2 { margin-top: 18px; }
+.ru-les-body.markdown-body h3 { margin-top: 14px; }
+.ru-les-body.markdown-body h4 { margin-top: 12px; }
+.ru-les-body.markdown-body > *:first-child { margin-top: 0; }
+/* 折叠 callout（源 .md 里的 `> [!success]- 答案要点`）由 renderMarkdown 输出原生
+   <details>，其展开/收起与打印展开在组件里处理，这里只需放开内容区高度限制 */
+@media print {
+  /* 打印时停靠侧栏不再参与布局；浮动钮 / 抽屉由全局打印规则隐藏 */
+  .ru-les-panel { display: block; overflow: visible; }
 }
 
 /* ── 俄语工具箱：元素周期表点读 ── */
@@ -2615,6 +2699,7 @@ span.row-action.is-busy { opacity: .65; cursor: default; }
 .x-export-menu {
   position: fixed; z-index: 960;
   min-width: 168px; padding: 4px; display: flex; flex-direction: column;
+  max-height: calc(100vh - 16px); overflow-y: auto; overscroll-behavior: contain;
   background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
   box-shadow: 0 8px 28px rgb(0 0 0 / .22);
 }
@@ -2625,6 +2710,77 @@ span.row-action.is-busy { opacity: .65; cursor: default; }
 .x-export-menu button:hover { background: var(--panel-2); color: var(--accent); }
 .x-export-sheet-title, .x-export-cancel { display: none; }
 .x-export-err { margin: 6px 0 0; }
+.x-export-divider { height: 1px; margin: 5px 8px; background: var(--line); }
+.x-export-menu .x-export-wen {
+  display: flex; align-items: center; gap: 8px;
+  color: var(--accent); font-weight: 600;
+}
+.x-export-menu .x-export-wen:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
+
+/* 归档到文渊成功卡片 */
+.x-wen-ok {
+  display: flex; align-items: flex-start; gap: 9px;
+  margin: 8px 0 2px; padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--line));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 9%, var(--panel));
+}
+.x-wen-ok-icon {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; margin-top: 1px; border-radius: 50%;
+  background: var(--accent); color: #fff;
+}
+.x-wen-ok-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.x-wen-ok-msg { font-size: 12.5px; line-height: 1.5; color: var(--text); overflow-wrap: anywhere; }
+.x-wen-ok-link {
+  display: inline-flex; align-items: center; gap: 5px; align-self: flex-start;
+  min-height: 32px; padding: 4px 10px; border-radius: 7px;
+  font-size: 12.5px; font-weight: 600; text-decoration: none;
+  background: var(--accent); color: #fff;
+}
+.x-wen-ok-link:hover { filter: brightness(1.08); }
+.x-wen-ok-x {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border: 0; border-radius: 7px;
+  background: transparent; color: var(--muted); cursor: pointer;
+}
+.x-wen-ok-x:hover { background: var(--panel-2); color: var(--text); }
+
+/* 整串归档管理（导出菜单内：状态 + 删除 + 改名/移动） */
+.x-wen-mgmt { display: flex; flex-direction: column; gap: 6px; padding: 8px 8px 4px; border-top: 1px dashed var(--line); margin-top: 4px; }
+.x-wen-mgmt-info { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); }
+.x-wen-mgmt-info a {
+  display: inline-flex; align-items: center; gap: 4px; min-height: 30px; padding: 2px 6px;
+  color: var(--accent); font-weight: 600; text-decoration: none; border-radius: 6px;
+}
+.x-wen-mgmt-info a:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.x-wen-mgmt-msg { font-size: 12px; line-height: 1.5; color: var(--muted); }
+.x-wen-mgmt-actions { display: flex; gap: 6px; }
+.x-wen-mgmt-actions button {
+  flex: 1; min-height: 34px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--panel-2); color: var(--text); font-size: 12px; cursor: pointer;
+}
+.x-wen-mgmt-actions button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.x-wen-mgmt-actions button:disabled { opacity: 0.55; cursor: default; }
+.x-wen-mgmt-danger { color: var(--red); }
+.x-wen-mgmt-danger:hover:not(:disabled) { border-color: var(--red) !important; color: var(--red) !important; }
+.x-wen-mgmt-rename { display: flex; gap: 6px; }
+.x-wen-mgmt-rename input {
+  flex: 1; min-width: 0; min-height: 34px; padding: 4px 8px;
+  border: 1px solid var(--line); border-radius: 7px;
+  background: var(--panel-2); color: var(--text); font-size: 12.5px;
+}
+.x-wen-mgmt-rename input:focus { border-color: var(--accent); outline: none; }
+.x-wen-mgmt-rename button {
+  min-height: 34px; padding: 4px 12px; border: 0; border-radius: 7px;
+  background: var(--accent); color: #fff; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.x-wen-mgmt-rename button:disabled { opacity: 0.55; cursor: default; }
+@media (max-width: 600px) {
+  .x-export-menu .x-export-wen { gap: 10px; }
+  .x-wen-ok-link { min-height: 38px; padding: 6px 14px; font-size: 13.5px; }
+  .x-wen-ok-x { width: 38px; height: 38px; }
+}
 
 /* ── 我的发言 ── */
 .x-topbtn-active { color: var(--accent); }
@@ -2944,6 +3100,7 @@ body.sg-xdnmb-imm .admin-content { padding: 10px 12px 64px; }
     left: 10px; right: 10px; top: auto;
     bottom: calc(12px + env(safe-area-inset-bottom, 0px));
     width: auto; min-width: 0; padding: 6px;
+    max-height: calc(100dvh - 24px - env(safe-area-inset-bottom, 0px) - env(safe-area-inset-top, 0px));
     border-radius: 14px; animation: x-sheet .18s ease;
   }
   .x-export-sheet-title {
@@ -3494,3 +3651,5 @@ body.sg-xdnmb-imm .admin-content { padding: 10px 12px 64px; }
   .v-mine-title { max-width: 46vw; }
 }
 
+
+/* cache-probe-token-A */

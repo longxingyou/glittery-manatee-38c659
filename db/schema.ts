@@ -84,6 +84,8 @@ export const attachments = pgTable(
     sizeBytes: integer('size_bytes').notNull().default(0),
     passwordHash: text('password_hash'),
     passwordSalt: text('password_salt'),
+    // 游客可见：false（默认）= 需登录；true = 未登录访客也可列出/预览/下载（密码锁仍生效）
+    guestVisible: boolean('guest_visible').notNull().default(false),
     downloads: integer('downloads').default(0).notNull(),
     // 在线预览（Office 系经网关 LibreOffice 转 PDF）：
     // null = 未入队；pending/processing/ready/failed/unsupported

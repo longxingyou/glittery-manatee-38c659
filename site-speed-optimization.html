@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Syntax Garden · 网站加载速度与体验优化清单</title>
+<style>
+  :root{
+    --bg:#fafaf7; --fg:#1f2328; --muted:#57606a; --line:#d8dee4;
+    --accent:#6f42c1; --accent-bg:#f6f0ff;
+    --head:#24292f; --alt:#f6f8fa; --ok:#1a7f37; --warn:#9a6700; --warn-bg:#fff8c5;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#0d1117; --fg:#e6edf3; --muted:#8b949e; --line:#30363d;
+      --accent:#a371f7; --accent-bg:#1c1433; --head:#161b22; --alt:#161b22; --ok:#3fb950; --warn:#d29922; --warn-bg:#2d1f00; }
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; padding:0 16px 80px;
+    background:var(--bg); color:var(--fg);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei","Helvetica Neue",Arial,sans-serif;
+    line-height:1.65; font-size:15px;
+  }
+  header{max-width:1080px;margin:0 auto;padding:40px 0 16px;border-bottom:2px solid var(--accent)}
+  header h1{margin:0 0 6px;font-size:26px;font-weight:700}
+  header h1 .tag{color:var(--accent)}
+  header p{margin:0;color:var(--muted);font-size:13.5px}
+  .meta{max-width:1080px;margin:14px auto 0;font-size:12.5px;color:var(--muted);display:flex;flex-wrap:wrap;gap:8px 18px}
+  .meta b{color:var(--fg)}
+  nav{max-width:1080px;margin:22px auto 0;display:flex;flex-wrap:wrap;gap:8px;font-size:13px}
+  nav a{display:inline-block;padding:5px 11px;border:1px solid var(--line);border-radius:999px;text-decoration:none;color:var(--muted);background:var(--alt)}
+  nav a:hover{border-color:var(--accent);color:var(--accent)}
+  main{max-width:1080px;margin:0 auto;padding-top:18px}
+  section{margin:34px 0 0;scroll-margin-top:16px}
+  h2{font-size:18px;margin:0 0 4px;display:flex;align-items:baseline;gap:10px}
+  h2 .num{font-size:13px;font-weight:700;color:var(--accent);background:var(--accent-bg);padding:2px 8px;border-radius:6px;flex-shrink:0}
+  .sec-desc{margin:0 0 12px;color:var(--muted);font-size:13px}
+  .table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:720px}
+  thead th{background:var(--head);color:#fff;text-align:left;padding:9px 12px;font-weight:600;position:sticky;top:0}
+  td,th{border-bottom:1px solid var(--line);padding:9px 12px;vertical-align:top}
+  tbody tr:nth-child(even){background:var(--alt)}
+  tbody tr:hover{background:var(--accent-bg)}
+  td.loc{font-family:ui-monospace,"SFMono-Regular",Consolas,monospace;font-size:12px;color:var(--muted);white-space:nowrap}
+  td.tool{font-weight:600}
+  .pill{display:inline-block;font-size:11px;padding:1px 7px;border-radius:4px;background:var(--accent-bg);color:var(--accent);font-weight:600;white-space:nowrap}
+  .pill.warn{background:var(--warn-bg);color:var(--warn)}
+  summary{cursor:pointer;font-size:13.5px;font-weight:600;color:var(--accent);padding:6px 0}
+  details[open] summary{margin-bottom:6px}
+  footer{max-width:1080px;margin:40px auto 0;padding-top:18px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+  code{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;background:var(--alt);padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Syntax Garden <span class="tag">· 加载速度与使用体验优化清单</span></h1>
+  <p>盘点网站为优化界面各功能的加载速度与使用体验所采用的平台、工具与方式，按"加速思路"分区分组</p>
+</header>
+<div class="meta">
+  <span>技术栈：<b>TanStack Start + React 19</b> on <b>Cloudflare Workers</b></span>
+  <span>数据层：<b>Neon Postgres</b> + Drizzle ORM</span>
+  <span>静态化：<b>Content Collections</b></span>
+  <span>整理日期：2026-10-10</span>
+</div>
+<nav>
+  <a href="#s1">① 边缘部署</a>
+  <a href="#s2">② 三级缓存</a>
+  <a href="#s3">③ 缓存头策略</a>
+  <a href="#s4">④ 构建时静态化</a>
+  <a href="#s5">⑤ 代码分割与预加载</a>
+  <a href="#s6">⑥ 字体加载</a>
+  <a href="#s7">⑦ 图片与媒体懒加载</a>
+  <a href="#s8">⑧ 界面渐进呈现</a>
+  <a href="#s9">⑨ 数据库与查询</a>
+  <a href="#s10">⑩ 附件下载并发+续传</a>
+  <a href="#s11">⑪ 在线预览</a>
+  <a href="#s12">⑫ 渲染管线</a>
+  <a href="#s13">⑬ 评论与搜索</a>
+  <a href="#s14">⑭ 认证与安全</a>
+  <a href="#s15">⑮ SEO 与站点</a>
+</nav>
+<main>
+
+<section id="s1">
+<h2><span class="num">① 边缘部署与请求入口</span></h2>
+<p class="sec-desc">把整个 SSR 应用跑在全球边缘节点，请求就近终结，避免单一源站回源延迟。</p>
+<div class="table-wrap"><table>
+<thead><tr><th>平台 / 工具</th><th>方式 / 手段</th><th>作用位置</th><th>加速效果</th></tr></thead>
+<tbody>
+<tr><td class="tool">Cloudflare Workers</td><td>自定义入口 <code>worker.ts</code>，全站 SSR 在边缘执行，非回源到中心服务器</td><td class="loc">worker.ts / wrangler.jsonc</td><td>全球访客就近命中边缘节点，首字节延迟降至几十毫秒级</td></tr>
+<tr><td class="tool">run_worker_first: true</td><td>静态资源也先过 Worker，便于统一注入缓存头与安全头</td><td class="loc">wrangler.jsonc:4-15</td><td>静态资源不绕过缓存控制，缓存策略一致生效</td></tr>
+<tr><td class="tool">HTTP → HTTPS 自动跳转</td><td>80 端口请求 301 到 HTTPS，避免混合内容与重复协商</td><td class="loc">worker.ts:233-237</td><td>杜绝混合内容阻塞渲染，单跳直达安全通道</td></tr>
+<tr><td class="tool">流式 SSR + 删除 Content-Length</td><td>流式 body 走 chunked 编码，避免 Cloudflare 判定响应损坏返回 520</td><td class="loc">worker.ts:185-190</td><td>大页面边生成边下发，首屏更快可见且不触发 520</td></tr>
+<tr><td class="tool">cron 每 5 分钟预热</td><td>定时触发 Neon，消除 serverless 数据库冷启动</td><td class="loc">wrangler.jsonc:31-45</td><td>冷访问不再卡在 DB 唤醒的几百毫秒～数秒</td></tr>
+</tbody>
+</table></div>
+</section>
+
+<section id="s2">
+<h2><span class="num">② HTML 三级缓存（核心网络优化）</span></h2>
+<p class="sec-desc">公开页 SSR HTML 对所有访客一致（登录态全靠客户端管理），故可全链路缓存，命中即毫秒级返回。</p>
+<div class="table-wrap"><table>
+<thead><tr><th>层级 / 工具</th><th>方式 / 手段</th><th>作用位置</th><th>加速效果</th></tr></thead>
+<tbody>
+<tr><td class="tool">L1 进程内存 (TtlCache)</td><td>同 isolate 30s 缓存，零成本命中</td><td class="loc">worker.ts:206-213</td><td>同一节点回访几乎零延迟</td></tr>
+<tr><td class="tool">L2 Cloudflare Cache API</td><td>边缘 colo 1h 缓存，免费且无限额</td><td class="loc">src/lib/cache.ts:167-202</td><td>同地域访客共享，回源率骤降</td></tr>
+<tr><td class="tool">L3 KV (SG_CACHE)</td><td>跨 colo 1h 缓存；带<b>熔断器</b>+10 分钟/key 写入节流</td><td class="loc">worker.ts:202-214 / cache.ts:112-141</td><td>冷 colo 首访也快；KV 限额用尽仍静默降级，用户无感</td></tr>
+<tr><td class="tool">DB 降级微缓存</td><td>DB 故障时静态文章页仅 3s 内存缓存，挡同 isolate 并发雪崩</td><td class="loc">worker.ts:207,391</td><td>故障期不雪崩、不污染跨访客缓存</td></tr>
+<tr><td class="tool">缓存响应重附安全头</td><td>命中缓存后重新构建 CSP 等头，缓存体只存 SSR 内容</td><td class="loc">worker.ts:216-221</td><td>缓存不牺牲安全策略</td></tr>
+</tbody>
+</table></div>
+</section>
+
+<section id="s3">
+<h2><span class="num">③ 缓存头策略（浏览器 + 边缘）</span></h2>
+<p class="sec-desc">分层 Cache-Control，让静态资源进长期 immutable，公开页进 SWR，敏感页禁缓存。</p>
+<div class="table-wrap"><table>
+<thead><tr><th>策略 / 工具</th><th>方式 / 手段</th><th>作用位置</th><th>加速效果</th></tr></thead>
+<tbody>
+<tr><td class="tool">/assets/* 一年 immutable</td><td>构建产物带哈希，可永久缓存</td><td class="loc">worker.ts:147-149</td><td>JS/CSS 二次访问零下载</td></tr>
+<tr><td class="tool">公开页 SWR</td><td><code>max-age=120, s-maxage=600, stale-while-revalidate=3600, stale-if-error=86400</code></td><td class="loc">worker.ts:176-183</td><td>弱网/代理回访近零等待；源站故障仍给 24h 旧页，不白屏</td></tr>
+<tr><td class="tool">/preview/* 与 /admin 禁缓存</td><td><code>private, no-store</code>；预览页加 <code>noindex</code></td><td class="loc">worker.ts:169-175</td><td>含登录态/签名 URL 的页不串内容、不串缓存</td></tr>
+<tr><td class="tool">Vary: Accept-Encoding</td><td>按编码区分缓存变体</td><td class="loc">worker.ts:182</td><td>gzip/br 各得正确版本</td></tr>
+<tr><td class="tool">stickers 等静态长期缓存</td><td>为 /stickers/* 等补长期 Cache-Control</td><td class="loc">worker.ts:266-291</td><td>表情包不重复下载</td></tr>
+</tbody>
+</table></div>
+</section>
+
+<section id="s4">
+<h2><span class="num">④ 构建时静态化</span></h2>
+<p class="sec-desc">把 Markdown 在构建期编译为类型安全的静态产物，运行时无需读盘/解析。</p>
+<div class="table-wrap"><table>
+<thead><tr><th>平台 / 工具</th><th>方式 / 手段</th><th>作用位置</th><th>加速效果</th></tr></thead>
+<tbody>
+<tr><td class="tool">Content Collections + Zod</td><td>frontmatter schema 校验，slug/阅读时间等字段构建期固化</td><td class="loc">content-collections.ts:4-32</td><td>文章数据预编译，请求时直接引用，无运行时解析</td></tr>
+<tr><td class="tool">Vite 构建链</td><td><code>contentCollections() + cloudflare() + tanstackStart() + viteReact()</code></td><td class="loc">vite.config.ts:11-20</td><td>tree shaking + 产物哈希，体积最小、缓存友好</td></tr>
+<tr><td class="tool">Markdown 预渲染</td><td>文章 HTML/KaTeX 在构建/请求时统一渲染并缓存</td><td class="loc">src/lib/markdown.ts</td><td>评论与文章共用同一渲染管线，无重复实现</td></tr>
+</tbody>
+</table></div>
+</section>
+
+<section id="s5">
+<h2><span class="num">⑤ 代码分割与路由预加载</span></h2>
+<p class="sec-desc">把重型模块移出首屏 bundle，并在用户意图出现时才预取。</p>
+<div class="table-wrap"><table>
+<thead><tr><th>工具 / API</th><th>方式 / 手段</th><th>作用位置</th><th>加速效果</th></tr></thead>
+<tbody>
+<tr><td class="tool">React.lazy + Suspense</td><td>管理后台组件动态导入，server fns/CRUD 不进首屏</td><td class="loc">src/router.tsx:10-21,29-40</td><td>访客首屏 bundle 显著缩小</td></tr>
+<tr><td class="tool">AdminGate 门控</td><td>所有 admin 子路由经 Suspense 包裹 + fallback 骨架屏</td><td class="loc">src/router.tsx:29-40</td><td>切换有加载态，不闪白</td></tr>
+<tr><td class="tool">TanStack Router 预加载</td><td><code>defaultPreload:'intent'</code> + 120ms 延迟 + 150ms pending</td><td class="loc">src/router.tsx:177-186</td><td>悬停即预取目标路由，点击瞬间已就绪；切路由短暂显骨架屏</td></tr>
+<tr><td class="tool">Mermaid 按需加载</td><td>IntersectionObserver 在图接近视口时才加载 mermaid 库并渲染</td><td class="loc">src/lib/use-mermaid.ts:30-43</td><td>不用图的页面完全不下载 mermaid（数十 KB）</td></tr>
+<tr><td class="tool">彈蛋样式按页注入</td><td>每个彈蛋文档按需 <code>&lt;link rel="stylesheet"&gt;</code> 注入对应字体/CSS</td><td class="loc">src/routes/egg.$slug.tsx:163</td><td>不预载全局所有字体包</td></tr>
+</tbody>
+</table></div>
+</section>
+
+<section id="s6">
+<h2><span class="num">⑥ 字体加载</span></h2>
+<p class="sec-desc">避免字体阻塞首屏文本，并按需预热字体表。</p>
+<div class="table-wrap"><table>
+<thead><tr><th>工具 / 方式</th><th>手段</th><th>作用位置</th><th>加速效果</th></tr></thead>
+<tbody>
+<tr><td class="tool">@font-face + font-display: swap</td><td>Smiley Sans 自定义字体立即用回退渲染，加载后无感替换</td><td class="loc">src/lib/fonts/smiley-sans.css:2-8</td><td>字体加载不阻塞文本，无空白期</td></tr>
+<tr><td class="tool">preloadAllFonts()</td><td>用户面板挂载后预加载全部字体表</td><td class="loc">font-prefs.ts:180 / user-panel.tsx:233</td><td>后续切字体零等待</td></tr>
+<tr><td class="tool">本地托管字体</td><td>字体文件放 node_modules/项目内，非第三方 CDN</td><td class="loc">src/lib/fonts/</td><td>无跨域连接开销，随站点缓存</td></tr>
+</tbody>
+</table></div>
+</section>
+
+<section id="s7">
+<h2><span class="num">⑦ 图片与媒体懒加载</span></h2>
+<p class="sec-desc">视口外图片/媒体不立即下载，节省带宽并加快首屏。</p>
+<div class="table-wrap"><table>
+<thead><tr><th>工具 / 方式</th><th>手段</th><th>作用位置</th><th>加速效果</th></tr></thead>
+<tbody>
+<tr><td class="tool">loading="lazy" + decoding="async"</td><td>Markdown 图片原生懒加载 + 异步解码</td><td class="loc">src/lib/markdown.ts:221</td><td>长文图片不拖慢首屏</td></tr>
+<tr><td class="tool">表情包懒加载</td><td>sticker img 与选择器图片均 lazy</td><td class="loc">stickers.ts:140 / sticker-picker.tsx:261</td><td>百张表情不一次性下载</td></tr>
+<tr><td class="tool">媒体 preload="metadata"</td><td>音视频只预取元数据，不全量缓冲</td><td class="loc">preview.$id.tsx:832,838 / network-tools.tsx:621,656</td><td>大音视频不占带宽</td></tr>
+<tr><td class="tool">游戏站 dns-prefetch / preconnect</td><td>注入 <code>&lt;link rel="dns-prefetch|preconnect"&gt;</code> 预热第三方连接</td><td class="loc">games-menu.tsx:37-51</td><td>iframe 游戏首次连接更快</td></tr>
+<tr><td class="tool">游戏封面 lazy</td><td>游戏缩略图 lazy 加载</td><td class="loc">games-menu.tsx:179</td><td>菜单打开不卡顿</td></tr>
+</tbody>
+</table></div>
+</section>
+
+<section id="s8">
+<h2><span class="num">⑧ 界面渐进呈现</span></h2>
+<p class="sec-desc">用观察器与渐进加载让长列表/大纲/预览不阻塞主线程。</p>
+<div class="table-wrap"><table>
+<thead><tr><th>工具 / 方式</th><th>手段</th><th>作用位置</th><th>加速效果</th></tr></thead>
+<tbody>
+<tr><td class="tool">IntersectionObserver 渐进加载</td><td>瀑布流滚动到底部触发加载更多</td><td class="loc">blog-posts.tsx:24,53</td><td>首页只加载首屏文章，后续滚动续载</td></tr>
+<tr><td class="tool">PDF 预览单观察器</td><td>几千页 PDF 只用<b>1 个</b> IntersectionObserver 管全部页占位</td><td class="loc">preview.$id.tsx:576-580</td><td>海量页不创建上千 observer，不卡死</td></tr>
+<tr><td class="tool">大纲 scroll-spy（rAF 节流）</td><td>document 捕获滚动，rAF 节流高亮当前章节</td><td class="loc">article-outline.tsx:85</td><td>滚动跟手不抖动</td></tr>
+<tr><td class="tool">站点壳 resize 防抖</td><td>220ms 防抖响应布局变化</td><td class="loc">site-shell.tsx:549-550</td><td>缩放窗口不频繁重排</td></tr>
+<tr><td class="tool">俄语工具箱观察器</td><td>元素进入视口才触发</td><td class="loc">russian-toolkit.tsx:1114</td><td>重计算延后到可见时</td></tr>
+</tbody>
+</table></div>
+</section>
+
+<section id="s9">
+<h2><span class="num">⑨ 数据库与查询</span></h2>
+<p class="sec-desc">serverless DB + 连接复用 + 查询缓存 + 预热，避免冷启动与重复查询。</p>
+<div class="table-wrap"><table>
+<thead><tr><th>平台 / 工具</th><th>方式 / 手段</th><th>作用位置</th><th>加速效果</th></tr></thead>
+<tbody>
+<tr><td class="tool">Neon Postgres serverless</td><td>HTTPS 驱动 @neondatabase/serverless，每查询一次 HTTP</td><td class="loc">db/index.ts:167</td><td>无长连接维持成本，按需唤醒</td></tr>
+<tr><td class="tool">cf.keepalive</td><td>启用 CF 内部连接复用，减少 TLS 握手</td><td class="loc">db/index.ts:167-168</td><td>重复查询不重新握手</td></tr>
+<tr><td class="tool">Drizzle ORM</td><td>类型安全查询构建，幂等 SQL 建表</td><td class="loc">db/index.ts / schema.ts</td><td>无运行时 ORM 反射开销</td></tr>
+<tr><td class="tool">读优先 + 硬超时重试</td><td>搜索面板防抖查询走读副本，硬超时防挂死</td><td class="loc">db/index.ts:3173</td><td>击键搜索不阻塞界面</td></tr>
+<tr><td class="tool">cron 保活</td><td>5 分钟唤醒 Neon，避免冷启动</td><td class="loc">wrangler.jsonc:31-45</td><td>访问期 DB 始终温热</td></tr>
+<tr><td class="tool">预览索引</td><td><code>attachments_preview_idx</code> on (preview_state, id)</td><td class="loc">db/index.ts:330</td><td>预览队列查询走索引</td></tr>
+</tbody>
+</table></div>
+</section>
+
+<section id="s10">
+<h2><span class="num">⑩ 附件下载：并发 + 重试 + 断点续传</span></h2>
+<p class="sec-desc">大文件分片并发拉取，失败自动退避重试，中断可续传。</p>
+<div class="table-wrap"><table>
+<thead><tr><th>工具 / 方式</th><th>手段</th><th>作用位置</th><th>加速效果</th></tr></thead>
+<tbody>
+<tr><td class="tool">6 路并发 Range 拉取</td><td>按偏移随机写盘，浏览器 HTTP/1.1 同源 6 连接上限用满</td><td class="loc">attachment-download.ts:25-26,216-236</td><td>大文件下载吞吐最大化</td></tr>
+<tr><td class="tool">块级退避重试</td><td>429/5xx/网络抖动退避重试，最多 6 次；未遂块回滚进度</td><td class="loc">attachment-download.ts:27-28,92-140</td><td>弱网不整体失败</td></tr>
+<tr><td class="tool">会话内断点续传</td><td>已落盘字节保留，chunkSize&gt;0 走并发块续传</td><td class="loc">attachment-download.ts:194,322</td><td>中断不重头来</td></tr>
+<tr><td class="tool">流式增量进度</td><td>按到达字节回报 onDelta，重试前负增量回滚</td><td class="loc">attachment-download.ts:369</td><td>进度条准确不跳变</td></tr>
+<tr><td class="tool">showSaveFilePicker 流式落盘</td><td>用 File System Access API 直接写盘，不占内存</td><td class="loc">attachment-download.ts:339</td><td>GB 级附件不爆内存</td></tr>
+<tr><td class="tool">Telegram 429 限流处理</td><td>按 retry_after 等待重试，不盲目重发</td><td class="loc">attachment-store.ts:258-274,317-318</td><td>限流期不雪崩</td></tr>
+</tbody>
+</table></div>
+</section>
+
+<section id="s11">
+<h2><span class="num">⑪ 在线预览（Office → PDF）</span></h2>
+<p class="sec-desc">Office 系附件经网关 LibreOffice 转 PDF 后在线预览，不弹下载窗。</p>
+<div class="table-wrap"><table>
+<thead><tr><th>平台 / 工具</th><th>方式 / 手段</th><th>作用位置</th><th>加速效果 / 体验</th></tr></thead>
+<tbody>
+<tr><td class="tool">Azure 网关 LibreOffice</td><td>Office 系附件上传后入转换队列，网关转 PDF</td><td class="loc">db/schema.ts:88-93 / db/index.ts:1722</td><td>手机浏览器不弹下载弹窗，直接网页内预览</td></tr>
+<tr><td class="tool">isConvertibleForPreview</td><td>按类型判定是否可预览，不转换不支持的格式</td><td class="loc">src/lib/preview.ts / db/index.ts:17</td><td>不浪费转换算力</td></tr>
+<tr><td class="tool">preview_state 队列</td><td>状态机驱动转换 + 重试（attempts）+ 索引扫描</td><td class="loc">db/index.ts:319-330</td><td>失败自动重试，不靠人工</td></tr>
+<tr><td class="tool">转换失败 cron 搭车重试</td><td>attempts&lt;3 + 10 分钟退避，借 cron 调度不额外消耗</td><td class="loc">worker.ts:461</td><td>复用 cron 调度，零额外配额</td></tr>
+</tbody>
+</table></div>
+</section>
+
+<section id="s12">
+<h2><span class="num">⑫ 渲染管线（Markdown / KaTeX / Mermaid）</span></h2>
+<p class="sec-desc">统一安全渲染，公式本地生成，图按需加载。</p>
+<div class="table-wrap"><table>
+<thead><tr><th>工具</th><th>方式 / 手段</th><th>作用位置</th><th>加速效果</th></tr></thead>
+<tbody>
+<tr><td class="tool">Marked + 自定义渲染器</td><td>文章与评论共用同一渲染管线，结果可缓存</td><td class="loc">src/lib/markdown.ts</td><td>无重复实现，缓存复用</td></tr>
+<tr><td class="tool">KaTeX 本地渲染</td><td>公式本地生成 HTML 插入，不外发第三方</td><td class="loc">src/lib/markdown.ts</td><td>无外部请求延迟</td></tr>
+<tr><td class="tool">HTML 转义</td><td>原始 HTML 转义，仅 KaTeX 输出可注入</td><td class="loc">src/lib/markdown.ts:6-13</td><td>安全与速度兼得</td></tr>
+<tr><td class="tool">Callout/Obsidian 别名</td><td>构建期归一别名，无运行时查表</td><td class="loc">src/lib/markdown.ts:18-34</td><td>渲染快且一致</td></tr>
+<tr><td class="tool">Mermaid 懒渲染</td><td>见 ⑤，IO 触发才加载库</td><td class="loc">use-mermaid.ts</td><td>不用图的页面零开销</td></tr>
+</tbody>
+</table></div>
+</section>
+
+<section id="s13">
+<h2><span class="num">⑬ 评论与搜索</span></h2>
+<p class="sec-desc">击键防抖 + 服务端短路 + 客户端匹配，避免每次按键打 DB。</p>
+<div class="table-wrap"><table>
+<thead><tr><th>工具 / 方式</th><th>手段</th><th>作用位置</th><th>加速效果</th></tr></thead>
+<tbody>
+<tr><td class="tool">邮箱搜索 250ms 防抖</td><td>击键 250ms 后才请求服务端匹配</td><td class="loc">comment-section.tsx:461 / api.comments.ts:1149</td><td>不每次按键打 DB</td></tr>
+<tr><td class="tool">emailMatchIds 短路</td><td>前台只消费 id 集，服务端预跑匹配</td><td class="loc">api.comments.ts:1149</td><td>渲染期不再重跑匹配</td></tr>
+<tr><td class="tool">分页加载评论</td><td>评论分页而非全量</td><td class="loc">comment-section.tsx</td><td>长评论区不卡首屏</td></tr>
+<tr><td class="tool">输入上限校验</td><td>显示名 20 / 签名 500 / 反馈 4000 字符上限</td><td class="loc">db/index.ts:2036-2039</td><td>不存不传超长内容</td></tr>
+</tbody>
+</table></div>
+</section>
+
+<section id="s14">
+<h2><span class="num">⑭ 认证与安全</span></h2>
+<p class="sec-desc">自建认证不引第三方脚本，安全头统一注入。</p>
+<div class="table-wrap"><table>
+<thead><tr><th>工具 / 方式</th><th>手段</th><th>作用位置</th><th>加速效果</th></tr></thead>
+<tbody>
+<tr><td class="tool">PBKDF2 + HMAC JWT</td><td>自建哈希与签名，无第三方 identity SDK</td><td class="loc">db/index.ts / auth-client.ts</td><td>无外部脚本往返，登录快</td></tr>
+<tr><td class="tool">httpOnly sg_auth cookie</td><td>JWT 直接随响应 Set-Cookie，前端无需存储</td><td class="loc">src/routes/api/auth</td><td>无 token 刷新往返</td></tr>
+<tr><td class="tool">统一安全头</td><td>HSTS / X-Content-Type-Options / X-Frame-Options / Referrer-Policy / 动态 CSP 一次构建</td><td class="loc">worker.ts:87-111</td><td>无多次头处理开销</td></tr>
+<tr><td class="tool">Resend 验证邮件</td><td>未配 API key 时本地自动激活</td><td class="loc">src/lib/server-env.ts</td><td>本地开发零邮件延迟</td></tr>
+</tbody>
+</table></div>
+</section>
+
+<section id="s15">
+<h2><span class="num">⑮ SEO 与站点资源</span></h2>
+<p class="sec-desc">结构化数据 + OG + sitemap + PWA manifest。</p>
+<div class="table-wrap"><table>
+<thead><tr><th>工具</th><th>手段</th><th>作用位置</th><th>效果</th></tr></thead>
+<tbody>
+<tr><td class="tool">JSON-LD Article</td><td>文章页注入 schema.org Article 结构化数据</td><td class="loc">posts.$slug.tsx:66,100</td><td>搜索引擎富结果</td></tr>
+<tr><td class="tool">JSON-LD WebSite</td><td>根布局注入站点级 schema</td><td class="loc">__root.tsx:228</td><td>站点实体识别</td></tr>
+<tr><td class="tool">og:image 1200×630</td><td>品牌默认分享图，文章可覆盖</td><td class="loc">__root.tsx:251-257</td><td>社交分享不缺图</td></tr>
+<tr><td class="tool">动态 sitemap.xml</td><td>静态 + DB 已发布文章/归档/分类页</td><td class="loc">api.comments.ts:195 / worker.ts:269</td><td>爬虫高效发现内容</td></tr>
+<tr><td class="tool">site.webmanifest + robots.txt</td><td>PWA manifest 与爬虫规则</td><td class="loc">public/</td><td>可安装、可索引</td></tr>
+</tbody>
+</table></div>
+</section>
+
+</main>
+<footer>
+  以上盘点基于 Syntax Garden 当前代码库静态审查；带行号的"作用位置"可在源码中直接定位。
+</footer>
+</body>
+</html>

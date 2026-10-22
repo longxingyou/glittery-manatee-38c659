@@ -205,7 +205,7 @@ export const allCategoriesFn = createServerFn({ method: 'GET' }).handler(
     const mod = await import('../../db/index.js')
     const list = await mod.listCategoryInfo()
     return list
-      .map((c) => ({ name: c.name, nameEn: c.nameEn, nameRu: c.nameRu }))
+      .map((c) => ({ name: c.name, nameEn: c.nameEn, nameRu: c.nameRu, count: c.dbCount + c.staticCount }))
       .sort((a, b) => a.name.localeCompare(b.name))
   },
 )
@@ -259,10 +259,9 @@ export const postAttachmentsFn = createServerFn({ method: 'GET' })
   .inputValidator((input) => z.object({ postSlug: z.string().min(1).max(160) }).parse(input))
   .handler(async ({ data }): Promise<AttachmentPublic[]> => {
     const mod = await import('../../db/index.js')
-    // 附件登录门禁：未登录访客不可读取附件列表（服务端强制）
+    // 登录用户取全部附件；游客只取标记为「游客可见」的附件（db 层先过滤再签直链）
     const user = await mod.getCurrentUser()
-    if (!user) throw new Error('请先登录后查看附件。')
-    return mod.listAttachmentsPublic(data.postSlug)
+    return mod.listAttachmentsPublic(data.postSlug, { guestOnly: !user })
   })
 
 /** /preview/$id 页面数据：门禁与附件下载同一套（登录 + 密码令牌） */
@@ -292,9 +291,10 @@ export const attachmentPreviewFn = createServerFn({ method: 'GET' })
   .handler(async ({ data }): Promise<AttachmentPreviewInfo> => {
     const mod = await import('../../db/index.js')
     const user = await mod.getCurrentUser()
-    if (!user) return { authRequired: true }
     const row = await mod.getAttachmentFullRow(data.id)
     if (!row) return { found: false }
+    // 游客仅能预览「游客可见」附件；其后的密码锁令牌校验与用户身份无关
+    if (!user && !row.guestVisible) return { authRequired: true }
     const { previewKind } = await import('@/lib/preview')
     const kind = previewKind(row.filename)
     if (row.passwordHash && row.passwordSalt) {
@@ -429,7 +429,9 @@ export function AttachmentPanel({ postSlug }: { postSlug: string }) {
     try { setItems(await postAttachmentsFn({ data: { postSlug } })) }
     catch (e) { setError(e instanceof Error ? e.message : t('attach.err.list')) }
   }, [postSlug, t])
-  React.useEffect(() => { if (auth === 'authed') void load() }, [auth, load])
+  // 登录态明确后即加载：游客也会请求，但服务端只返回标记为「游客可见」的附件；
+  // checking 阶段（adminStatus 探测中）不发起，避免无意义请求
+  React.useEffect(() => { if (auth !== 'checking') void load() }, [auth, load])
 
   const tryUnlock = async (att: AttachmentPublic) => {
     const pwd = passwordInputs[att.id] || ''
@@ -447,8 +449,9 @@ export function AttachmentPanel({ postSlug }: { postSlug: string }) {
     finally { setBusy(null) }
   }
 
-  // 未登录：附件完全隐藏，引导登录
-  if (auth === 'guest') {
+  // 未登录且确认没有任何「游客可见」附件时，保留登录引导（与改造前观感一致）。
+  // 加载中 items=null 走下方骨架，避免门禁一闪而过；有可见附件时与登录用户同列表 UI。
+  if (auth === 'guest' && items !== null && items.length === 0 && !error) {
     return (
       <section className="attachment-panel comments-section">
         <div className="comments-heading">

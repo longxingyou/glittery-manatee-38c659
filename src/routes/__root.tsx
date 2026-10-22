@@ -284,9 +284,13 @@ export const Route = createRootRoute({
     }
   },
   loader: async () => {
+    const staticCountBy = new Map<string, number>()
+    for (const p of allPosts as { categories: string[] }[]) {
+      for (const c of p.categories) staticCountBy.set(c, (staticCountBy.get(c) || 0) + 1)
+    }
     const staticLabels: CategoryLabel[] = Array.from(new Set(allPosts.flatMap((p: { categories: string[] }) => p.categories)))
       .sort()
-      .map((name) => ({ name, nameEn: null, nameRu: null }))
+      .map((name) => ({ name, nameEn: null, nameRu: null, count: staticCountBy.get(name) || 0 }))
     const [settingsResult, categoriesResult] = await Promise.all([
       publicServerFns.settingsFn().catch(() => ({ public: { siteTitle: DEFAULT_SITE_TITLE, siteDescription: DEFAULT_SITE_DESCRIPTION, customCss: '' }, isAdmin: false as const, adminStatus: null })),
       publicServerFns.allCategoriesFn().catch(() => staticLabels),
@@ -345,6 +349,24 @@ function RootComponent() {
   const routerLoading = useRouterState({ select: (s) => s.isLoading })
   const [showBar, setShowBar] = useState(false)
 
+  // 硬加载可能命中构建期静态快照（HIT-ASSET）/边缘 HTML 缓存，侧边栏分类停留在部署时点
+  // （后台新增分类后尤其明显）。挂载后直查一次分类（server fn 不经 HTML 缓存），
+  // 签名有差异才整体替换，暖态结果一致不更新、无闪烁；思路同 usePublishedPosts。
+  const [liveCats, setLiveCats] = useState<CategoryLabel[]>(categories || [])
+  useEffect(() => {
+    let alive = true
+    const sig = (list: CategoryLabel[]) =>
+      list.map((c) => `${c.name}|${c.nameEn ?? ''}|${c.nameRu ?? ''}|${c.count ?? ''}`).join('\n')
+    const initialSig = sig(categories || [])
+    publicServerFns
+      .allCategoriesFn()
+      .then((fresh) => { if (alive && sig(fresh) !== initialSig) setLiveCats(fresh) })
+      .catch(() => { /* 网络/DB 异常：继续使用 loader/快照数据 */ })
+    return () => { alive = false }
+    // 仅挂载时执行一次
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // 显示/隐藏逻辑：routerLoading 变 true 时立即显示；变 false 时延迟 200ms 隐藏（避免快速闪烁）
   useEffect(() => {
     if (routerLoading) {
@@ -363,7 +385,7 @@ function RootComponent() {
   }, [showBar])
 
   // 渲染子树前注入分类译名表（模块级注册表；SSR/CSR 同构，数据对所有访客一致）
-  setCategoryLabels(categories || [])
+  setCategoryLabels(liveCats)
 
   // 客户端挂载后按需加载已选字体的 CSS（data-font 属性已由内联脚本在首帧前置好）
   useEffect(() => { initFontPrefs() }, [])
@@ -403,7 +425,7 @@ function RootComponent() {
     <>
       <NavProgressBar active={showBar} />
       {settings.customCss ? <style data-role="site-custom-css" dangerouslySetInnerHTML={{ __html: settings.customCss }} /> : null}
-      <SiteShell categories={categories || []}>
+      <SiteShell categories={liveCats}>
         <Outlet />
       </SiteShell>
       <PickupPreviewHost />

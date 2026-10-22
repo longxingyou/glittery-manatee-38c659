@@ -57,6 +57,23 @@ export interface ServerEnv {
    * 未配置时 db/index.ts 的 shim 自动回退 Neon 路径（回滚兜底）。
    */
   XDNMB_DB?: D1Database
+  /**
+   * 文渊文档管理器地址（如 https://gw.xn--fpr224a.mom），用于「归档到文渊」。
+   * Worker 调用其 /api/admin/login 与 /api/documents；未配置则隐藏归档能力。
+   */
+  WENYUAN_API_URL?: string
+  /** 文渊 bootstrap admin 密码（/api/admin/login 用；只在服务端持有） */
+  WENYUAN_ADMIN_PASSWORD?: string
+  /** OSCA 对象存储公网网关（如 https://fgws3-ocloud.ihep.ac.cn），文渊归档冗余备份用 */
+  OSCA_ENDPOINT?: string
+  /** OSCA 桶名（控制台创建） */
+  OSCA_BUCKET?: string
+  /** OSCA S3 region（S3 兼容服务固定 us-east-1） */
+  OSCA_REGION?: string
+  /** OSCA 秘钥管理页的 AccessKeyId */
+  OSCA_ACCESS_KEY?: string
+  /** OSCA 秘钥管理页的 AccessKeySecret */
+  OSCA_SECRET_KEY?: string
 }
 
 /** Cloudflare Workers KV 命名空间的最小类型（避免依赖 @cloudflare/workers-types 全局） */

@@ -2,7 +2,10 @@
  * X 岛串内容导出（浏览器端工具，组件内动态 import，不进服务端包）：
  * - 并发拉全部分页（每页 19 条回复，3 路并发，带去重）；
  * - 输出 Markdown / 自包含 HTML（打印友好，可直接另存 PDF）/ 纯文本 / JSON；
- * - 图片一律转成 X 岛官方图床绝对地址，文件脱离本站仍可阅读；
+ * - 图片一律转成 X 岛官方图床原图绝对地址（HTML 里点击可开原图），文件脱离本站仍可阅读；
+ * - 长图（高/宽 ≥ 2.2）在 HTML 导出中默认折叠，点击展开；打印时保持折叠省纸；
+ * - 防剧透黑块（span.x-spoiler）在 HTML 导出中还原黑条 + 点击反色效果，
+ *   MD/TXT/JSON 则保留 [h]…[/h] 字面标记；
  * - 净化 HTML 里的 xdnmb: 内部协议在导出时还原为官方链接或楼内锚点。
  */
 import type { XPost } from './xdnmb-types'
@@ -65,16 +68,16 @@ export async function fetchFullThread(
 
 // ───────────────────────── 链接/图片协议还原 ─────────────────────────
 
-/** 代理图片相对地址 → 官方图床绝对地址（kind=thumb 也升级为原图） */
+/** 代理图片相对地址 → 官方图床原图绝对地址（kind=thumb 也升级为原图） */
 function absImg(src: string): string {
   let m = /^\/api\/xdnmb\?action=img&kind=(?:thumb|image)&p=([^&]+)/.exec(src)
-  if (m) return `${IMG_BASE}/image/${decodeURIComponent(m[1])}`
+  if (m) return `${IMG_BASE}/image/${decodeURIComponent(m[1]).replace(/^\/+/, '')}`
   if (src.startsWith('/')) return `${WEB_BASE}${src}`
   return src
 }
 
 function attachedImg(p: XPost): string {
-  return p.img && p.ext ? `${IMG_BASE}/image/${p.img}${p.ext}` : ''
+  return p.img && p.ext ? `${IMG_BASE}/image/${(p.img + p.ext).replace(/^\/+/, '')}` : ''
 }
 
 function linkUrl(href: string, localIds: Set<number>): string | null {
@@ -128,7 +131,8 @@ function nodeToMd(node: Node, ctx: Ctx, depth = 0): string {
       if (!src) return ''
       return `\n\n![图片](${src})\n\n`
     }
-    case 'font': case 'span': case 'small': case 'sub': case 'sup': return inner()
+    case 'span': return el.classList.contains('x-spoiler') ? `[h]${inner()}[/h]` : inner()
+    case 'font': case 'small': case 'sub': case 'sup': return inner()
     default: return inner()
   }
 }
@@ -144,6 +148,7 @@ function nodeToTxt(node: Node): string {
     case 'p': return `${inner()}\n\n`
     case 'blockquote': return `\n${inner().trim().split('\n').map((l) => `  > ${l}`).join('\n')}\n\n`
     case 'li': return `- ${inner()}\n`
+    case 'span': return el.classList.contains('x-spoiler') ? `[h]${inner()}[/h]` : inner()
     case 'img': {
       const src = absImg(el.getAttribute('src') || '')
       return src ? `[图片] ${src}\n` : ''
@@ -207,9 +212,22 @@ function htmlBodyOf(p: XPost, ctx: Ctx): string {
     const mf = /^xdnmb:forum:(.+)$/.exec(href)
     if (mf) { a.setAttribute('href', `${WEB_BASE}/f/${encodeURIComponent(mf[1])}`); a.setAttribute('target', '_blank'); (a as HTMLAnchorElement).rel = 'noopener'; return }
   })
-  root.querySelectorAll('img[src]').forEach((im) => im.setAttribute('src', absImg(im.getAttribute('src') || '')))
+  root.querySelectorAll('img[src]').forEach((im) => {
+    const src = absImg(im.getAttribute('src') || '')
+    if (!src) return
+    im.setAttribute('src', src)
+    // 包一层原图链接：点击在新标签打开原图
+    if (im.parentElement?.tagName !== 'A') {
+      const a = im.ownerDocument.createElement('a')
+      a.setAttribute('href', src)
+      a.setAttribute('target', '_blank')
+      a.setAttribute('rel', 'noopener')
+      im.parentNode?.insertBefore(a, im)
+      a.appendChild(im)
+    }
+  })
   const img = attachedImg(p)
-  return `${root.innerHTML}${img ? `<p class="x-att"><img src="${img}" alt=""/></p>` : ''}`
+  return `${root.innerHTML}${img ? `<p class="x-att"><a href="${img}" target="_blank" rel="noopener"><img src="${img}" alt="" loading="lazy"/></a></p>` : ''}`
 }
 
 const esc = (s: string) =>
@@ -287,21 +305,48 @@ function buildHtml(thread: XPost, replies: XPost[], localIds: Set<number>): stri
     ${needFilter ? '<input class="toc-filter" type="search" placeholder="输入楼号 / No. / 关键词过滤…" autocomplete="off"/>' : ''}
     <nav>${tocRows}</nav>
   </details>`
-  const tocScript = needFilter ? `
+  // 页面脚本：防剧透黑块点击反色 + 长图（高/宽 ≥ 2.2）默认折叠 + 目录过滤（长串）
+  const pageScript = `
 <script>
 (function(){
-  var f=document.querySelector('.toc-filter'),nav=document.querySelector('.toc nav');
-  if(!f||!nav)return;
-  var links=nav.querySelectorAll('a');
-  f.addEventListener('input',function(){
-    var q=f.value.trim().toLowerCase();
-    for(var i=0;i<links.length;i++){
-      var a=links[i];
-      a.style.display=(!q||(a.getAttribute('data-text')||'').toLowerCase().indexOf(q)>=0)?'':'none';
-    }
+  document.addEventListener('click',function(e){
+    var t=e.target;
+    var s=t&&t.closest?t.closest('.x-spoiler'):null;
+    if(s)s.classList.toggle('x-spoiler-show');
   });
+  function foldLong(im){
+    var w=im.naturalWidth,h=im.naturalHeight;
+    if(!w||h<300||h/w<2.2||im.closest('.longimg'))return;
+    // 连同外层链接/独占段落一起移入折叠块，避免留下空 <p>
+    var host=im.closest('a')||im;
+    var hp=host.parentNode;
+    if(hp&&hp.tagName==='P'&&hp.children.length===1&&hp.textContent.trim()==='')host=hp;
+    var d=document.createElement('details');d.className='longimg';
+    var s=document.createElement('summary');s.textContent='长图 '+w+'×'+h+'，点击展开';
+    host.parentNode.insertBefore(d,host);
+    d.appendChild(s);d.appendChild(host);
+  }
+  var imgs=document.querySelectorAll('.content img');
+  for(var i=0;i<imgs.length;i++){
+    (function(im){
+      if(im.complete&&im.naturalWidth)foldLong(im);
+      else im.addEventListener('load',function(){foldLong(im)});
+    })(imgs[i]);
+  }
+  ${needFilter ? `
+  var f=document.querySelector('.toc-filter'),nav=document.querySelector('.toc nav');
+  if(f&&nav){
+    var links=nav.querySelectorAll('a');
+    f.addEventListener('input',function(){
+      var q=f.value.trim().toLowerCase();
+      for(var i=0;i<links.length;i++){
+        var a=links[i];
+        a.style.display=(!q||(a.getAttribute('data-text')||'').toLowerCase().indexOf(q)>=0)?'':'none';
+      }
+    });
+  }` : ''}
 })();
-</script>` : ''
+</script>`
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -349,6 +394,11 @@ function buildHtml(thread: XPost, replies: XPost[], localIds: Set<number>): stri
   .content a { color: #2563eb; }
   .content blockquote { margin: 6px 0; padding: 4px 12px; border-left: 3px solid #cbd5e1; color: #475569; background: #f8fafc; }
   .x-ref-plain { color: inherit; text-decoration: none; }
+  .x-spoiler { background: #1f2430; color: transparent; border-radius: 3px; padding: 0 2px; cursor: pointer; -webkit-user-select: none; user-select: none; transition: background .15s, color .15s; }
+  .x-spoiler.x-spoiler-show { background: #e5e7eb; color: #1f2430; }
+  .longimg { margin: 6px 0; }
+  .longimg summary { display: inline-block; padding: 4px 10px; border: 1px dashed #9ca3af; border-radius: 8px; color: #6b7280; font-size: 13px; cursor: pointer; user-select: none; }
+  .longimg[open] summary { margin-bottom: 6px; }
   @media print {
     body { background: #fff; font-size: 12px; }
     .wrap { max-width: none; padding: 0; }
@@ -356,6 +406,12 @@ function buildHtml(thread: XPost, replies: XPost[], localIds: Set<number>): stri
     .floor { page-break-inside: avoid; border-bottom: 1px dashed #ccc; }
     .toc, .totop { display: none; }
     a { color: inherit; text-decoration: none; }
+    /* 打印：黑块不可点击，直接显示文字并用虚线下划线标记曾是剧透 */
+    .x-spoiler { background: none; color: inherit; text-decoration: underline dashed; padding: 0; }
+    /* 打印：折叠的长图不输出，只留占位说明（省纸） */
+    .longimg:not([open]) a { display: none; }
+    .longimg:not([open]) summary { border: none; padding: 0; }
+    .longimg:not([open]) summary::after { content: '（打印省略）'; }
   }
 </style>
 </head>
@@ -372,7 +428,7 @@ ${toc}
 ${floors}
 </div>
 <a class="totop" href="#top">↑ 回到顶部</a>
-${tocScript}
+${pageScript}
 </body>
 </html>`
 }

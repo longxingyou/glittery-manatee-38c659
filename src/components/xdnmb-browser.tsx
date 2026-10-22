@@ -1,6 +1,7 @@
 import * as React from 'react'
 import {
   AlertTriangle,
+  Archive,
   ArrowLeft,
   Bell,
   BellOff,
@@ -2056,27 +2057,75 @@ function ThreadView(props: {
   const [exportOpen, setExportOpen] = React.useState(false)
   const [exporting, setExporting] = React.useState<{ fmt: string; done: number; total: number } | null>(null)
   const [exportErr, setExportErr] = React.useState('')
+  // 归档到文渊的结果卡片（成功后给出直达链接，手机端不用自己去找）
+  const [wenResult, setWenResult] = React.useState<{ url: string; segments: number; autoSplit: boolean } | null>(null)
+  const wenResultTimer = React.useRef<number | null>(null)
+  // 整串归档管理：菜单打开时查询本串在文渊的归档状态，提供整串删除与改名/移动标签
+  const [wenStatus, setWenStatus] = React.useState<
+    { loading: boolean; archived?: boolean; tag?: string; pages?: number; url?: string | null } | null
+  >(null)
+  const [mgmtBusy, setMgmtBusy] = React.useState<'delete' | 'rename' | null>(null)
+  const [mgmtMsg, setMgmtMsg] = React.useState('')
+  const [deleteArmed, setDeleteArmed] = React.useState(false)
+  const [renaming, setRenaming] = React.useState(false)
+  const [renameValue, setRenameValue] = React.useState('')
   const exportBtnRef = React.useRef<HTMLButtonElement | null>(null)
   const exportMenuRef = React.useRef<HTMLDivElement | null>(null)
   const closeExport = React.useCallback(() => setExportOpen(false), [])
   // 桌面端锚定按钮并做视口钳制；窄屏走 CSS 底部 sheet
   const exportPos = useAnchoredPop(exportOpen, exportBtnRef, exportMenuRef, closeExport, { align: 'right', gap: 4 })
 
+  const showWenResult = React.useCallback((r: { url: string; segments: number; autoSplit: boolean }) => {
+    setWenResult(r)
+    if (wenResultTimer.current) window.clearTimeout(wenResultTimer.current)
+    wenResultTimer.current = window.setTimeout(() => setWenResult(null), 30_000)
+  }, [])
+  React.useEffect(() => () => { if (wenResultTimer.current) window.clearTimeout(wenResultTimer.current) }, [])
+
+  const wenTitle = th.title && th.title !== '无标题' ? th.title : `No.${th.id}`
+  React.useEffect(() => {
+    if (!exportOpen) {
+      setDeleteArmed(false)
+      setRenaming(false)
+      return
+    }
+    if (exporting) return
+    let alive = true
+    setWenStatus({ loading: true })
+    fetch(`/api/wenyuan?title=${encodeURIComponent(wenTitle)}`, { credentials: 'same-origin' })
+      .then((r) => r.json())
+      .then((d) => {
+        if (alive) setWenStatus({ loading: false, archived: !!d.archived, tag: d.tag, pages: d.pages, url: d.url })
+      })
+      .catch(() => { if (alive) setWenStatus({ loading: false, archived: false }) })
+    return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exportOpen])
+
+  /** 拉全串的共用逻辑（导出/归档都用它，进度回传一致） */
+  const fetchThreadForExport = async (
+    onProgress: (done: number, total: number) => void,
+  ): Promise<{ full: XPost; replies: XPost[] }> => {
+    const mod = await import('@/lib/xdnmb-export')
+    return mod.fetchFullThread(
+      String(th.id),
+      Number(th.ReplyCount) || 0,
+      async (p) => {
+        const data = await xget({ action: 'thread', id: String(th.id), page: String(p) })
+        return data.thread as XPost
+      },
+      onProgress,
+    ).then(({ thread: full, replies }) => ({ full, replies }))
+  }
+
   const doExport = async (fmt: 'md' | 'html' | 'txt' | 'json') => {
     setExportOpen(false)
     setExportErr('')
+    setWenResult(null)
     setExporting({ fmt, done: 0, total: 1 })
     try {
       const mod = await import('@/lib/xdnmb-export')
-      const { thread: full, replies } = await mod.fetchFullThread(
-        String(th.id),
-        Number(th.ReplyCount) || 0,
-        async (p) => {
-          const data = await xget({ action: 'thread', id: String(th.id), page: String(p) })
-          return data.thread as XPost
-        },
-        (done, total) => setExporting({ fmt, done, total }),
-      )
+      const { full, replies } = await fetchThreadForExport((done, total) => setExporting({ fmt, done, total }))
       const content = mod.buildExport(fmt, full, replies)
       mod.downloadTextFile(mod.safeFileName(full, fmt), mod.exportMime(fmt), content)
     } catch (e) {
@@ -2087,13 +2136,125 @@ function ThreadView(props: {
     }
   }
 
+  // 归档到文渊：统一以 Markdown 入库（文渊原生渲染）；长串自动分页并生成目录页
+  // 只有内容超过一页（15000 字）才分页；单页容量调大后分页数量比旧默认（6000）少一半以上
+  const WEN_AUTO_SPLIT_AT = 15_000
+  const WEN_SPLIT_SIZE = 15_000
+  const doArchiveWen = async () => {
+    setExportOpen(false)
+    setExportErr('')
+    setWenResult(null)
+    setExporting({ fmt: 'wen', done: 0, total: 1 })
+    try {
+      const mod = await import('@/lib/xdnmb-export')
+      const { full, replies } = await fetchThreadForExport((done, total) => setExporting({ fmt: 'wen', done, total }))
+      const content = mod.buildExport('md', full, replies)
+      const autoSplit = Array.from(content).length > WEN_AUTO_SPLIT_AT
+      // 文渊 autoSplit 模式禁止标题含 ASCII 双引号（会破坏 [[catalog(tag="...")]]），用全宽引号替代
+      let title = full.title && full.title !== '无标题' ? full.title : `No.${full.id}`
+      title = Array.from(title).slice(0, 200).join('')
+      if (autoSplit) title = title.replaceAll('"', '＂')
+      setExporting({ fmt: 'wen', done: -1, total: 0 })
+      const res = await fetch('/api/wenyuan', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          content,
+          tags: ['X岛归档'],
+          autoSplit,
+          splitSize: WEN_SPLIT_SIZE,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`)
+      showWenResult({ url: data.url, segments: data.segments || 1, autoSplit: !!data.autoSplit })
+      setWenStatus({ loading: false, archived: true, tag: title, pages: data.segments || 1, url: data.url })
+    } catch (e) {
+      setExportErr(`${t('xdnmb.wen.failed')}：${e instanceof Error ? e.message : String(e)}`)
+      window.setTimeout(() => setExportErr(''), 6000)
+    } finally {
+      setExporting(null)
+    }
+  }
+
+  // 整串删除：后端每批删 15 个（Workers 子请求上限），前端循环直到 remaining=0
+  const manageDelete = async () => {
+    const st = wenStatus
+    if (!st?.archived || !st.tag || mgmtBusy) return
+    if (!deleteArmed) {
+      setDeleteArmed(true)
+      return
+    }
+    setDeleteArmed(false)
+    setMgmtBusy('delete')
+    setMgmtMsg('')
+    try {
+      let remaining = 1
+      let guard = 0
+      while (remaining > 0 && guard++ < 60) {
+        const res = await fetch(`/api/wenyuan?tag=${encodeURIComponent(st.tag)}&limit=15`, {
+          method: 'DELETE',
+          credentials: 'same-origin',
+        })
+        const d = await res.json().catch(() => ({}))
+        if (!res.ok || d.ok === false) throw new Error(d.error || `HTTP ${res.status}`)
+        remaining = Number(d.remaining) || 0
+        if (remaining > 0) setMgmtMsg(t('xdnmb.wen.manageDeleting').replace('{n}', String(remaining)))
+      }
+      setWenStatus({ loading: false, archived: false })
+      setMgmtMsg(t('xdnmb.wen.manageDeleted'))
+    } catch (e) {
+      setExportErr(`${t('xdnmb.wen.manageDelete')}：${e instanceof Error ? e.message : String(e)}`)
+      window.setTimeout(() => setExportErr(''), 6000)
+    } finally {
+      setMgmtBusy(null)
+    }
+  }
+
+  // 整串改名/移动标签：后端每批 10 个（含完整内容回读），前端循环直到 remaining=0
+  const manageRename = async () => {
+    const st = wenStatus
+    const to = renameValue.trim()
+    if (!st?.archived || !st.tag || !to || to === st.tag || mgmtBusy) return
+    setMgmtBusy('rename')
+    setMgmtMsg('')
+    try {
+      let remaining = 1
+      let guard = 0
+      while (remaining > 0 && guard++ < 90) {
+        const res = await fetch('/api/wenyuan', {
+          method: 'PUT',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from: st.tag, to, limit: 10 }),
+        })
+        const d = await res.json().catch(() => ({}))
+        if (!res.ok || d.ok === false) throw new Error(d.error || `HTTP ${res.status}`)
+        remaining = Number(d.remaining) || 0
+        if (remaining > 0) setMgmtMsg(t('xdnmb.wen.renaming').replace('{n}', String(remaining)))
+      }
+      const res = await fetch(`/api/wenyuan?title=${encodeURIComponent(to)}`, { credentials: 'same-origin' })
+      const d = await res.json().catch(() => ({}))
+      setWenStatus({ loading: false, archived: !!d.archived, tag: d.tag, pages: d.pages, url: d.url })
+      setRenaming(false)
+      setMgmtMsg(t('xdnmb.wen.renamed'))
+    } catch (e) {
+      setExportErr(`${t('xdnmb.wen.manageRename')}：${e instanceof Error ? e.message : String(e)}`)
+      window.setTimeout(() => setExportErr(''), 6000)
+    } finally {
+      setMgmtBusy(null)
+    }
+  }
+
   // 导出控件（顶栏与沉浸模式右上悬浮共用一份；沉浸时顶栏这份隐藏）
   const exportControl = (
     <div className="x-export-wrap">
       {exporting ? (
         <span className="x-export-progress" title={t('xdnmb.exporting')}>
           <RefreshCw size={13} className="spin" />
-          {exporting.done}/{exporting.total}
+          {exporting.done < 0 ? t('xdnmb.wen.archiving') : `${exporting.done}/${exporting.total}`}
         </span>
       ) : (
         <button
@@ -2118,6 +2279,57 @@ function ThreadView(props: {
                 {t(`xdnmb.export.${f}`)}
               </button>
             ))}
+            <div className="x-export-divider" aria-hidden="true" />
+            <button type="button" className="x-export-wen" role="menuitem" onClick={() => void doArchiveWen()}>
+              <Archive size={14} />
+              <span>{t('xdnmb.export.wen')}</span>
+            </button>
+            {wenStatus?.archived && (
+              <div className="x-wen-mgmt">
+                <div className="x-wen-mgmt-info">
+                  <span>{t('xdnmb.wen.archivedCount').replace('{n}', String(wenStatus.pages ?? 0))}</span>
+                  {wenStatus.url && (
+                    <a href={wenStatus.url} target="_blank" rel="noopener noreferrer">
+                      <Archive size={12} />
+                      {t('xdnmb.wen.open')}
+                    </a>
+                  )}
+                </div>
+                {mgmtMsg && <div className="x-wen-mgmt-msg">{mgmtMsg}</div>}
+                <div className="x-wen-mgmt-actions">
+                  <button
+                    type="button"
+                    className="x-wen-mgmt-danger"
+                    disabled={!!mgmtBusy}
+                    onClick={() => void manageDelete()}
+                  >
+                    {deleteArmed ? t('xdnmb.wen.manageDeleteConfirm') : t('xdnmb.wen.manageDelete')}
+                  </button>
+                  {!renaming && (
+                    <button
+                      type="button"
+                      disabled={!!mgmtBusy}
+                      onClick={() => { setRenameValue(wenStatus.tag || ''); setRenaming(true) }}
+                    >
+                      {t('xdnmb.wen.manageRename')}
+                    </button>
+                  )}
+                </div>
+                {renaming && (
+                  <div className="x-wen-mgmt-rename">
+                    <input
+                      value={renameValue}
+                      maxLength={80}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') void manageRename() }}
+                    />
+                    <button type="button" disabled={!!mgmtBusy} onClick={() => void manageRename()}>
+                      {t('xdnmb.wen.renameApply')}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
             <button type="button" className="x-export-cancel" onClick={closeExport}>
               {t('xdnmb.cancel')}
             </button>
@@ -2177,6 +2389,30 @@ function ThreadView(props: {
           </button>
         </div>
         {exportErr && <div className="x-form-error x-export-err">{exportErr}</div>}
+        {wenResult && (
+          <div className="x-wen-ok" role="status">
+            <span className="x-wen-ok-icon"><Check size={14} /></span>
+            <div className="x-wen-ok-body">
+              <div className="x-wen-ok-msg">
+                {wenResult.autoSplit
+                  ? t('xdnmb.wen.successSplit').replace('{n}', String(wenResult.segments))
+                  : t('xdnmb.wen.success')}
+              </div>
+              <a className="x-wen-ok-link" href={wenResult.url} target="_blank" rel="noopener noreferrer">
+                <Archive size={13} />
+                {t('xdnmb.wen.open')}
+              </a>
+            </div>
+            <button
+              type="button"
+              className="x-wen-ok-x"
+              aria-label={t('xdnmb.cancel')}
+              onClick={() => setWenResult(null)}
+            >
+              <X size={13} />
+            </button>
+          </div>
+        )}
         <div className={`x-po-body${canCollapsePo && !poExpanded ? ' x-po-collapsed' : ''}`}>
           <div className="x-content x-content-po" onClickCapture={props.onContentClick} dangerouslySetInnerHTML={{ __html: th.content }} />
           {poImg && (

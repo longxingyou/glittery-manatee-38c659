@@ -40,6 +40,7 @@ import {
   MessageSquareWarning,
   Eraser,
   Egg,
+  EyeOff,
   ImageIcon,
   Menu,
   Pencil,
@@ -245,6 +246,14 @@ const setAttachmentPasswordFn = createServerFn({ method: 'POST' })
   .handler(async ({ data }): Promise<{ ok: true }> => {
     const mod = await import('../../../db/index.js')
     await mod.setAttachmentPassword(data.id, data.password)
+    return { ok: true }
+  })
+
+const setAttachmentGuestVisibleFn = createServerFn({ method: 'POST' })
+  .inputValidator((input) => z.object({ id: z.number(), visible: z.boolean() }).parse(input))
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const mod = await import('../../../db/index.js')
+    await mod.setAttachmentGuestVisible(data.id, data.visible)
     return { ok: true }
   })
 
@@ -1791,6 +1800,15 @@ function AttachmentManager({
     } catch (e) { alert(e instanceof Error ? e.message : t('admin.modify.fail')) }
     finally { setBusyId(null) }
   }
+  const toggleGuestVisible = async (att: AttachmentPublic) => {
+    const next = !att.guestVisible
+    setBusyId(att.id)
+    try {
+      await setAttachmentGuestVisibleFn({ data: { id: att.id, visible: next } })
+      onChange(initial.map((a) => (a.id === att.id ? { ...a, guestVisible: next } : a)))
+    } catch (e) { alert(e instanceof Error ? e.message : t('admin.modify.fail')) }
+    finally { setBusyId(null) }
+  }
   const remove = async (att: AttachmentPublic) => {
     if (!confirm(t('admin.am.delete.confirm', { name: att.filename }))) return
     setBusyId(att.id)
@@ -1856,6 +1874,16 @@ function AttachmentManager({
                   <span className={att.locked ? 'chip lock' : 'chip unlock'}>
                     {att.locked ? <><Lock size={12} />{t('admin.am.locked')}</> : <><LockOpen size={12} />{t('admin.am.public')}</>}
                   </span>
+                  <button
+                    type="button"
+                    className={`chip chip-guest-toggle${att.guestVisible ? ' unlock' : ' lock'}`}
+                    disabled={busyId === att.id}
+                    aria-pressed={att.guestVisible}
+                    title={t('admin.am.guest.hint')}
+                    onClick={() => void toggleGuestVisible(att)}
+                  >
+                    {att.guestVisible ? <><Eye size={12} />{t('admin.am.guest.on')}</> : <><EyeOff size={12} />{t('admin.am.guest.off')}</>}
+                  </button>
                 </div>
               </div>
             </div>

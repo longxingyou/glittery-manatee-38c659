@@ -23,3 +23,19 @@ ADMIN_EMAILS=you@example.com
 #    群组可先发条消息再访问 https://api.telegram.org/bot<TOKEN>/getUpdates 看 chat.id）
 TG_BOT_TOKEN=123456:ABC-xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 TG_STORAGE_CHAT_ID=-100xxxxxxxxxx
+
+# 文渊（文档管理器）归档：X 岛整串“归档到文渊”功能使用
+# WENYUAN_API_URL 为文渊对外地址（反代后的 https 域名）；留空默认 https://gw.xn--fpr224a.mom
+# WENYUAN_ADMIN_PASSWORD 为文渊 bootstrap 管理员密码（admin_password.txt 中的那串）
+# 未配置 WENYUAN_ADMIN_PASSWORD 时归档接口返回 503
+WENYUAN_API_URL=https://gw.xn--fpr224a.mom
+WENYUAN_ADMIN_PASSWORD=your-wenyuan-admin-password
+
+# OSCA 对象存储（中科院高能所 OCloud，1TB 配额）：文渊归档冗余备份
+# AK/SK 在 https://user-ocloud.ihep.ac.cn 控制台「秘钥管理」页获取；
+# 桶名在控制台「桶管理」创建后填入。
+OSCA_ENDPOINT=https://fgws3-ocloud.ihep.ac.cn
+OSCA_BUCKET=your-bucket-name
+OSCA_REGION=us-east-1
+OSCA_ACCESS_KEY=your-access-key
+OSCA_SECRET_KEY=your-secret-key

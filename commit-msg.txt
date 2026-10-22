@@ -1,0 +1,5 @@
+﻿更新俄语课本精讲内容与工具箱细节，调整诊断脚本
+
+- content/russian-lessons 多篇文章内容修订
+- scripts 下浏览器验证/诊断脚本路径与等待策略微调
+- russian-toolkit 小幅样式/逻辑修正

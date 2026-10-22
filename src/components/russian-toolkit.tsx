@@ -1042,7 +1042,7 @@ const POLYMER_CATS: Array<{ id: PolymerCatId; items: Phrase[] }> = [
       { ru: 'смола́', zh: '树脂', en: 'resin' },
       { ru: 'пластифика́тор', zh: '增塑剂', en: 'plasticizer' },
       { ru: 'стабилиза́тор', zh: '稳定剂', en: 'stabilizer' },
-      { ru: 'наполи́тель', zh: '填料', en: 'filler' },
+      { ru: 'наполни́тель', zh: '填料', en: 'filler' },
       { ru: 'антиоксида́нт', zh: '抗氧剂', en: 'antioxidant' },
       { ru: 'пигме́нт', zh: '颜料 / 着色剂', en: 'pigment' },
       { ru: 'отвержде́ние', zh: '固化', en: 'curing' },
@@ -1050,7 +1050,7 @@ const POLYMER_CATS: Array<{ id: PolymerCatId; items: Phrase[] }> = [
       { ru: 'про́чность', zh: '强度', en: 'strength' },
       { ru: 'твёрдость', zh: '硬度', en: 'hardness' },
       { ru: 'износосто́йкость', zh: '耐磨性', en: 'wear resistance' },
-      { ru: 'теплесто́йкость', zh: '耐热性', en: 'heat resistance' },
+      { ru: 'теплосто́йкость', zh: '耐热性', en: 'heat resistance' },
     ],
   },
 ]

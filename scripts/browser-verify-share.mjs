@@ -5,8 +5,10 @@
 //   ④ 既有「语法手册」是否照常可用 —— 用于证明「dev 下 content/*.md 取不到」
 //      是环境既有问题（两套内容在 dev 同样失败），而非整合引入。
 //
-// 用法: node scripts/browser-verify-share.mjs <origin> <outfile>
+// 用法: node scripts/browser-verify-share.mjs <origin> <outfile> [path]
 //   origin 默认 http://localhost:4173（pnpm preview 的生产产物）
+//   path   默认 /russian —— 俄语工具箱已从后台迁到主站公开路由；
+//          旧地址 /share/russian 不再存在，传该值会 404 并让断言全为 0。
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -14,6 +16,7 @@ import path from 'node:path'
 
 const ORIGIN = process.argv[2] || 'http://localhost:4173'
 const OUT = process.argv[3] || path.join(os.tmpdir(), 'ru-site-report.json')
+const PAGE_PATH = process.argv[4] || '/russian'
 const EDGE = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'
 const PORT = 9600 + Math.floor(Math.random() * 80)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -77,7 +80,7 @@ const ev = async (e) => {
 }
 
 const load = async () => {
-  await send('Page.navigate', { url: `${ORIGIN}/share/russian` }, sessionId)
+  await send('Page.navigate', { url: `${ORIGIN}${PAGE_PATH}` }, sessionId)
   for (let i = 0; i < 160; i++) { await sleep(250); if (await ev('document.readyState') === 'complete') break }
   await sleep(3000)
 }

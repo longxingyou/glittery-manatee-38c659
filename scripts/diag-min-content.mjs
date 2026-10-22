@@ -6,6 +6,8 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+// 俄语工具箱已从后台迁到主站公开路由 /russian；旧的 /share/russian 已不存在。
+const PAGE_PATH = process.argv[3] || '/russian'
 const ORIGIN = process.argv[2] || 'http://localhost:4173'
 const EDGE = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'
 const PORT = 9750 + Math.floor(Math.random() * 60)
@@ -55,7 +57,7 @@ const ev = async (e) => {
 }
 
 await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 3, mobile: true }, sessionId)
-await send('Page.navigate', { url: `${ORIGIN}/share/russian` }, sessionId)
+await send('Page.navigate', { url: `${ORIGIN}${PAGE_PATH}` }, sessionId)
 for (let i = 0; i < 160; i++) { await sleep(250); if (await ev('document.readyState') === 'complete') break }
 await sleep(3000)
 await ev(`(()=>{const b=Array.from(document.querySelectorAll('.ru-tab')).find(x=>x.textContent.trim()==='课程精讲');if(b)b.click()})()`)

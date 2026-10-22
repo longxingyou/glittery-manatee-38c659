@@ -111,11 +111,6 @@ export const getRouter = () => {
     getParentRoute: () => adminRoute,
     component: wrap(NetworkTools as unknown as AnyLazy),
   })
-  const adminRussianRoute = createRoute({
-    path: 'russian',
-    getParentRoute: () => adminRoute,
-    component: wrap(RussianToolkit as unknown as AnyLazy),
-  })
   const adminXdnmbRoute = createRoute({
     path: 'xdnmb',
     getParentRoute: () => adminRoute,
@@ -141,14 +136,14 @@ export const getRouter = () => {
     },
   })
 
-  // /share/russian：俄语工具箱分享公开页（免登录，凭 sg_ru_share cookie + IP 绑定）
-  const shareRussianRoute = createRoute({
-    path: '/share/russian',
+  // /russian：俄语工具箱公开页（免登录，全访客可用）
+  const russianRoute = createRoute({
+    path: '/russian',
     getParentRoute: () => root,
-    component: function ShareRussianPage() {
+    component: function RussianPage() {
       return (
         <React.Suspense fallback={<AdminLoading />}>
-          <RussianToolkit shared />
+          <RussianToolkit />
         </React.Suspense>
       )
     },
@@ -168,7 +163,6 @@ export const getRouter = () => {
     adminFeedbackRoute,
     adminContentRoute,
     adminNetworkRoute,
-    adminRussianRoute,
     adminXdnmbRoute,
     adminChan233Route,
     adminSettingsRoute,
@@ -185,7 +179,7 @@ export const getRouter = () => {
     ...existingChildren,
     ...(hasPath('/admin') ? [] : [adminWithChildren]),
     ...(hasPath('/share') ? [] : [shareRoute]),
-    ...(hasPath('/share/russian') ? [] : [shareRussianRoute]),
+    ...(hasPath('/russian') ? [] : [russianRoute]),
   ]
 
   const router = createRouter({

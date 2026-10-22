@@ -455,24 +455,17 @@ const schemaStatements = [
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       last_used_at TIMESTAMPTZ
     )`,
-    // 俄语工具箱分享模式（总开关 + 链接 + 多 IP 绑定明细）
-    sql`ALTER TABLE settings ADD COLUMN IF NOT EXISTS ru_share_enabled BOOLEAN NOT NULL DEFAULT FALSE`,
-    sql`CREATE TABLE IF NOT EXISTS ru_share_links (
-      id TEXT PRIMARY KEY,
-      token_hash TEXT NOT NULL UNIQUE,
-      max_ips INTEGER NOT NULL DEFAULT 10,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      last_used_at TIMESTAMPTZ
-    )`,
-    sql`CREATE TABLE IF NOT EXISTS ru_share_bindings (
+    // 网络工具分享模式（多 IP 绑定）：max_ips 列 + 绑定明细表
+    sql`ALTER TABLE net_share_links ADD COLUMN IF NOT EXISTS max_ips INTEGER NOT NULL DEFAULT 10`,
+    sql`CREATE TABLE IF NOT EXISTS net_share_bindings (
       id BIGSERIAL PRIMARY KEY,
-      link_id TEXT NOT NULL REFERENCES ru_share_links(id) ON DELETE CASCADE,
+      link_id TEXT NOT NULL REFERENCES net_share_links(id) ON DELETE CASCADE,
       ip_hash TEXT NOT NULL,
       secret_hash TEXT NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       last_used_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`,
-    sql`CREATE INDEX IF NOT EXISTS ru_share_bindings_link_idx ON ru_share_bindings(link_id)`,
+    sql`CREATE INDEX IF NOT EXISTS net_share_bindings_link_idx ON net_share_bindings(link_id)`,
     // 用户资料（个签/昵称缓存）
     sql`CREATE TABLE IF NOT EXISTS profiles (
       user_id TEXT PRIMARY KEY,
@@ -817,7 +810,6 @@ const EMPTY_SETTINGS_ROW = {
   bannedWords: null as string | null,
   tokenSecret: null as string | null,
   netShareEnabled: false,
-  ruShareEnabled: false,
   updatedAt: new Date(),
 }
 
@@ -2910,18 +2902,30 @@ async function getPostTitleMap(slugs: string[]): Promise<Record<string, string>>
 }
 
 // ============================================================
-// 网络工具分享模式（/api/net 的免登录加密链接，仅管理员管理）
-// 绑定模型：token 哈希定位链接；首个打开者获得 SG_SHARE cookie
-// （id.secret），secret 的 SHA-256 写入 bound_hash —— 此后只有
-// 携带该 cookie 的设备可用，实现"每条链接只能一个人使用"。
+// 网络工具分享：多 IP 链接
+// 每条链接允许 N 个不同 IP（默认 10）"同时"访问；同一 IP（如校园 NAT）
+// 下设备数不限。cookie 绑定「IP + 设备密钥」，离开该 IP 即失效；
+// 超过 NET_SHARE_STALE_DAYS 未访问的 IP 自动释放槽位
 // ============================================================
 
 export const SHARE_COOKIE_NAME = 'sg_share'
 export const SHARE_COOKIE_MAX_AGE = 30 * 24 * 60 * 60 // 30 天
+const NET_SHARE_STALE_DAYS = 60
 
 async function sha256Hex(text: string): Promise<string> {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
   return toHex(new Uint8Array(buf))
+}
+
+function normalizeClientIp(raw: string | null | undefined): string {
+  const ip = (raw || '').trim()
+  return ip || 'unknown'
+}
+
+/** IP 加盐哈希：盐为站点 tokenSecret，防止 IPv4 空间小被暴力反查 */
+async function clientIpHash(ip: string): Promise<string> {
+  const salt = await getTokenSecret()
+  return sha256Hex(`${ip}|${salt}`)
 }
 
 export async function getNetShareEnabled(): Promise<boolean> {
@@ -2940,180 +2944,16 @@ export type NetShareLinkInfo = {
   id: string
   createdAt: string
   lastUsedAt: string | null
-  bound: boolean
-}
-
-export async function listNetShareLinks(): Promise<{ enabled: boolean; links: NetShareLinkInfo[] }> {
-  await requireAdmin()
-  const [enabled, rows] = await Promise.all([
-    getNetShareEnabled(),
-    readWithSchemaFallback(() => useDb().select().from(schema.netShareLinks).orderBy(schema.netShareLinks.createdAt)),
-  ])
-  return {
-    enabled,
-    links: rows.map((r) => ({
-      id: r.id,
-      createdAt: r.createdAt.toISOString(),
-      lastUsedAt: r.lastUsedAt ? r.lastUsedAt.toISOString() : null,
-      bound: !!r.boundHash,
-    })),
-  }
-}
-
-/** 新建分享链接。明文 token 仅在此返回值中出现一次（DB 只存哈希），供管理员复制分发。 */
-export async function createNetShareLink(): Promise<{ id: string; token: string }> {
-  await requireAdmin()
-  const id = randomHex(6)
-  const token = randomHex(32)
-  const tokenHash = await sha256Hex(token)
-  await readWithSchemaFallback(() => useDb().insert(schema.netShareLinks).values({ id, tokenHash }))
-  return { id, token }
-}
-
-export async function deleteNetShareLink(id: string): Promise<void> {
-  await requireAdmin()
-  await useDb().delete(schema.netShareLinks).where(eq(schema.netShareLinks.id, id))
-}
-
-/** 重置设备绑定：原绑定者的 cookie 立即失效，链接回到"先到先得"状态 */
-export async function resetNetShareLink(id: string): Promise<void> {
-  await requireAdmin()
-  await useDb()
-    .update(schema.netShareLinks)
-    .set({ boundHash: null })
-    .where(eq(schema.netShareLinks.id, id))
-}
-
-/** 分享模式总开关；关闭时删除全部链接（"关闭即自动删除，访问不再有效"）。开启时若无链接自动补一条。 */
-export async function setNetShareEnabled(enabled: boolean): Promise<{ token?: string }> {
-  await requireAdmin()
-  await readWithSchemaFallback(() =>
-    useDb()
-      .update(schema.settings)
-      .set({ netShareEnabled: enabled, updatedAt: sql`NOW()` })
-      .where(eq(schema.settings.id, 1)),
-  )
-  _settingsCache = null // 让 10s settings 缓存立即失效
-  if (!enabled) {
-    await useDb().delete(schema.netShareLinks)
-    return {}
-  }
-  const existing = await useDb().select({ id: schema.netShareLinks.id }).from(schema.netShareLinks).limit(1)
-  if (existing.length > 0) return {}
-  // 开启时没有任何链接：自动创建一条并返回明文 token 供复制
-  const id = randomHex(6)
-  const token = randomHex(32)
-  const tokenHash = await sha256Hex(token)
-  await useDb().insert(schema.netShareLinks).values({ id, tokenHash })
-  return { token }
-}
-
-export type NetShareClaimResult =
-  | { status: 'bound'; id: string; secret: string } // 新绑定成功，需种 cookie
-  | { status: 'ok' } // 已绑定且请求 cookie 匹配
-  | { status: 'invalid' } // token 无效/链接已删除
-  | { status: 'disabled' } // 分享模式已关闭
-  | { status: 'taken' } // 已被其他设备绑定
-
-export async function claimNetShareLink(token: string, cookieValue: string | null): Promise<NetShareClaimResult> {
-  if (!isDbConfigured()) return { status: 'invalid' }
-  if (!/^[0-9a-f]{64}$/.test(token)) return { status: 'invalid' }
-  const tokenHash = await sha256Hex(token)
-  const rows = await readWithSchemaFallback(() =>
-    useDb().select().from(schema.netShareLinks).where(eq(schema.netShareLinks.tokenHash, tokenHash)).limit(1),
-  )
-  const link = rows[0]
-  if (!link) return { status: 'invalid' }
-  if (!(await getNetShareEnabled())) return { status: 'disabled' }
-
-  if (link.boundHash) {
-    const [cid, csecret] = (cookieValue || '').split('.')
-    if (cid === link.id && csecret && (await sha256Hex(csecret)) === link.boundHash) return { status: 'ok' }
-    return { status: 'taken' }
-  }
-
-  // 未绑定：先到先得。条件 UPDATE（bound_hash IS NULL）保证并发下只有一人绑定成功。
-  const secret = randomHex(32)
-  const boundHash = await sha256Hex(secret)
-  const updated = await useDb()
-    .update(schema.netShareLinks)
-    .set({ boundHash, lastUsedAt: sql`NOW()` })
-    .where(and(eq(schema.netShareLinks.id, link.id), isNull(schema.netShareLinks.boundHash)))
-    .returning({ id: schema.netShareLinks.id })
-  if (updated.length === 0) return { status: 'taken' }
-  return { status: 'bound', id: link.id, secret }
-}
-
-/** 校验 SG_SHARE cookie（id.secret）：链接存在、分享开启、绑定密钥匹配。低频更新 last_used_at。 */
-export async function verifyNetShareCookie(cookieValue: string | null): Promise<boolean> {
-  if (!isDbConfigured()) return false
-  const [id, secret] = (cookieValue || '').split('.')
-  if (!id || !secret || !/^[0-9a-f]{12}$/.test(id) || !/^[0-9a-f]{64}$/.test(secret)) return false
-  if (!(await getNetShareEnabled())) return false
-  const rows = await readWithSchemaFallback(() =>
-    useDb().select().from(schema.netShareLinks).where(eq(schema.netShareLinks.id, id)).limit(1),
-  )
-  const link = rows[0]
-  if (!link?.boundHash) return false
-  if ((await sha256Hex(secret)) !== link.boundHash) return false
-  if (!link.lastUsedAt || Date.now() - link.lastUsedAt.getTime() > 5 * 60_000) {
-    await useDb()
-      .update(schema.netShareLinks)
-      .set({ lastUsedAt: sql`NOW()` })
-      .where(eq(schema.netShareLinks.id, id))
-      .catch(() => undefined)
-  }
-  return true
-}
-
-// ============================================================
-// 俄语工具箱分享：多 IP 链接
-// 每条链接允许 N 个不同 IP（默认 10）"同时"访问；同一 IP（如校园 NAT）
-// 下设备数不限。cookie 绑定「IP + 设备密钥」，离开该 IP 即失效；
-// 超过 RU_SHARE_STALE_DAYS 未访问的 IP 自动释放槽位
-// ============================================================
-
-export const RU_SHARE_COOKIE_NAME = 'sg_ru_share'
-export const RU_SHARE_COOKIE_MAX_AGE = 30 * 24 * 60 * 60 // 30 天
-const RU_SHARE_STALE_DAYS = 60
-
-function normalizeClientIp(raw: string | null | undefined): string {
-  const ip = (raw || '').trim()
-  return ip || 'unknown'
-}
-
-/** IP 加盐哈希：盐为站点 tokenSecret，防止 IPv4 空间小被暴力反查 */
-async function clientIpHash(ip: string): Promise<string> {
-  const salt = await getTokenSecret()
-  return sha256Hex(`${ip}|${salt}`)
-}
-
-export async function getRuShareEnabled(): Promise<boolean> {
-  if (!isDbConfigured()) return false
-  const rows = await readWithSchemaFallback(() =>
-    useDb()
-      .select({ v: schema.settings.ruShareEnabled })
-      .from(schema.settings)
-      .where(eq(schema.settings.id, 1))
-      .limit(1),
-  )
-  return rows[0]?.v === true
-}
-
-export type RuShareLinkInfo = {
-  id: string
-  createdAt: string
-  lastUsedAt: string | null
   maxIps: number
   ipCount: number
 }
 
 /** 各链接的唯一 IP 计数：单条分组查询，避免 N+1 */
-async function getIpCounts(): Promise<Record<string, number>> {
+async function getNetIpCounts(): Promise<Record<string, number>> {
   // raw execute 返回 QueryResult 对象（fullResults），行在 .rows 里——不能直接当数组遍历
   const res = await useDb().execute(sql`
     SELECT link_id AS "linkId", COUNT(DISTINCT ip_hash)::int AS "ipCount"
-    FROM ru_share_bindings GROUP BY link_id
+    FROM net_share_bindings GROUP BY link_id
   `)
   const rows = (res as unknown as { rows?: Array<{ linkId: string; ipCount: number }> }).rows || []
   const out: Record<string, number> = {}
@@ -3121,12 +2961,12 @@ async function getIpCounts(): Promise<Record<string, number>> {
   return out
 }
 
-export async function listRuShareLinks(): Promise<{ enabled: boolean; links: RuShareLinkInfo[] }> {
+export async function listNetShareLinks(): Promise<{ enabled: boolean; links: NetShareLinkInfo[] }> {
   await requireAdmin()
   const [enabled, rows, counts] = await Promise.all([
-    getRuShareEnabled(),
-    readWithSchemaFallback(() => useDb().select().from(schema.ruShareLinks).orderBy(schema.ruShareLinks.createdAt)),
-    getIpCounts().catch(() => ({}) as Record<string, number>),
+    getNetShareEnabled(),
+    readWithSchemaFallback(() => useDb().select().from(schema.netShareLinks).orderBy(schema.netShareLinks.createdAt)),
+    getNetIpCounts().catch(() => ({}) as Record<string, number>),
   ])
   return {
     enabled,
@@ -3141,99 +2981,99 @@ export async function listRuShareLinks(): Promise<{ enabled: boolean; links: RuS
 }
 
 /** 新建分享链接。明文 token 仅在此返回一次（DB 只存哈希），供管理员复制分发。 */
-export async function createRuShareLink(maxIps = 10): Promise<{ id: string; token: string }> {
+export async function createNetShareLink(maxIps = 10): Promise<{ id: string; token: string }> {
   await requireAdmin()
   const n = Math.min(100, Math.max(1, Math.floor(maxIps) || 10))
   const id = randomHex(6)
   const token = randomHex(32)
   const tokenHash = await sha256Hex(token)
-  await readWithSchemaFallback(() => useDb().insert(schema.ruShareLinks).values({ id, tokenHash, maxIps: n }))
+  await readWithSchemaFallback(() => useDb().insert(schema.netShareLinks).values({ id, tokenHash, maxIps: n }))
   return { id, token }
 }
 
-export async function deleteRuShareLink(id: string): Promise<void> {
+export async function deleteNetShareLink(id: string): Promise<void> {
   await requireAdmin()
-  await useDb().delete(schema.ruShareLinks).where(eq(schema.ruShareLinks.id, id))
+  await useDb().delete(schema.netShareLinks).where(eq(schema.netShareLinks.id, id))
 }
 
 /** 重置全部绑定：所有已访问 IP 的 cookie 立即失效，槽位全部释放 */
-export async function resetRuShareLink(id: string): Promise<void> {
+export async function resetNetShareLink(id: string): Promise<void> {
   await requireAdmin()
-  await useDb().delete(schema.ruShareBindings).where(eq(schema.ruShareBindings.linkId, id))
+  await useDb().delete(schema.netShareBindings).where(eq(schema.netShareBindings.linkId, id))
 }
 
 /** 修改链接的 IP 上限（调小不会立即踢人，只阻止新 IP） */
-export async function setRuShareMaxIps(id: string, maxIps: number): Promise<void> {
+export async function setNetShareMaxIps(id: string, maxIps: number): Promise<void> {
   await requireAdmin()
   const n = Math.min(100, Math.max(1, Math.floor(maxIps) || 10))
   await useDb()
-    .update(schema.ruShareLinks)
+    .update(schema.netShareLinks)
     .set({ maxIps: n })
-    .where(eq(schema.ruShareLinks.id, id))
+    .where(eq(schema.netShareLinks.id, id))
 }
 
 /** 分享模式总开关；关闭时删除全部链接（cascade 删绑定），开启且无链接时自动补一条。 */
-export async function setRuShareEnabled(enabled: boolean): Promise<{ token?: string }> {
+export async function setNetShareEnabled(enabled: boolean): Promise<{ token?: string }> {
   await requireAdmin()
   await readWithSchemaFallback(() =>
     useDb()
       .update(schema.settings)
-      .set({ ruShareEnabled: enabled, updatedAt: sql`NOW()` })
+      .set({ netShareEnabled: enabled, updatedAt: sql`NOW()` })
       .where(eq(schema.settings.id, 1)),
   )
   _settingsCache = null
   if (!enabled) {
-    await useDb().delete(schema.ruShareLinks)
+    await useDb().delete(schema.netShareLinks)
     return {}
   }
-  const existing = await useDb().select({ id: schema.ruShareLinks.id }).from(schema.ruShareLinks).limit(1)
+  const existing = await useDb().select({ id: schema.netShareLinks.id }).from(schema.netShareLinks).limit(1)
   if (existing.length > 0) return {}
   const id = randomHex(6)
   const token = randomHex(32)
   const tokenHash = await sha256Hex(token)
-  await useDb().insert(schema.ruShareLinks).values({ id, tokenHash })
+  await useDb().insert(schema.netShareLinks).values({ id, tokenHash })
   return { token }
 }
 
 /** 链接级最近使用时间（低频更新） */
-async function touchRuShareLink(linkId: string): Promise<void> {
+async function touchNetShareLink(linkId: string): Promise<void> {
   await useDb()
-    .update(schema.ruShareLinks)
+    .update(schema.netShareLinks)
     .set({ lastUsedAt: sql`NOW()` })
-    .where(eq(schema.ruShareLinks.id, linkId))
+    .where(eq(schema.netShareLinks.id, linkId))
 }
 
 /** 删除长期未访问的绑定，释放 IP 槽位 */
-async function pruneStaleBindings(linkId: string): Promise<void> {
-  const days = Math.floor(RU_SHARE_STALE_DAYS)
+async function pruneStaleNetBindings(linkId: string): Promise<void> {
+  const days = Math.floor(NET_SHARE_STALE_DAYS)
   await useDb().execute(sql`
-    DELETE FROM ru_share_bindings
+    DELETE FROM net_share_bindings
     WHERE link_id = ${linkId}
       AND last_used_at < NOW() - INTERVAL '${sql.raw(String(days))} days'
   `)
 }
 
-async function countDistinctIps(linkId: string): Promise<number> {
+async function countDistinctNetIps(linkId: string): Promise<number> {
   const res = await useDb().execute(sql`
     SELECT COUNT(DISTINCT ip_hash)::int AS "ipCount"
-    FROM ru_share_bindings WHERE link_id = ${linkId}
+    FROM net_share_bindings WHERE link_id = ${linkId}
   `)
   const rows = (res as unknown as { rows?: Array<{ ipCount: number }> }).rows || []
   return rows[0]?.ipCount ?? 0
 }
 
 /** 校验某 cookie 是否为该链接、该 IP 下的有效设备；低频刷新使用时间 */
-async function verifyRuShareBinding(linkId: string, cookieValue: string | null, ip: string): Promise<boolean> {
+async function verifyNetShareBinding(linkId: string, cookieValue: string | null, ip: string): Promise<boolean> {
   const [id, secret] = (cookieValue || '').split('.')
   if (id !== linkId || !secret || !/^[0-9a-f]{64}$/.test(secret)) return false
   const rows = await useDb()
-    .select({ id: schema.ruShareBindings.id, lastUsedAt: schema.ruShareBindings.lastUsedAt })
-    .from(schema.ruShareBindings)
+    .select({ id: schema.netShareBindings.id, lastUsedAt: schema.netShareBindings.lastUsedAt })
+    .from(schema.netShareBindings)
     .where(
       and(
-        eq(schema.ruShareBindings.linkId, linkId),
-        eq(schema.ruShareBindings.ipHash, await clientIpHash(ip)),
-        eq(schema.ruShareBindings.secretHash, await sha256Hex(secret)),
+        eq(schema.netShareBindings.linkId, linkId),
+        eq(schema.netShareBindings.ipHash, await clientIpHash(ip)),
+        eq(schema.netShareBindings.secretHash, await sha256Hex(secret)),
       ),
     )
     .limit(1)
@@ -3241,16 +3081,16 @@ async function verifyRuShareBinding(linkId: string, cookieValue: string | null, 
   if (!b) return false
   if (Date.now() - b.lastUsedAt.getTime() > 5 * 60_000) {
     await useDb()
-      .update(schema.ruShareBindings)
+      .update(schema.netShareBindings)
       .set({ lastUsedAt: sql`NOW()` })
-      .where(eq(schema.ruShareBindings.id, b.id))
+      .where(eq(schema.netShareBindings.id, b.id))
       .catch(() => undefined)
-    await touchRuShareLink(linkId).catch(() => undefined)
+    await touchNetShareLink(linkId).catch(() => undefined)
   }
   return true
 }
 
-export type RuShareClaimResult =
+export type NetShareClaimResult =
   | { status: 'bound'; id: string; secret: string } // 新设备绑定成功，需种 cookie
   | { status: 'ok' } // cookie 有效
   | { status: 'invalid' } // token 无效/链接已删除
@@ -3258,63 +3098,63 @@ export type RuShareClaimResult =
   | { status: 'full'; used: number; max: number } // IP 槽位已满
 
 /** 打开分享链接：校验 token，按 IP 绑定设备密钥 */
-export async function claimRuShareLink(
+export async function claimNetShareLink(
   token: string,
   cookieValue: string | null,
   clientIpRaw: string | null,
-): Promise<RuShareClaimResult> {
+): Promise<NetShareClaimResult> {
   if (!isDbConfigured()) return { status: 'invalid' }
   if (!/^[0-9a-f]{64}$/.test(token)) return { status: 'invalid' }
   const ip = normalizeClientIp(clientIpRaw)
   const rows = await readWithSchemaFallback(async () =>
     useDb()
       .select()
-      .from(schema.ruShareLinks)
-      .where(eq(schema.ruShareLinks.tokenHash, await sha256Hex(token)))
+      .from(schema.netShareLinks)
+      .where(eq(schema.netShareLinks.tokenHash, await sha256Hex(token)))
       .limit(1),
   )
   const link = rows[0]
   if (!link) return { status: 'invalid' }
-  if (!(await getRuShareEnabled())) return { status: 'disabled' }
+  if (!(await getNetShareEnabled())) return { status: 'disabled' }
 
   // 已持有有效 cookie（同 IP）→ 放行
-  if (await verifyRuShareBinding(link.id, cookieValue, ip)) return { status: 'ok' }
+  if (await verifyNetShareBinding(link.id, cookieValue, ip)) return { status: 'ok' }
 
   const ipHash = await clientIpHash(ip)
   const sameIp = await useDb()
-    .select({ id: schema.ruShareBindings.id })
-    .from(schema.ruShareBindings)
-    .where(and(eq(schema.ruShareBindings.linkId, link.id), eq(schema.ruShareBindings.ipHash, ipHash)))
+    .select({ id: schema.netShareBindings.id })
+    .from(schema.netShareBindings)
+    .where(and(eq(schema.netShareBindings.linkId, link.id), eq(schema.netShareBindings.ipHash, ipHash)))
     .limit(1)
   let admitted = sameIp.length > 0 // 同 IP 新设备/cookie 丢失：不占新槽位
 
   if (!admitted) {
-    await pruneStaleBindings(link.id)
-    const ipCount = await countDistinctIps(link.id)
+    await pruneStaleNetBindings(link.id)
+    const ipCount = await countDistinctNetIps(link.id)
     if (ipCount >= link.maxIps) return { status: 'full', used: ipCount, max: link.maxIps }
     admitted = true
   }
 
   const secret = randomHex(32)
-  await useDb().insert(schema.ruShareBindings).values({
+  await useDb().insert(schema.netShareBindings).values({
     linkId: link.id,
     ipHash,
     secretHash: await sha256Hex(secret),
   })
-  await touchRuShareLink(link.id).catch(() => undefined)
+  await touchNetShareLink(link.id).catch(() => undefined)
   return { status: 'bound', id: link.id, secret }
 }
 
-/** /share/russian 页面自检：cookie 是本 IP 下该链接的有效设备 */
-export async function verifyRuShareCookie(
+/** /share 页面自检：cookie 是本 IP 下该链接的有效设备 */
+export async function verifyNetShareCookie(
   cookieValue: string | null,
   clientIpRaw: string | null,
 ): Promise<boolean> {
   if (!isDbConfigured()) return false
   const [id, secret] = (cookieValue || '').split('.')
   if (!id || !secret || !/^[0-9a-f]{12}$/.test(id) || !/^[0-9a-f]{64}$/.test(secret)) return false
-  if (!(await getRuShareEnabled())) return false
-  return verifyRuShareBinding(id, cookieValue, normalizeClientIp(clientIpRaw))
+  if (!(await getNetShareEnabled())) return false
+  return verifyNetShareBinding(id, cookieValue, normalizeClientIp(clientIpRaw))
 }
 
 /** 当前用户的评论列表（不含个签；支持关键词搜正文） */

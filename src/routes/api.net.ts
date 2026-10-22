@@ -92,7 +92,7 @@ async function requireAdminOr401(): Promise<Response | null> {
 }
 
 // ────────────────────────────────────────────────────────────
-// 分享模式：免登录加密链接（先到先得绑定单设备；管理员在后台管理）
+// 分享模式：免登录加密链接（多 IP 绑定，管理员在后台管理）
 // ────────────────────────────────────────────────────────────
 
 function readCookie(request: Request, name: string): string | null {
@@ -106,6 +106,17 @@ function readCookie(request: Request, name: string): string | null {
   return null
 }
 
+/** 真实客户端 IP：Cloudflare 注入 cf-connecting-ip；dev/其他代理逐级回退 */
+function getClientIp(request: Request): string | null {
+  const cf = request.headers.get('cf-connecting-ip')
+  if (cf) return cf.trim()
+  const real = request.headers.get('x-real-ip')
+  if (real) return real.trim()
+  const xff = request.headers.get('x-forwarded-for')
+  if (xff) return xff.split(',')[0]!.trim()
+  return null
+}
+
 /** 访问控制：管理员 cookie → 'admin'；否则 SG_SHARE 分享 cookie → 'share'；皆失败 → 401 */
 async function requireNetAccess(request: Request): Promise<{ via: 'admin' | 'share' } | Response> {
   try {
@@ -115,7 +126,7 @@ async function requireNetAccess(request: Request): Promise<{ via: 'admin' | 'sha
     // 继续尝试分享凭证
   }
   try {
-    if (await dbApi.verifyNetShareCookie(readCookie(request, dbApi.SHARE_COOKIE_NAME))) {
+    if (await dbApi.verifyNetShareCookie(readCookie(request, dbApi.SHARE_COOKIE_NAME), getClientIp(request))) {
       return { via: 'share' }
     }
   } catch {
@@ -132,15 +143,19 @@ function shareHtmlPage(title: string, message: string, status: number): Response
   return new Response(page, { status, headers: { 'Content-Type': 'text/html; charset=utf-8', ...PRIVATE_HEADERS } })
 }
 
-/** action=claim：打开分享链接，先到先得绑定设备（种 SG_SHARE cookie）后跳转 /share */
+/** action=claim：打开分享链接，按 IP 绑定设备（种 SG_SHARE cookie）后跳转 /share */
 async function handleClaimGet(request: Request, url: URL): Promise<Response> {
   const token = (url.searchParams.get('t') || '').trim()
   if (!token) return shareHtmlPage('链接无效', '缺少分享令牌，请核对链接是否完整。', 400)
-  const result = await dbApi.claimNetShareLink(token, readCookie(request, dbApi.SHARE_COOKIE_NAME))
+  const result = await dbApi.claimNetShareLink(token, readCookie(request, dbApi.SHARE_COOKIE_NAME), getClientIp(request))
   if (result.status === 'invalid') return shareHtmlPage('链接无效', '链接不存在或已被管理员删除。', 400)
   if (result.status === 'disabled') return shareHtmlPage('分享已关闭', '管理员已关闭分享模式，全部链接已失效。', 403)
-  if (result.status === 'taken') {
-    return shareHtmlPage('链接已被占用', '此链接已在其他设备上绑定使用（每个链接仅限一人）。如需换绑，请联系管理员重置绑定。', 403)
+  if (result.status === 'full') {
+    return shareHtmlPage(
+      '访问人数已满',
+      `该链接允许的 ${result.max} 个同时访问名额已全部占用，暂时无法加入。可稍后再试（长期未访问者会自动释放名额），或联系分享者。`,
+      403,
+    )
   }
   const origin = getPublicOrigin(request)
   const headers = new Headers(PRIVATE_HEADERS)
@@ -165,7 +180,7 @@ async function handleShareInfoGet(request: Request): Promise<Response> {
 async function handleSharePost(request: Request): Promise<Response> {
   const denied = await requireAdminOr401()
   if (denied) return denied
-  let body: { action?: string; id?: string; enabled?: boolean } = {}
+  let body: { action?: string; id?: string; enabled?: boolean; maxIps?: number } = {}
   try {
     body = (await request.json()) as typeof body
   } catch {
@@ -177,7 +192,7 @@ async function handleSharePost(request: Request): Promise<Response> {
     return Response.json({ ok: true, enabled, links }, { headers: PRIVATE_HEADERS })
   }
   if (action === 'share_create') {
-    const { id, token } = await dbApi.createNetShareLink()
+    const { id, token } = await dbApi.createNetShareLink(typeof body.maxIps === 'number' ? body.maxIps : 10)
     return Response.json({ ok: true, id, token }, { headers: PRIVATE_HEADERS })
   }
   if (action === 'share_delete') {
@@ -188,6 +203,12 @@ async function handleSharePost(request: Request): Promise<Response> {
   if (action === 'share_reset') {
     if (!body.id) return jsonError('缺少链接 id。')
     await dbApi.resetNetShareLink(body.id)
+    return Response.json({ ok: true }, { headers: PRIVATE_HEADERS })
+  }
+  if (action === 'share_set_ips') {
+    if (!body.id) return jsonError('缺少链接 id。')
+    if (typeof body.maxIps !== 'number') return jsonError('缺少上限数值。')
+    await dbApi.setNetShareMaxIps(body.id, body.maxIps)
     return Response.json({ ok: true }, { headers: PRIVATE_HEADERS })
   }
   if (action === 'share_toggle') {

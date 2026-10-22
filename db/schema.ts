@@ -207,7 +207,6 @@ export const settings = pgTable('settings', {
   tokenSecret: text('token_secret'),
   bannedWords: text('banned_words'), // 违禁词，逗号/换行分隔；与内置默认表合并生效
   netShareEnabled: boolean('net_share_enabled').notNull().default(false), // 网络工具分享模式总开关
-  ruShareEnabled: boolean('ru_share_enabled').notNull().default(false), // 俄语工具箱分享模式总开关
   xdnmbUserhash: text('xdnmb_userhash'), // 当前使用的 X 岛饼干（xdnmb_cookies 表中选中的一条，请求 Cookie 用）
   xdnmbCookieName: text('xdnmb_cookie_name'), // 饼干显示名（7 位红叉 ID，识别"我的发言"用）
   xdnmbFeedUuid: text('xdnmb_feed_uuid'), // X 岛订阅 ID（官方 Api/feed 用的 uuid，与饼干独立；首次打开设置自动生成）
@@ -312,41 +311,32 @@ export const xdnmbIndexCursors = pgTable(
   (table) => [primaryKey({ columns: [table.kind, table.targetId] })],
 )
 
-// 网络工具分享链接（/api/net 免登录访问）。token 与设备绑定密钥只存 SHA-256 哈希；
-// bound_hash 为空表示尚未被任何人打开，先打开者独占绑定（"只能一个人"）
+// 网络工具分享链接（/api/net 免登录访问）。每条链接允许 max_ips 个不同 IP 同时访问
+// （默认 10）；同一 IP（校园/公司 NAT）下设备数不限。token 只存 SHA-256 哈希。
+// bound_hash 为旧单设备绑定字段（已弃用，仅保留兼容旧数据），绑定明细见 net_share_bindings
 export const netShareLinks = pgTable('net_share_links', {
   id: text('id').primaryKey(), // 短随机 hex
   tokenHash: text('token_hash').notNull().unique(),
-  boundHash: text('bound_hash'),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
-})
-
-// 俄语工具箱分享链接（/api/ru-share 免登录访问）。与网络工具"单设备独占"不同：
-// 每条链接允许 max_ips 个不同 IP 同时访问（默认 10）；同一 IP 下设备数不限。
-// token 只存 SHA-256 哈希。绑定明细见 ru_share_bindings
-export const ruShareLinks = pgTable('ru_share_links', {
-  id: text('id').primaryKey(), // 短随机 hex
-  tokenHash: text('token_hash').notNull().unique(),
+  boundHash: text('bound_hash'), // 已弃用：旧单设备绑定哈希
   maxIps: integer('max_ips').notNull().default(10),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
 })
 
-// 俄语工具箱分享绑定：一行 = 一个已访问设备（同 IP 多设备各自一行）。
+// 网络工具分享绑定：一行 = 一个已访问设备（同 IP 多设备各自一行）。
 // ip_hash 是「IP + 服务端盐」的 SHA-256，既统计唯一 IP 数又防止 IP 被反查；
 // secret_hash 是该设备 cookie 密钥的哈希；cookie 离开该 IP 即校验失败
-export const ruShareBindings = pgTable(
-  'ru_share_bindings',
+export const netShareBindings = pgTable(
+  'net_share_bindings',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
     linkId: text('link_id')
       .notNull()
-      .references(() => ruShareLinks.id, { onDelete: 'cascade' }),
+      .references(() => netShareLinks.id, { onDelete: 'cascade' }),
     ipHash: text('ip_hash').notNull(),
     secretHash: text('secret_hash').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     lastUsedAt: timestamp('last_used_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index('ru_share_bindings_link_idx').on(table.linkId)],
+  (table) => [index('net_share_bindings_link_idx').on(table.linkId)],
 )

@@ -53,7 +53,8 @@ interface ShareLinkInfo {
   id: string
   createdAt: string
   lastUsedAt: string | null
-  bound: boolean
+  ipCount: number
+  maxIps: number
 }
 
 function buildNetUrl(action: 'gh' | 'fetch' | 'reader' | 'search' | 'share_info' | 'yt_search' | 'download' | 'bili_playurl' | 'acfun_m3u8' | 'douyin_resolve' | 'bili_resolve', params: Record<string, string>): string {
@@ -103,7 +104,7 @@ async function postNet(action: string, extra?: Record<string, unknown>): Promise
   return data
 }
 
-/** 分享模式管理面板（仅管理员可见）：总开关 + 链接列表 */
+/** 分享模式管理面板（仅管理员可见）：总开关 + 链接列表（多 IP 绑定） */
 function SharePanel() {
   const t = useT()
   const [enabled, setEnabled] = React.useState(false)
@@ -111,6 +112,7 @@ function SharePanel() {
   const [busy, setBusy] = React.useState('')
   const [error, setError] = React.useState('')
   const [loaded, setLoaded] = React.useState(false)
+  const [newMax, setNewMax] = React.useState(10)
   // 明文 token 仅在创建时返回一次；此后 DB 只存哈希，无法再复制
   const [freshUrls, setFreshUrls] = React.useState<Record<string, string>>({})
 
@@ -145,10 +147,20 @@ function SharePanel() {
   })
 
   const create = () => run('create', async () => {
-    const data = await postNet('share_create')
+    const data = await postNet('share_create', { maxIps: newMax })
     if (data.token && data.id) setFreshUrls((m) => ({ ...m, [data.id!]: shareUrl(data.token!) }))
     await refresh()
   })
+
+  // IP 上限：失焦才提交，避免每次击键打 API
+  const commitIps = (l: ShareLinkInfo, raw: string) => {
+    const n = Math.min(100, Math.max(1, Number(raw) || l.maxIps))
+    if (n === l.maxIps) return
+    void run(`ips-${l.id}`, async () => {
+      await postNet('share_set_ips', { id: l.id, maxIps: n })
+      await refresh()
+    })
+  }
 
   return (
     <section className="panel" style={{ marginTop: 16 }}>
@@ -159,10 +171,18 @@ function SharePanel() {
         </span>
       </h2>
       <p style={{ margin: '0 0 12px', color: 'var(--muted)', fontSize: 13 }}>{t('admin.net.share.desc')}</p>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
         <button type="button" className={enabled ? 'ghost-button' : 'primary-button'} disabled={busy === 'toggle' || !loaded} onClick={() => void toggle()}>
           {enabled ? t('admin.net.share.turnoff') : t('admin.net.share.turnon')}
         </button>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--muted)' }}>
+          {t('admin.net.share.maxips')}
+          <input
+            type="number" inputMode="numeric" min={1} max={100} value={newMax}
+            onChange={(e) => setNewMax(Math.min(100, Math.max(1, Number(e.target.value) || 10)))}
+            style={{ width: 64 }}
+          />
+        </label>
         <button type="button" className="ghost-button" disabled={busy === 'create' || !loaded} onClick={() => void create()}>
           {t('admin.net.share.add')}
         </button>
@@ -173,39 +193,53 @@ function SharePanel() {
       )}
       {links.length > 0 && (
         <ul style={{ listStyle: 'none', margin: '12px 0 0', padding: 0, display: 'grid', gap: 10 }}>
-          {links.map((l) => (
-            <li key={l.id} style={{ padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8 }}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', fontSize: 13 }}>
-                <code style={{ fontSize: 12 }}>#{l.id}</code>
-                <span style={{ color: l.bound ? '#d29922' : '#3fb950', fontSize: 12 }}>
-                  {l.bound ? t('admin.net.share.bound') : t('admin.net.share.unbound')}
-                </span>
-                <span style={{ color: 'var(--muted)', fontSize: 12 }}>
-                  {t('admin.net.share.lastused')}: {l.lastUsedAt ? new Date(l.lastUsedAt).toLocaleString() : t('admin.net.share.never')}
-                </span>
-                <span style={{ flex: 1 }} />
-                {freshUrls[l.id] && (
-                  <CopyButton text={freshUrls[l.id]!} label={t('admin.net.share.copy')} copiedKey={`share-${l.id}`} onCopied={() => undefined} />
-                )}
-                {l.bound && (
-                  <button type="button" className="ghost-button" disabled={busy === `reset-${l.id}`}
-                    onClick={() => void run(`reset-${l.id}`, async () => { await postNet('share_reset', { id: l.id }); await refresh() })}>
-                    {t('admin.net.share.reset')}
+          {links.map((l) => {
+            const full = l.ipCount >= l.maxIps
+            return (
+              <li key={l.id} style={{ padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', fontSize: 13 }}>
+                  <code style={{ fontSize: 12 }}>#{l.id}</code>
+                  <span style={{ color: full ? '#d29922' : '#3fb950', fontSize: 12 }}>
+                    {t('admin.net.share.usage')}: {l.ipCount}/{l.maxIps}
+                  </span>
+                  <span style={{ color: 'var(--muted)', fontSize: 12 }}>
+                    {t('admin.net.share.lastused')}: {l.lastUsedAt ? new Date(l.lastUsedAt).toLocaleString() : t('admin.net.share.never')}
+                  </span>
+                  <span style={{ flex: 1 }} />
+                  {freshUrls[l.id] && (
+                    <CopyButton text={freshUrls[l.id]!} label={t('admin.net.share.copy')} copiedKey={`share-${l.id}`} onCopied={() => undefined} />
+                  )}
+                  {l.ipCount > 0 && (
+                    <button type="button" className="ghost-button" disabled={busy === `reset-${l.id}`}
+                      onClick={() => void run(`reset-${l.id}`, async () => { await postNet('share_reset', { id: l.id }); await refresh() })}>
+                      {t('admin.net.share.reset')}
+                    </button>
+                  )}
+                  <button type="button" className="ghost-button" disabled={busy === `del-${l.id}`}
+                    onClick={() => void run(`del-${l.id}`, async () => { await postNet('share_delete', { id: l.id }); await refresh() })}>
+                    {t('admin.net.share.delete')}
                   </button>
-                )}
-                <button type="button" className="ghost-button" disabled={busy === `del-${l.id}`}
-                  onClick={() => void run(`del-${l.id}`, async () => { await postNet('share_delete', { id: l.id }); await refresh() })}>
-                  {t('admin.net.share.delete')}
-                </button>
-              </div>
-              {freshUrls[l.id] && (
-                <div style={{ marginTop: 8, fontSize: 12, wordBreak: 'break-all' }}>
-                  <span style={{ color: '#d29922' }}>{t('admin.net.share.newurl')}</span>
-                  <code>{freshUrls[l.id]}</code>
                 </div>
-              )}
-            </li>
-          ))}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginTop: 8, fontSize: 12 }}>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--muted)' }}>
+                    {t('admin.net.share.maxips')}
+                    <input
+                      type="number" inputMode="numeric" min={1} max={100} defaultValue={l.maxIps}
+                      disabled={busy === `ips-${l.id}`}
+                      onBlur={(e) => commitIps(l, e.target.value)}
+                      style={{ width: 64 }}
+                    />
+                  </label>
+                </div>
+                {freshUrls[l.id] && (
+                  <div style={{ marginTop: 8, fontSize: 12, wordBreak: 'break-all' }}>
+                    <span style={{ color: '#d29922' }}>{t('admin.net.share.newurl')}</span>
+                    <code>{freshUrls[l.id]}</code>
+                  </div>
+                )}
+              </li>
+            )
+          })}
         </ul>
       )}
     </section>

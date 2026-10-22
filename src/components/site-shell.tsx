@@ -1,6 +1,7 @@
 import { Link, useLocation } from '@tanstack/react-router'
 import {
   BookOpenText,
+  BookA,
   Braces,
   CalendarDays,
   ChevronDown,
@@ -53,6 +54,7 @@ export function SiteShell({ children, categories }: { children: React.ReactNode;
   const decodedPath = (() => { try { return decodeURIComponent(pathname) } catch { return pathname } })()
   const activeAll = decodedPath === '/' || decodedPath.startsWith('/posts/')
   const activeArchive = decodedPath === '/archive' || decodedPath.startsWith('/archive/')
+  const activeRussian = decodedPath === '/russian' || decodedPath.startsWith('/russian/')
   const activeAdmin = decodedPath === '/admin' || decodedPath.startsWith('/admin/')
   const activeCat = (name: string) => decodedPath === `/category/${name}`
   // 侧边栏分类排序：先按文章数（DB+静态）降序——热门分类在前、0 篇新分类在末尾
@@ -203,6 +205,7 @@ export function SiteShell({ children, categories }: { children: React.ReactNode;
         <div className="tree-section"><ChevronDown size={14} /><strong>ThoracicTag4669</strong></div>
         <Link to="/" className={`tree-item${activeAll ? ' selected' : ''}`} onClick={() => setSidebarOpen(false)}><BookOpenText size={15} /><span>{t('shell.allposts.file')}</span></Link>
         <Link to="/archive" className={`tree-item${activeArchive ? ' selected' : ''}`} onClick={() => setSidebarOpen(false)}><CalendarDays size={15} /><span>{t('shell.archive.file')}</span></Link>
+        <Link to="/russian" className={`tree-item${activeRussian ? ' selected' : ''}`} onClick={() => setSidebarOpen(false)}><BookA size={15} /><span>{t('shell.russian.file')}</span></Link>
         {adminBadge && (
           <Link to="/admin" className={`tree-item${activeAdmin ? ' selected' : ''}`} onClick={() => setSidebarOpen(false)} style={{ color: 'var(--accent)' }}>
             <ShieldCheck size={15} /><span>{t('shell.admin.file')}</span>

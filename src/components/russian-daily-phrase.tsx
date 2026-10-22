@@ -5,11 +5,11 @@
  * 仅在组件实际挂载时加载本 chunk。
  */
 import * as React from 'react'
-import { Check, ChevronDown, ChevronUp, Copy, Eye, EyeOff, Repeat, Sparkles, Turtle } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, Copy, Eye, EyeOff, Mars, Repeat, Sparkles, Turtle, Venus } from 'lucide-react'
 
 import { useLang, useT } from '@/lib/i18n'
 import { PHRASE_CATS, type PhraseCatId } from '@/lib/russian-phrases'
-import { playRu, setRuVoiceMode, ttsNormalize, useRuVoiceMode } from './russian-voice'
+import { playRu, setRuVoiceGender, setRuVoiceMode, ttsNormalize, useRuVoiceGender, useRuVoiceMode } from './russian-voice'
 
 // 当日序号：按本地日期年内天数取模，跨天自动轮换（纯前端，无网络请求）
 function dayIndex(len: number): number {
@@ -32,6 +32,7 @@ function DailyPhrase() {
   const [collapsed, setCollapsed] = React.useState(false)
   const [hideTr, setHideTr] = React.useState(false)
   const voiceMode = useRuVoiceMode()
+  const voiceGender = useRuVoiceGender()
   React.useEffect(() => {
     try {
       setCollapsed(localStorage.getItem('sg-ru-daily-fold') === '1')
@@ -134,6 +135,15 @@ function DailyPhrase() {
               onClick={() => setRuVoiceMode(voiceMode === 'natural' ? 'auto' : 'natural')}
             >
               <Sparkles size={14} /> {t('ru.dl.natural')}
+            </button>
+            <button
+              type="button"
+              className="ghost-button"
+              title={t('ru.voice.genderhint')}
+              onClick={() => setRuVoiceGender(voiceGender === 'f' ? 'm' : 'f')}
+            >
+              {voiceGender === 'f' ? <Venus size={14} /> : <Mars size={14} />}
+              {voiceGender === 'f' ? t('ru.voice.female') : t('ru.voice.male')}
             </button>
             <button
               type="button"

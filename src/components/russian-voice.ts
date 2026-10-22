@@ -17,7 +17,10 @@ function speak(text: string, rate = 0.8): boolean {
     const u = new SpeechSynthesisUtterance(clean)
     u.lang = 'ru-RU'
     u.rate = rate
-    const voice = synth.getVoices().find((v) => v.lang?.toLowerCase().startsWith('ru'))
+    const ruVoices = synth.getVoices().filter((v) => v.lang?.toLowerCase().startsWith('ru'))
+    // 按所选性别从本地俄语语音中启发式挑选（Windows 常见女声 Irina、男声 Pavel）
+    const maleRe = /pavel|dmitri|male/i
+    const voice = ruVoices.find((v) => maleRe.test(v.name) === (voiceGender === 'm')) || ruVoices[0]
     if (voice) u.voice = voice
     synth.cancel()
     synth.speak(u)
@@ -100,6 +103,29 @@ export function useRuVoiceMode(): RuVoiceMode {
   )
 }
 
+// ── 语音性别：女声 Svetlana（默认）/ 男声 Dmitry ──
+// 服务端神经语音经 voice=d 参数切换；本地引擎按名称启发式匹配
+export type RuVoiceGender = 'f' | 'm'
+let voiceGender: RuVoiceGender = 'f'
+const genderListeners = new Set<(g: RuVoiceGender) => void>()
+try {
+  const saved = localStorage.getItem('sg-ru-voice-gender')
+  if (saved === 'f' || saved === 'm') voiceGender = saved
+} catch { /* ignore */ }
+
+export function setRuVoiceGender(g: RuVoiceGender) {
+  voiceGender = g
+  try { localStorage.setItem('sg-ru-voice-gender', g) } catch { /* ignore */ }
+  genderListeners.forEach((fn) => fn(g))
+}
+export function useRuVoiceGender(): RuVoiceGender {
+  return React.useSyncExternalStore(
+    (cb) => { genderListeners.add(cb); return () => { genderListeners.delete(cb) } },
+    () => voiceGender,
+    () => voiceGender,
+  )
+}
+
 export function isMobileDevice(): boolean {
   if (typeof navigator === 'undefined') return false
   return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
@@ -127,9 +153,12 @@ let ttsAudio: HTMLAudioElement | null = null
  * 返回 false 表示两种引擎都不可用（UI 据此提示）。
  */
 export async function playRu(text: string, rate = 0.8): Promise<boolean> {
+  // 性别切换经网关 voice 参数（d=Dmitry 男声，缺省 Svetlana 女声）
+  const ttsUrl = (t: string, r: number) =>
+    `${TTS_BASE}?text=${encodeURIComponent(t)}&rate=${r}${voiceGender === 'm' ? '&voice=d' : ''}`
   if (shouldUseServerVoice()) {
     try {
-      const url = `${TTS_BASE}?text=${encodeURIComponent(text)}&rate=${rate}`
+      const url = ttsUrl(text, rate)
       if (!ttsAudio) ttsAudio = new Audio()
       // 语速在服务端合成时控制，避免手机端变速导致音调异常
       ttsAudio.pause()
@@ -147,7 +176,7 @@ export async function playRu(text: string, rate = 0.8): Promise<boolean> {
     // 本地声称不可用：尝试服务端兜底
     try {
       if (!ttsAudio) ttsAudio = new Audio()
-      ttsAudio.src = `${TTS_BASE}?text=${encodeURIComponent(text)}&rate=${rate}`
+      ttsAudio.src = ttsUrl(text, rate)
       await ttsAudio.play()
       return true
     } catch {

@@ -37,6 +37,19 @@ const READER_HTML_LIMIT = 2 * 1024 * 1024 // 阅读模式 HTML 上限 2MiB
 const DOWNLOAD_MAX_BYTES = 200 * 1024 * 1024 // 通用下载中转上限 200MiB（超过则截断或拒绝）
 
 /**
+ * DuckDuckGo 单端点超时。
+ *
+ * 实测（Cloudflare Worker 出口，多次取样，经本站 action=download 复现真实取数条件）：
+ *   html.duckduckgo.com/html/  → Cloudflare 522「服务器连接源站超时」，约 21–22s 才失败
+ *   duckduckgo.com/html/       → 同样 522，约 23s 才失败
+ *   lite.duckduckgo.com/lite/  → 通常 0.8–4.8s 返回真实结果（偶发验证码页/202）
+ * 即前两个端点对数据中心 IP 基本不可用，而原顺序把它们排在 lite 之前，
+ * 导致每次搜索先白等 15s（两次即 ~30s），这正是 global 搜索耗时 16–32s 的来源。
+ * 降到 6s：仍容许慢响应，又能尽快落到可用端点。
+ */
+const DDG_TIMEOUT_MS = 6_000
+
+/**
  * 构建反风控请求头：模拟真实 Chrome 浏览器发出的请求。
  *
  * 国内大量站点（知乎、CSDN、豆瓣、微信读书、书源站等）对服务端抓取做了风控：
@@ -930,32 +943,53 @@ function parseDdg(html: string): SearchResult[] {
     .map((r, i) => ({ ...r, snippet: snippets[i] || '' }))
 }
 
-async function ddgSearch(q: string): Promise<SearchResult[]> {
-  const endpoints = [
-    `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`,
-    `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(q)}`,
-    `https://duckduckgo.com/html/?q=${encodeURIComponent(q)}`,
-  ]
+async function ddgSearch(q: string, page = 1): Promise<SearchResult[]> {
+  // 顺位与重试次数都依据 Worker 出口的实测可达性：
+  //   lite  —— 命中时 0.8–4.8s 出真实结果，但对数据中心 IP 约有一半概率返回
+  //            验证码页或限流的 202 空壳，故给 2 次机会（间隔 1.2s）；
+  //   其余 —— html./duckduckgo.com 稳定 522（实测 21–23s 才失败），只试 1 次。
+  // 这条顺序的意义：先打唯一可用的 lite（最多 2 次约 7s），再退到两个死点位，
+  // 最坏耗时从改前的 ~30s 降到 ~12s，且成功率显著提高。
+  // 翻页：lite 只支持 POST 表单翻页（GET 无效），page>1 时只用 html 端点 + s 参数（步进约 30）。
+  const encoded = encodeURIComponent(q)
+  const sParam = page > 1 ? `&s=${(page - 1) * 30}` : ''
+  const endpoints: Array<{ url: string; attempts: number }> = page > 1
+    ? [
+        { url: `https://html.duckduckgo.com/html/?q=${encoded}${sParam}`, attempts: 1 },
+        { url: `https://duckduckgo.com/html/?q=${encoded}${sParam}`, attempts: 1 },
+      ]
+    : [
+        { url: `https://lite.duckduckgo.com/lite/?q=${encoded}`, attempts: 2 },
+        { url: `https://html.duckduckgo.com/html/?q=${encoded}`, attempts: 1 },
+        { url: `https://duckduckgo.com/html/?q=${encoded}`, attempts: 1 },
+      ]
   const fails: string[] = []
   for (const ep of endpoints) {
-    const tag = new URL(ep).host
-    try {
-      const res = await fetch(ep, {
-        signal: AbortSignal.timeout(15_000),
-        headers: buildBrowserHeaders({ mode: 'navigate', accept: 'text/html,application/xhtml+xml' }),
-      })
-      if (!res.ok) { fails.push(`${tag}=${res.status}`); continue }
-      const { text } = await readCapped(res, READER_HTML_LIMIT)
-      // DDG 对数据中心 IP 常返回验证码页而非结果页
-      if (/anomaly-modal|challenge-form|Unfortunately, bots use DuckDuckGo too/i.test(text)) {
-        fails.push(`${tag}=captcha`)
-        continue
+    const tag = new URL(ep.url).host
+    for (let attempt = 1; attempt <= ep.attempts; attempt++) {
+      const again = attempt < ep.attempts
+      try {
+        const res = await fetch(ep.url, {
+          signal: AbortSignal.timeout(DDG_TIMEOUT_MS),
+          headers: buildBrowserHeaders({ mode: 'navigate', accept: 'text/html,application/xhtml+xml' }),
+        })
+        if (!res.ok) { fails.push(`${tag}=${res.status}`); break }
+        const { text } = await readCapped(res, READER_HTML_LIMIT)
+        // DDG 对数据中心 IP 常返回验证码页而非结果页
+        if (/anomaly-modal|challenge-form|Unfortunately, bots use DuckDuckGo too/i.test(text)) {
+          fails.push(`${tag}=captcha`)
+          if (again) { await new Promise((r) => setTimeout(r, 1200)); continue }
+          break
+        }
+        const parsed = parseDdg(text)
+        if (parsed.length) return parsed
+        fails.push(`${tag}=empty`)
+        if (again) { await new Promise((r) => setTimeout(r, 1200)); continue }
+        break
+      } catch (e) {
+        fails.push(`${tag}=${e instanceof Error ? e.message : 'neterr'}`)
+        break
       }
-      const parsed = parseDdg(text)
-      if (parsed.length) return parsed
-      fails.push(`${tag}=empty`)
-    } catch (e) {
-      fails.push(`${tag}=${e instanceof Error ? e.message : 'neterr'}`)
     }
   }
   throw new Error(`DDG[${fails.join(', ')}]`)
@@ -993,9 +1027,9 @@ async function ddgInstantAnswer(q: string): Promise<SearchResult[]> {
 }
 
 /** Crossref 学术搜索：免费无需密钥的稳定 JSON API（DOI 元数据，覆盖期刊论文场景） */
-async function crossrefSearch(q: string): Promise<SearchResult[]> {
+async function crossrefSearch(q: string, page = 1): Promise<SearchResult[]> {
   const res = await fetch(
-    `https://api.crossref.org/works?rows=8&select=DOI,title,abstract,published,container-title&query=${encodeURIComponent(q)}`,
+    `https://api.crossref.org/works?rows=8&select=DOI,title,abstract,published,container-title&query=${encodeURIComponent(q)}${page > 1 ? `&offset=${(page - 1) * 8}` : ''}`,
     { signal: AbortSignal.timeout(15_000), headers: { 'User-Agent': BROWSER_UA } },
   )
   if (!res.ok) throw new Error(`Crossref=${res.status}`)
@@ -1019,9 +1053,9 @@ async function crossrefSearch(q: string): Promise<SearchResult[]> {
 }
 
 /** arXiv 预印本搜索：Atom XML，免费无需密钥 */
-async function arxivSearch(q: string): Promise<SearchResult[]> {
+async function arxivSearch(q: string, page = 1): Promise<SearchResult[]> {
   const res = await fetch(
-    `https://export.arxiv.org/api/query?max_results=6&search_query=all:${encodeURIComponent(q)}`,
+    `https://export.arxiv.org/api/query?max_results=6&search_query=all:${encodeURIComponent(q)}${page > 1 ? `&start=${(page - 1) * 6}` : ''}`,
     { signal: AbortSignal.timeout(15_000), headers: { 'User-Agent': BROWSER_UA } },
   )
   if (!res.ok) throw new Error(`arXiv=${res.status}`)
@@ -1087,10 +1121,11 @@ function parseBaidu(html: string): SearchResult[] {
   return results.slice(0, 20)
 }
 
-async function bingCnSearch(q: string): Promise<SearchResult[]> {
+async function bingCnSearch(q: string, page = 1): Promise<SearchResult[]> {
   // 用国际 Bing + 中文市场参数（cn.bing.com 对 Worker IP 反爬严重，恒返回首页壳）
+  // 翻页：first 为 1-based 结果索引，步进 10
   const res = await fetch(
-    `https://www.bing.com/search?q=${encodeURIComponent(q)}&count=20&setlang=zh-cn&mkt=zh-CN&cc=CN`,
+    `https://www.bing.com/search?q=${encodeURIComponent(q)}&count=20&setlang=zh-cn&mkt=zh-CN&cc=CN${page > 1 ? `&first=${(page - 1) * 10 + 1}` : ''}`,
     {
       signal: AbortSignal.timeout(15_000),
       headers: buildBrowserHeaders({ mode: 'navigate', accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', referer: 'https://www.bing.com/' }),
@@ -1103,9 +1138,10 @@ async function bingCnSearch(q: string): Promise<SearchResult[]> {
   return parsed
 }
 
-async function baiduSearch(q: string): Promise<SearchResult[]> {
+async function baiduSearch(q: string, page = 1): Promise<SearchResult[]> {
+  // 翻页：pn 为 0-based 结果索引，rn=20 时步进 20
   const res = await fetch(
-    `https://www.baidu.com/s?wd=${encodeURIComponent(q)}&rn=20&ie=utf-8`,
+    `https://www.baidu.com/s?wd=${encodeURIComponent(q)}&rn=20&ie=utf-8${page > 1 ? `&pn=${(page - 1) * 20}` : ''}`,
     {
       signal: AbortSignal.timeout(15_000),
       headers: buildBrowserHeaders({ mode: 'navigate', accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', referer: 'https://www.baidu.com/' }),
@@ -1125,19 +1161,21 @@ async function handleSearchGet(request: Request, url: URL): Promise<Response> {
   const q = (url.searchParams.get('q') || '').trim().slice(0, 200)
   if (!q) return jsonError('缺少搜索关键词。')
   const region = url.searchParams.get('region') === 'cn' ? 'cn' : 'global'
+  // 翻页：1-based，上限 10 页防滥用
+  const page = Math.min(10, Math.max(1, parseInt(url.searchParams.get('page') || '1', 10) || 1))
 
   // 回国线路：优先中国搜索引擎（Bing 中国 → 百度），全挂则落到国际链路
   let cnErrors = ''
   if (region === 'cn') {
     try {
-      const results = await bingCnSearch(q)
-      return Response.json({ ok: true, engine: 'bing-cn', query: q, results }, { headers: PRIVATE_HEADERS })
+      const results = await bingCnSearch(q, page)
+      return Response.json({ ok: true, engine: 'bing-cn', query: q, page, results }, { headers: PRIVATE_HEADERS })
     } catch (e) {
       cnErrors += `bing-cn:${e instanceof Error ? e.message : '?'};`
     }
     try {
-      const results = await baiduSearch(q)
-      return Response.json({ ok: true, engine: 'baidu', query: q, results }, { headers: PRIVATE_HEADERS })
+      const results = await baiduSearch(q, page)
+      return Response.json({ ok: true, engine: 'baidu', query: q, page, results }, { headers: PRIVATE_HEADERS })
     } catch (e) {
       cnErrors += `baidu:${e instanceof Error ? e.message : '?'};`
     }
@@ -1149,7 +1187,7 @@ async function handleSearchGet(request: Request, url: URL): Promise<Response> {
   if (braveKey) {
     try {
       const res = await fetch(
-        `https://api.search.brave.com/res/v1/web/search?count=20&q=${encodeURIComponent(q)}`,
+        `https://api.search.brave.com/res/v1/web/search?count=20&q=${encodeURIComponent(q)}${page > 1 ? `&offset=${page - 1}` : ''}`,
         { signal: AbortSignal.timeout(20_000), headers: { Accept: 'application/json', 'X-Subscription-Token': braveKey } },
       )
       if (res.ok) {
@@ -1157,7 +1195,7 @@ async function handleSearchGet(request: Request, url: URL): Promise<Response> {
         const results = (data.web?.results ?? [])
           .filter((r) => r.url && r.title)
           .map((r) => ({ title: r.title!, url: r.url!, snippet: r.description || '' }))
-        return Response.json({ ok: true, engine: 'brave', query: q, results, ...(cnErrors ? { cnErrors } : {}) }, { headers: PRIVATE_HEADERS })
+        return Response.json({ ok: true, engine: 'brave', query: q, page, results, ...(cnErrors ? { cnErrors } : {}) }, { headers: PRIVATE_HEADERS })
       }
     } catch {
       // 密钥失效/网络异常时落到 DDG
@@ -1165,11 +1203,11 @@ async function handleSearchGet(request: Request, url: URL): Promise<Response> {
   }
 
   try {
-    const results = await ddgSearch(q)
-    return Response.json({ ok: true, engine: 'duckduckgo', query: q, results, ...(cnErrors ? { cnErrors } : {}) }, { headers: PRIVATE_HEADERS })
+    const results = await ddgSearch(q, page)
+    return Response.json({ ok: true, engine: 'duckduckgo', query: q, page, results, ...(cnErrors ? { cnErrors } : {}) }, { headers: PRIVATE_HEADERS })
   } catch (ddgErr) {
     // DDG 全挂（常见于数据中心 IP 被验证码拦截）→ 兜底：官方 Instant Answer + Crossref + arXiv
-    const [ia, cr, ax] = await Promise.allSettled([ddgInstantAnswer(q), crossrefSearch(q), arxivSearch(q)])
+    const [ia, cr, ax] = await Promise.allSettled([ddgInstantAnswer(q), crossrefSearch(q, page), arxivSearch(q, page)])
     const results: SearchResult[] = []
     const seen = new Set<string>()
     for (const r of [ia, cr, ax]) {
@@ -1181,7 +1219,7 @@ async function handleSearchGet(request: Request, url: URL): Promise<Response> {
       }
     }
     if (results.length) {
-      return Response.json({ ok: true, engine: 'fallback', query: q, results, ...(cnErrors ? { cnErrors } : {}) }, { headers: PRIVATE_HEADERS })
+      return Response.json({ ok: true, engine: 'fallback', query: q, page, results, ...(cnErrors ? { cnErrors } : {}) }, { headers: PRIVATE_HEADERS })
     }
     const d = ddgErr instanceof Error ? ddgErr.message : 'DDG?'
     const i = ia.status === 'rejected' ? (ia.reason as Error)?.message : 'IA=empty'

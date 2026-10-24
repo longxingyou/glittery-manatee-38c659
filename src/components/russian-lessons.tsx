@@ -74,8 +74,8 @@ const LESSONS: LessonMeta[] = [
   { id: 'l10', file: '10-urok-10.md', title: 'Урок 10', hint: 'Сде́лал де́ло — 动词的体 НСВ/СВ · 天气', group: 'lesson', book: 'p-russia' },
   { id: 'l11', file: '11-urok-11.md', title: 'Урок 11', hint: 'Семья́ — э́то семь «Я» — 将来时 · 第五格', group: 'lesson', book: 'p-russia' },
   { id: 'l12', file: '12-urok-12.md', title: 'Урок 12', hint: 'Мы жела́ем сча́стья вам — 第三格 · 六个格', group: 'lesson', book: 'p-russia' },
-  { id: 'pos', file: '13-words-by-pos.md', title: '词表 · 按词型', hint: '1,340 词按名词/动词/形容词等 10 类', group: 'global', book: 'p-russia' },
-  { id: 'theme', file: '14-words-by-theme.md', title: '词表 · 按主题', hint: '同 1,340 词按 20 个主题归集', group: 'global', book: 'p-russia' },
+  { id: 'pos', file: '13-words-by-pos.md', title: '词表 · 按词型', hint: '1,353 词按名词/动词/形容词等 10 类（另附参考书补充 95 词）', group: 'global', book: 'p-russia' },
+  { id: 'theme', file: '14-words-by-theme.md', title: '词表 · 按主题', hint: '同 1,353 词按 20 个主题归集（另附参考书补充 95 词）', group: 'global', book: 'p-russia' },
 ]
 
 /** 条目分组的展示顺序与文案 key（新增书目沿用同一套分组） */

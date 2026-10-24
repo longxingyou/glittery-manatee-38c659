@@ -626,12 +626,14 @@ function PdfJsView({ url, filename }: { url: string; filename: string }) {
 
 function PdfView({ url, filename, forcedRenderer }: { url: string; filename: string; forcedRenderer?: 'js' | 'native' }) {
   const t = useT()
-  // 渲染器选择：?renderer=js|native 强制覆盖；缺省按 UA 判定（Android 走 PDF.js）。
-  // 判定放 effect 里避免 SSR/水合不匹配：桌面首帧即原生 iframe，Android 水合后切 PDF.js。
-  const [mode, setMode] = useState<'js' | 'native'>(forcedRenderer ?? 'native')
+  // 渲染器选择：默认 PDF.js（Range 按需拉取，大 PDF 首屏秒出，全平台一致）；
+  // 原生 iframe 仅在 ?renderer=native 强制覆盖或浏览器明确不支持 canvas 时使用。
+  // 为什么不全 native：桌面 Chrome/Firefox 原生 PDF viewer 会一次性下完整文件才渲染，
+  // 对 20MB+ PDF 首屏等待比 PDF.js Range 按需慢得多；手机端原生 iframe 还可能弹下载。
+  const [mode, setMode] = useState<'js' | 'native'>(forcedRenderer ?? 'js')
   useEffect(() => {
     if (forcedRenderer) { setMode(forcedRenderer); return }
-    setMode(/android/i.test(navigator.userAgent) ? 'js' : 'native')
+    setMode('js')
   }, [forcedRenderer])
 
   // 网关直链（绝对 http(s) URL）已以 application/pdf + Range 提供：

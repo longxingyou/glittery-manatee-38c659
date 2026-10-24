@@ -1,4 +1,6 @@
 import { defineConfig } from 'vite'
+import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import { cloudflare } from '@cloudflare/vite-plugin'
 import viteReact from '@vitejs/plugin-react'
@@ -14,9 +16,41 @@ import contentCollections from '@content-collections/vite'
 // 于是浏览器去取一个 404 的 chunk，动态 import 失败，整页白屏 ——
 // 这正是本地反复出现「所有断言全为 0」的根因，线上部署后同样会中招。
 // 把构建版本编进缓存键，旧版本条目自然失效（并靠 TTL 过期回收），无需手动 purge。
-// 可用 BUILD_ID 环境变量固定（便于复现/缓存复用），否则取构建时刻。
+//
+// ★ 版本号按「源码状态」推导，只在部署时确定一次：
+//   过去取「构建时刻 + 随机数」，于是**每跑一次 build 都换一个版本号**——
+//   部署时这没问题（正是想要的缓存击穿），但本地反复 build 会每次都击穿
+//   KV 与边缘 HTML 缓存，导致反复冷启动、验收变慢且结果飘忽。
+//   现在改成 `git HEAD + 工作区状态` 的哈希：同一份源码反复构建**得到同一个值**，
+//   源码一改（含 content/ 下同步进来的课程精讲）版本号立刻变，旧缓存自然失效。
+//   即「一次部署内只确定一次，且只有内容变了才变」。
+//
+// 仍可用 BUILD_ID 环境变量显式钉住（CI / 需要复现缓存时）：
+//   BUILD_ID=<id> pnpm run build
+const sourceVersion = (): string | null => {
+  try {
+    const git = (args: string[]) =>
+      execFileSync('git', args, {
+        cwd: process.cwd(),
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim()
+    const head = git(['rev-parse', '--short', 'HEAD'])
+    if (!head) return null
+    // 含已跟踪改动与未跟踪文件（--porcelain 自动遵守 .gitignore，不扫 dist/node_modules）
+    const dirty = git(['status', '--porcelain'])
+    const digest = createHash('sha256').update(`${head}\n${dirty}`).digest('hex').slice(0, 8)
+    return `${head}-${digest}`
+  } catch {
+    // 不是 git 仓库 / 没装 git → 退回旧行为（时间戳+随机），宁可变号也不要报错
+    return null
+  }
+}
+
 const BUILD_ID =
-  process.env.BUILD_ID || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+  process.env.BUILD_ID ||
+  sourceVersion() ||
+  `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 
 // Cloudflare Workers 适配（按官方 TanStack Start 指南）：
 // cloudflare 必须在 tanstackStart 之前注册，SSR 环境名固定为 "ssr"。

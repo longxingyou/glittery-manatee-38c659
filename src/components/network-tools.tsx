@@ -864,6 +864,8 @@ export function NetworkTools({ shared = false }: { shared?: boolean }) {
   const [searchResults, setSearchResults] = React.useState<NonNullable<NetEnvelope['results']>>([])
   const [searchEngine, setSearchEngine] = React.useState('')
   const [searchRegion, setSearchRegion] = React.useState<SearchRegion>('auto')
+  const [searchPage, setSearchPage] = React.useState(1)
+  const searchTopRef = React.useRef<HTMLElement | null>(null)
   // 记录上次实际生效线路，仅在 auto 模式下展示「自动识别」徽章
   const [autoResolved, setAutoResolved] = React.useState<'global' | 'cn' | null>(null)
 
@@ -926,7 +928,7 @@ export function NetworkTools({ shared = false }: { shared?: boolean }) {
     window.open(buildNetUrl('reader', { u }), '_blank', 'noopener,noreferrer')
   }
 
-  const doSearch = async () => {
+  const doSearch = async (page = 1) => {
     const q = query.trim()
     if (!q) return
     // 智能路由：auto 模式按查询文字含 CJK 与否选路；手动锁定则按用户偏好
@@ -936,10 +938,13 @@ export function NetworkTools({ shared = false }: { shared?: boolean }) {
     setSearchError('')
     setSearchResults([])
     setSearchEngine('')
+    setSearchPage(page)
     try {
-      const data = await callNet('search', { q, ...(effective === 'cn' ? { region: 'cn' } : {}) }, shared)
+      const data = await callNet('search', { q, ...(effective === 'cn' ? { region: 'cn' } : {}), ...(page > 1 ? { page: String(page) } : {}) }, shared)
       setSearchResults(data.results ?? [])
       setSearchEngine(data.engine || '')
+      // 翻页后滚动回搜索区顶部，避免停留在旧位置
+      if (page > 1) searchTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     } catch (e) {
       setSearchError(e instanceof Error ? e.message : t('admin.net.search.failed'))
     } finally {
@@ -1060,7 +1065,7 @@ export function NetworkTools({ shared = false }: { shared?: boolean }) {
       </section>
 
       {/* ── 代理搜索 ── */}
-      <section className="panel" style={{ marginTop: 16 }}>
+      <section className="panel" style={{ marginTop: 16 }} ref={searchTopRef}>
         <h2 style={{ margin: '0 0 4px', fontSize: 16 }}><Search size={16} style={{ verticalAlign: '-3px', marginRight: 6 }} />{t('admin.net.search.title')}</h2>
         <p style={{ margin: '0 0 12px', color: 'var(--muted)', fontSize: 13 }}>{t('admin.net.search.desc')}</p>
         <div style={{ display: 'flex', gap: 4, marginBottom: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1099,7 +1104,7 @@ export function NetworkTools({ shared = false }: { shared?: boolean }) {
             )}
           </p>
         )}
-        {searchResults.length === 0 && !searchBusy && !searchError && query && (
+        {searchResults.length === 0 && !searchBusy && !searchError && query && searchPage === 1 && (
           <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 12 }}>{t('admin.net.search.none')}</p>
         )}
         <ol style={{ listStyle: 'none', margin: '12px 0 0', padding: 0, display: 'grid', gap: 10 }}>
@@ -1122,6 +1127,34 @@ export function NetworkTools({ shared = false }: { shared?: boolean }) {
             </li>
           ))}
         </ol>
+        {(searchResults.length > 0 || searchPage > 1) && (
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'center', marginTop: 14 }}>
+            <button
+              type="button"
+              className="ghost-button"
+              style={{ fontSize: 13, padding: '4px 14px' }}
+              disabled={searchBusy || searchPage <= 1}
+              onClick={() => void doSearch(searchPage - 1)}
+            >
+              ← {t('admin.net.search.prev')}
+            </button>
+            <span style={{ fontSize: 13, color: 'var(--muted)' }}>
+              {t('admin.net.search.page').replace('{n}', String(searchPage))}
+            </span>
+            <button
+              type="button"
+              className="ghost-button"
+              style={{ fontSize: 13, padding: '4px 14px' }}
+              disabled={searchBusy || searchResults.length === 0 || searchPage >= 10}
+              onClick={() => void doSearch(searchPage + 1)}
+            >
+              {t('admin.net.search.next')} →
+            </button>
+          </div>
+        )}
+        {searchPage > 1 && searchResults.length === 0 && !searchBusy && !searchError && (
+          <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 8, textAlign: 'center' }}>{t('admin.net.search.nomore')}</p>
+        )}
       </section>
 
       {/* ── 常用入口 ── */}

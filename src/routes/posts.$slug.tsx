@@ -215,8 +215,14 @@ function RouteComponent() {
           return `/egg/${encodeURIComponent(post.slug)}${qs ? `?${qs}` : ''}`
         })()
     const handleEggPrint = () => {
-      // sandbox 阻止 iframe 内脚本调用 print，改在新窗口打开后由用户手动打印
-      const win = window.open(`/egg/${encodeURIComponent(post.slug)}`, '_blank')
+      // sandbox 阻止 iframe 内脚本调用 print，改在新窗口打开后由用户手动打印。
+      // 把当前字体/主题带过去：打印窗口的起始配色与用户此刻所见一致（窗口内还可在浅色/深色间切换）
+      const params = new URLSearchParams()
+      const curTheme = eggPrefs?.theme
+      if (eggPrefs?.font) params.set('font', eggPrefs.font)
+      if (curTheme === 'light' || curTheme === 'dark') params.set('theme', curTheme)
+      const qs = params.toString()
+      const win = window.open(`/egg/${encodeURIComponent(post.slug)}${qs ? `?${qs}` : ''}`, '_blank')
       if (win) {
         win.addEventListener('load', () => {
           setTimeout(() => win.print(), 100)

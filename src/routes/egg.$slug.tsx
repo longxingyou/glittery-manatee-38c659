@@ -157,10 +157,22 @@ async function handleEggGet(request: Request, slug: string): Promise<Response> {
   return new Response(finalHtml, { status: 200, headers })
 }
 
+/**
+ * 非阻塞样式表：彩蛋页依赖主站整包样式（styles.css 约 220KB）与字体 CSS，
+ * 冷启动时这些请求可能很慢。若用常规 <link rel=stylesheet>，浏览器会阻塞首绘
+ * 直到样式下载完成——文档长期停在 readyState=loading，表现就是整页空白
+ * （下载/打印等按钮仍在）。改用 media=print + onload 切回 all：先立即可绘制
+ * （配合下面的内联关键样式仍可读），样式到达后再恢复完整排版。
+ */
+function asyncStyleLink(href: string): string {
+  const safe = href.replace(/"/g, '&quot;')
+  return `<link rel="stylesheet" href="${safe}" media="print" onload="this.media='all'"><noscript><link rel="stylesheet" href="${safe}"></noscript>`
+}
+
 /** 构造注入到彩蛋文档 <head> 的字体内容：字体 CSS link + font-family 覆盖样式 */
 function buildEggFontHead(font: FontId): string {
   const links = EGG_FONT_CSS_URLS[font]
-    .map((u) => `<link rel="stylesheet" href="${u}">`)
+    .map((u) => asyncStyleLink(u))
     .join('')
   // 仅强制 html/body，文档内图标字体等不被 * 选择器破坏；
   // 中文字体（如得意黑）缺西里尔字形时，浏览器按栈回退到系统字体显示俄文
@@ -198,6 +210,35 @@ ${body}
 }
 
 /**
+ * 彩蛋内联关键样式：主站整包 CSS 是异步到达的，首绘阶段靠这段极简样式
+ * 保证文字可读（配色随 data-theme 切换），并承载打印页的白天/黑夜切换按钮。
+ */
+const EGG_CRITICAL_CSS = `<style>
+:root{color-scheme:dark;--egg-bg:#0d1117;--egg-text:#d9e1ec;--egg-line:#2a3441;--egg-btn:#d9e1ec}
+:root[data-theme="light"]{color-scheme:light;--egg-bg:#f4f6f8;--egg-text:#253142;--egg-line:#d5dde6;--egg-btn:#253142}
+html,body{margin:0;background:var(--egg-bg);color:var(--egg-text);font:16px/1.75 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+.egg-md-body{max-width:820px;margin:0 auto;padding:56px 28px 120px}
+.egg-theme-bar{position:fixed;top:12px;right:12px;z-index:10;display:none;gap:2px;padding:3px;border:1px solid var(--egg-line);border-radius:8px}
+/* 仅在顶层窗口（打印窗口/直接打开）出现；内嵌在文章页 iframe 里默认不显示 */
+html.egg-standalone .egg-theme-bar{display:flex}
+.egg-theme-bar button{border:0;background:none;color:var(--egg-btn);opacity:.6;font-family:inherit;font-size:12px;line-height:1;padding:5px 9px;border-radius:6px;cursor:pointer}
+.egg-theme-bar button.on{opacity:1;font-weight:700}
+@media print{.egg-theme-bar{display:none!important}html,body{background:#fff;color:#111}}
+</style>`
+
+const EGG_THEME_BAR = `<div class="egg-theme-bar" role="group" aria-label="显示模式">
+<button type="button" data-egg-theme="light">浅色</button>
+<button type="button" data-egg-theme="dark">深色</button>
+</div>`
+
+// 主题切换：内嵌在文章页 iframe 里时隐藏（父页面顶部已有下载按钮，避免重叠）；
+// 直接从浏览器/打印窗口打开时显示。data-theme 只需切换 html 属性，主站 CSS 随之生效。
+const EGG_THEME_SCRIPT = `<script>(function(){var d=document.documentElement;try{if(window.self===window.top)d.classList.add('egg-standalone')}catch(e){}
+function apply(t){d.setAttribute('data-theme',t);var bs=document.querySelectorAll('[data-egg-theme]');for(var i=0;i<bs.length;i++){bs[i].classList.toggle('on',bs[i].getAttribute('data-egg-theme')===t)}}
+var cur=d.getAttribute('data-theme');if(cur!=='light'&&cur!=='dark'){cur=(window.matchMedia&&matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark'}apply(cur);
+document.addEventListener('click',function(e){var el=(e.target&&e.target.closest)?e.target.closest('[data-egg-theme]'):null;if(!el)return;var t=el.getAttribute('data-egg-theme');if(t==='light'||t==='dark')apply(t)})})()</script>`
+
+/**
  * Markdown 模式彩蛋骨架：库存 Markdown 源经主站 renderMarkdown 渲染
  *（KaTeX 已在该函数内服务端渲染为安全 HTML），外包 .markdown-body 容器并
  * 加载主站样式与 KaTeX 样式；?theme / ?font 控制配色与字体，与文章页观感一致。
@@ -215,14 +256,17 @@ function wrapEggMarkdown(source: string, slug: string, font: FontId | null, them
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <base href="/">
 <title>Egg · ${safeSlug}</title>
-<link rel="stylesheet" href="${siteStyles}">
-<link rel="stylesheet" href="${katexCss}">
+${EGG_CRITICAL_CSS}
+${asyncStyleLink(siteStyles)}
+${asyncStyleLink(katexCss)}
 ${fontHead}
 </head>
 <body>
+${EGG_THEME_BAR}
 <div class="markdown-body egg-md-body">
 ${bodyHtml}
 </div>
+${EGG_THEME_SCRIPT}
 </body>
 </html>`
 }

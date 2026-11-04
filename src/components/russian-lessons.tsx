@@ -76,6 +76,7 @@ const LESSONS: LessonMeta[] = [
   { id: 'l12', file: '12-urok-12.md', title: 'Урок 12', hint: 'Мы жела́ем сча́стья вам — 第三格 · 六个格', group: 'lesson', book: 'p-russia' },
   { id: 'pos', file: '13-words-by-pos.md', title: '词表 · 按词型', hint: '1,353 词按名词/动词/形容词等 10 类（另附参考书补充 95 词）', group: 'global', book: 'p-russia' },
   { id: 'theme', file: '14-words-by-theme.md', title: '词表 · 按主题', hint: '同 1,353 词按 20 个主题归集（另附参考书补充 95 词）', group: 'global', book: 'p-russia' },
+  { id: 'compendium', file: '15-key-compendium.md', title: '关键内容精编', hint: '全书语法主干 · 核心问答 · 易混辨析 · 六格速查 · 高频错误自查', group: 'global', book: 'p-russia' },
 ]
 
 /** 条目分组的展示顺序与文案 key（新增书目沿用同一套分组） */

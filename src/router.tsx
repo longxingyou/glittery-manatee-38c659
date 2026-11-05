@@ -1,10 +1,12 @@
 import type { ComponentType, LazyExoticComponent } from 'react'
-import { Outlet, createRoute, createRouter, redirect } from '@tanstack/react-router'
+import { Outlet, createRoute, createRouter, notFound, redirect } from '@tanstack/react-router'
 import React from 'react'
 
 // Import the generated route tree
 import { routeTree } from './routeTree.gen'
 import { useT } from './lib/i18n'
+import { getPublicOrigin } from './lib/server-env'
+import { bookOfLesson, findLesson, loadLessonSource } from './lib/lessons'
 import { dashboardFn } from './components/ui/card'
 
 // 后台 UI 组件统一从 ./components/ui/card（懒加载，避免把 server fns/CRUD 拖入首屏）
@@ -18,6 +20,8 @@ const FeedbackManager = React.lazy(() => import('./components/ui/card').then((m)
 const SiteContentEditor = React.lazy(() => import('./components/ui/card').then((m) => ({ default: m.SiteContentEditor })))
 const NetworkTools = React.lazy(() => import('./components/network-tools').then((m) => ({ default: m.NetworkTools })))
 const RussianToolkit = React.lazy(() => import('./components/russian-toolkit').then((m) => ({ default: m.RussianToolkit })))
+const LessonsIndex = React.lazy(() => import('./components/lessons-index').then((m) => ({ default: m.LessonsIndex })))
+const LessonPage = React.lazy(() => import('./components/lesson-page').then((m) => ({ default: m.LessonPage })))
 const XdnmbBrowser = React.lazy(() => import('./components/xdnmb-browser').then((m) => ({ default: m.XdnmbBrowser })))
 const Chan233Browser = React.lazy(() => import('./components/chan233-browser').then((m) => ({ default: m.Chan233Browser })))
 const AdminGateWrap = React.lazy(() => import('./components/ui/card').then((m) => ({ default: m.AdminGateWrap })))
@@ -149,6 +153,65 @@ export const getRouter = () => {
     },
   })
 
+  // /lessons：课程中心概览（左教材 / 右课程，公开页）。
+  // ?book= 记录当前选中的教材，刷新与分享都保留同一册的选择。
+  const lessonsRoute = createRoute({
+    path: '/lessons',
+    getParentRoute: () => root,
+    validateSearch: (search: Record<string, unknown>): { book?: string } => ({
+      book: typeof search.book === 'string' ? search.book : undefined,
+    }),
+    component: function LessonsIndexPage() {
+      return (
+        <React.Suspense fallback={<AdminLoading />}>
+          <LessonsIndex />
+        </React.Suspense>
+      )
+    },
+  })
+
+  // /lessons/$lessonId：单课阅读页。md 按需加载（每课独立 chunk），
+  // SSR 时正文随 loader 数据序列化进首屏 HTML；未知 id 走 404。
+  const lessonDetailRoute = createRoute({
+    path: '/lessons/$lessonId',
+    getParentRoute: () => root,
+    beforeLoad: ({ params }) => {
+      if (!findLesson(params.lessonId)) throw notFound()
+    },
+    loader: async ({ params }) => {
+      const les = findLesson(params.lessonId)
+      if (!les) throw notFound()
+      const source = await loadLessonSource(les.file)
+      return { les, source }
+    },
+    head: ({ loaderData }) => {
+      if (!loaderData) return {}
+      const { les } = loaderData
+      const book = bookOfLesson(les)
+      // 规范 URL：跨账号代理下不能取 request.url（workers.dev 不可达）
+      const origin = getPublicOrigin()
+      const canonical = origin ? `${origin}/lessons/${les.id}` : `/lessons/${les.id}`
+      const title = `${les.title}${book && !book.reserved ? ` ${book.title}` : ''} · 课程精讲`
+      return {
+        meta: [
+          { title },
+          { name: 'description', content: les.hint },
+          { property: 'og:title', content: title },
+          { property: 'og:url', content: canonical },
+        ],
+        links: [{ rel: 'canonical', href: canonical }],
+      }
+    },
+    component: function LessonDetailPage() {
+      const data = lessonDetailRoute.useLoaderData()
+      return (
+        <React.Suspense fallback={<AdminLoading />}>
+          <LessonPage les={data.les} source={data.source} />
+        </React.Suspense>
+      )
+    },
+  })
+
   // /rss.xml 已改为文件路由 src/routes/rss[.]xml.tsx（[.] 是字面量句点），
   // 其 server.handlers 会被编译器在客户端构建中正确剥离；
   // 不能在此用编程式 createRoute 注册服务端 handler，否则静态导入的 db 链
@@ -180,6 +243,7 @@ export const getRouter = () => {
     ...(hasPath('/admin') ? [] : [adminWithChildren]),
     ...(hasPath('/share') ? [] : [shareRoute]),
     ...(hasPath('/russian') ? [] : [russianRoute]),
+    ...(hasPath('/lessons') ? [] : [lessonsRoute, lessonDetailRoute]),
   ]
 
   const router = createRouter({

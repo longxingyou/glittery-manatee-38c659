@@ -412,6 +412,20 @@ export default {
       }
       if (isHtml && !isAdmin && isOk && cacheableHtml) {
         const body = await transformed.text()
+        // 课程页正文加载失败（部署切换后旧 chunk 404、或瞬时网络失败）时，
+        // SSR 只渲染一个带「重新加载」的占位。这种页面一旦写进缓存——
+        // 浏览器 120s、边缘与 KV 各 1 小时——一次抖动就会把整节课锁死一小时。
+        // 所以带 data-lesson-missing 标记的响应跳过全部缓存层级，直接 no-store。
+        if (body.includes('data-lesson-missing="1"')) {
+          const missingRet = new Response(body, {
+            status: transformed.status,
+            statusText: transformed.statusText,
+            headers: transformed.headers,
+          })
+          missingRet.headers.set('Cache-Control', 'private, no-store, must-revalidate')
+          missingRet.headers.set('X-Cache', 'MISS-LESSON-MISSING')
+          return missingRet
+        }
         if (dbDegraded) {
           // DB 降级页（仅静态文章）：只做 3s 内存微缓存挡同 isolate 并发，
           // 绝不写 edge/KV——否则所有访客在缓存周期内都看不到 DB 文章

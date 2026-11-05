@@ -2029,32 +2029,9 @@ button.title-command:hover { color: var(--text); border-color: var(--accent-2); 
   body.ru-mat-printing .ru-mat-print .markdown-body table { border-color: #bbb; }
 }
 
-/* ── 俄语工具箱：课程精讲（复用 .ru-mat-* 骨架，仅补内容区差异） ── */
-/* 正文默认随页面流动，不自建滚动容器：每课 25–80KB，在手机上进「滚动里套滚动」
-   很难用，而且正文只占一小条、上下都被自己的滚动条切断。
-   小节导航统一交给 ArticleOutline（右下角大纲钮 / 宽屏停靠侧栏 / 窄屏底部抽屉），
-   与文章页同一套交互与样式，因此这里不再另设左目录。*/
-.ru-les-panel { padding: 0; overflow: hidden; }
-.ru-les-body { padding: 14px 16px; }
-/* ≥1410px：与文章页一致，大纲停靠为右侧粘性侧栏（占布局空间、阅读时常驻）。
-   用 overflow: clip 而非 hidden —— clip 不产生滚动容器，
-   粘性侧栏才能相对外层滚动容器（.admin-content 或 window）正常粘住。*/
-@media (min-width: 1410px) {
-  .ru-les-panel { display: flex; align-items: flex-start; gap: 22px; overflow: clip; }
-  .ru-les-panel > .ru-les-body { flex: 1 1 auto; min-width: 0; }
-}
-/* 教材分组：一册书一段，段头是书名 + 册别；段内按「逐课精讲 / 全局」分行横向滑动 */
-/* min-width: 0 必需：.ru-mat-row 是横向滚动容器，直接做 grid 子项时浏览器
-   （overflow ≠ visible 时 min-width 自动为 0）能让它收缩；一旦像现在这样多包了
-   一层 .ru-les-book，那层的 min-width 变回 auto，行按 min-content（最长标签行）
-   就会把 dashboard 的 grid 轨道撑到 896px —— 手机上整页横向裁切、右侧看不见。*/
-.ru-les-book { min-width: 0; }
-.ru-les-book + .ru-les-book { margin-top: 9px; }
-.ru-les-book-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin: 0 0 3px; }
-.ru-les-book-name { color: var(--text); font-size: 12.5px; font-weight: 700; }
-.ru-les-book-hint { color: var(--faint); font-size: 11px; }
-/* 预留位：同系列后续教材接入前的占位，可见但不可点 */
-.ru-les-slot-note { margin: 0; padding: 5px 10px; border: 1px dashed var(--line); border-radius: 6px; color: var(--faint); font-size: 11.5px; line-height: 1.5; }
+/* ── 俄语工具箱：课程精讲正文（仅正文排版，导航与容器由 .les-* 接管） ── */
+/* 正文随页面流动，不自建滚动容器：每课 25–80KB，手机上「滚动里套滚动」很难用。 */
+.ru-les-body { padding: 0; }
 /* 重读元音高亮：与词汇点读同一方案（组合锐音符在多数字体下错位，改由 CSS 绘制）。
    此处作用于 markdown-body 内的 <span class="stressed">，覆盖正文/表格/列表全部俄语文本 */
 .ru-les-body .stressed {
@@ -2063,18 +2040,200 @@ button.title-command:hover { color: var(--text); border-color: var(--accent-2); 
   text-decoration-thickness: 1.5px;
   text-underline-offset: 3px;
 }
-/* 课程精讲正文里的标题层级比语法手册更密（## + ### + ####），
+/* 课程正文里的标题层级比语法手册更密（## + ### + ####），
    收紧上边距，避免长课文里段落被切得过碎 */
 .ru-les-body.markdown-body h2 { margin-top: 18px; }
 .ru-les-body.markdown-body h3 { margin-top: 14px; }
 .ru-les-body.markdown-body h4 { margin-top: 12px; }
 .ru-les-body.markdown-body > *:first-child { margin-top: 0; }
-/* 折叠 callout（源 .md 里的 `> [!success]- 答案要点`）由 renderMarkdown 输出原生
-   <details>，其展开/收起与打印展开在组件里处理，这里只需放开内容区高度限制 */
-@media print {
-  /* 打印时停靠侧栏不再参与布局；浮动钮 / 抽屉由全局打印规则隐藏 */
-  .ru-les-panel { display: block; overflow: visible; }
+/* 小节跳转要留出上方空间，标题才不会被贴到视口顶端 */
+.ru-les-body.markdown-body h2,
+.ru-les-body.markdown-body h3,
+.ru-les-body.markdown-body h4,
+.ru-les-body.markdown-body h5 { scroll-margin-top: 24px; }
+
+/* ── 课程中心（/lessons）：左「教材」右「课程」，课时页「一门课一条左栏」 ──
+   版式约定：全站只有 4 档字号（20 / 15 / 13 / 12），层级靠字号 + 字重 + 颜色区分，
+   不再用 11px 一类的过小字号堆信息。 */
+.les-hub, .les-page { padding: 26px 28px 72px; max-width: 1140px; margin: 0 auto; }
+@media (max-width: 760px) { .les-hub, .les-page { padding: 18px 16px 56px; } }
+.les-hub-head, .les-lesson-head { margin: 0 0 20px; }
+.les-hub-head h1, .les-lesson-head h1 { margin: 0 0 4px; font-size: 20px; font-weight: 700; letter-spacing: -.01em; color: var(--text); }
+.les-hub-head p, .les-lesson-head p { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.55; }
+
+/* 概览：≥1000px 双栏；窄屏改为「一行教材下拉 + 课程列表」上下堆叠 */
+.les-hub-grid { display: grid; gap: 22px; }
+.les-hub-grid > * { min-width: 0; }
+@media (min-width: 1000px) {
+  .les-hub-grid { grid-template-columns: 232px minmax(0, 1fr); gap: 30px; align-items: start; }
 }
+/* 教材选择（宽屏列表 / 窄屏下拉，二者互斥显示） */
+.les-book-list { display: none; }
+.les-book-select { display: block; width: 100%; }
+@media (min-width: 1000px) {
+  .les-book-list { display: block; position: sticky; top: 16px; }
+  .les-book-select { display: none; }
+}
+.les-book-select {
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--panel); color: var(--text); font-size: 13px; font-family: inherit;
+}
+.les-books-sub { margin: 14px 0 4px; font-size: 12px; font-weight: 600; color: var(--faint); letter-spacing: .04em; }
+.les-books-sub:first-child { margin-top: 0; }
+/* 教材行：一条左缘竖线承担「当前选中」，比整卡高亮安静得多 */
+.les-book-row {
+  display: block; padding: 7px 10px; margin: 0 -10px; border-radius: 6px;
+  border-left: 2px solid transparent; text-decoration: none;
+}
+.les-book-row:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.les-book-row.active { background: var(--panel); border-left-color: var(--accent); }
+.les-book-row-title { display: block; font-size: 13px; font-weight: 600; color: var(--text); }
+.les-book-row.active .les-book-row-title { color: var(--text); }
+.les-book-row-meta { display: block; margin-top: 1px; font-size: 12px; color: var(--faint); line-height: 1.4; }
+.les-book-row.reserved { border-left-color: transparent; color: var(--faint); padding-top: 9px; padding-bottom: 9px; }
+.les-book-row.reserved .les-book-row-title { color: var(--faint); font-weight: 400; }
+
+/* 当前教材：标题 + 说明 + 继续阅读（按钮位置固定在这一行右侧，不随条目多少浮动） */
+.les-cat-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+  padding-bottom: 12px; margin-bottom: 4px; border-bottom: 1px solid var(--line);
+}
+.les-cat-head-text { min-width: 0; }
+.les-cat-head h2 { margin: 0 0 3px; font-size: 15px; font-weight: 700; color: var(--text); }
+.les-cat-head p { margin: 0; font-size: 12px; color: var(--muted); }
+.les-dot { margin: 0 6px; color: var(--faint); }
+.les-primary {
+  flex: none; display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 11px; border: 1px solid var(--accent); border-radius: 6px;
+  color: var(--accent); font-size: 12px; font-weight: 600; text-decoration: none; white-space: nowrap;
+}
+.les-primary:hover { background: var(--accent); color: var(--bg); }
+.les-cat-group { margin-top: 14px; }
+.les-group-label { font-size: 12px; font-weight: 600; color: var(--faint); letter-spacing: .05em; margin: 0 0 2px; }
+/* 课程行：标题定宽，说明在右侧淡出一行，箭头只在 hover 时提亮 */
+.les-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 9px 10px; margin: 0 -10px; border-radius: 6px; text-decoration: none;
+}
+.les-row:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.les-row-main { display: flex; align-items: baseline; gap: 12px; flex: 1; min-width: 0; }
+.les-row-title { flex: 0 0 104px; font-size: 13px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.les-row-hint { flex: 1; min-width: 0; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.les-row-chev { flex: none; color: var(--faint); }
+.les-row:hover .les-row-chev { color: var(--accent-2); }
+
+/* ── 课时页 ── */
+/* 顶部工具条：返回 / 书名 / 动作。所有课都是同一位置、同一顺序，不再有右下角浮动钮 */
+.les-bar {
+  display: flex; align-items: center; gap: 12px;
+  padding-bottom: 12px; margin-bottom: 20px; border-bottom: 1px solid var(--line);
+}
+.les-back { display: inline-flex; align-items: center; gap: 1px; flex: none; color: var(--accent-2); font-size: 13px; font-weight: 600; text-decoration: none; }
+.les-back:hover { color: var(--accent); }
+.les-bar-book { display: none; min-width: 0; font-size: 12px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.les-bar-actions { margin-left: auto; display: flex; gap: 8px; flex: none; }
+.les-bar-btn {
+  display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;
+  padding: 5px 9px; border: 1px solid var(--line); border-radius: 6px;
+  background: transparent; color: var(--muted); font-size: 12px; font-family: inherit; cursor: pointer;
+}
+.les-bar-btn:hover { border-color: var(--accent-2); color: var(--accent-2); }
+.les-nav-btn { display: inline-flex; }
+@media (min-width: 1000px) { .les-nav-btn { display: none; } .les-bar-book { display: inline-block; } }
+
+/* 布局：≥1000px 左栏常驻；窄屏左栏整体换成底部抽屉 */
+.les-layout { display: grid; gap: 26px; }
+.les-layout > * { min-width: 0; }
+.les-rail { display: none; }
+@media (min-width: 1000px) {
+  .les-layout { grid-template-columns: 232px minmax(0, 1fr); align-items: start; }
+  .les-rail { display: block; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; }
+}
+.les-main { min-width: 0; }
+.les-missing { padding: 28px 0; text-align: center; }
+.les-missing p { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+
+/* 左栏两段：本册课程 / 本课小节。第二段用一条细分隔线，不外加卡片边框中空 */
+.les-nav-block + .les-nav-block { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.les-nav-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0 0 6px; }
+.les-nav-label { margin: 0; font-size: 12px; font-weight: 700; color: var(--text); }
+.les-nav-count { font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.les-nav-sublabel { margin: 8px 0 1px; font-size: 12px; color: var(--faint); }
+.les-nav-sublabel:first-child { margin-top: 0; }
+.les-nav-item {
+  display: block; padding: 5px 8px 5px 6px; margin: 0 -8px 0 -6px; border-radius: 5px;
+  border-left: 2px solid transparent;
+  font-size: 13px; color: var(--muted); text-decoration: none;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.les-nav-item:hover { color: var(--text); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.les-nav-item.active { color: var(--text); background: color-mix(in srgb, var(--accent) 12%, transparent); font-weight: 600; border-left-color: var(--accent); }
+/* 抽屉里的课程行：标题 + 一行说明，让「课」和上面的「节」一眼可分 */
+.les-nav-item.rich { display: flex; flex-direction: column; gap: 1px; padding: 7px 8px 7px 6px; white-space: normal; font-weight: 400; }
+.les-nav-item-t { font-size: 13px; font-weight: 600; color: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.les-nav-item-h {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+  font-size: 11px; line-height: 1.5; color: var(--faint);
+}
+.les-nav-item.rich.active .les-nav-item-t { color: var(--accent-2); }
+/* 抽屉顶部切换：两段导航各占一半，选中态用底色 + 主色边框明确区分 */
+.les-nav-tabs {
+  display: flex; gap: 4px; margin: 0 0 10px; padding: 3px;
+  background: color-mix(in srgb, var(--line) 40%, transparent); border-radius: 8px;
+}
+.les-nav-tab {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 6px 8px; border: 1px solid transparent; border-radius: 6px; background: none;
+  color: var(--muted); font-family: inherit; font-size: 12px; cursor: pointer;
+}
+.les-nav-tab[aria-selected="true"] {
+  background: var(--bg); border-color: var(--accent); color: var(--text); font-weight: 700;
+}
+/* 小节：按标题层级缩进，当前一节用竖线 + 主色标出 */
+.les-nav-sec {
+  display: block; width: calc(100% + 16px); text-align: left;
+  padding: 4px 8px; margin: 0 -8px; border: 0; border-left: 2px solid transparent; border-radius: 5px;
+  background: none; font-family: inherit; font-size: 12px; color: var(--muted); cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.les-nav-sec.lv3 { padding-left: 18px; }
+.les-nav-sec.lv4 { padding-left: 30px; }
+.les-nav-sec:hover { color: var(--text); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.les-nav-sec.active { color: var(--accent-2); border-left-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+
+/* 上一课 / 下一课 */
+.les-prevnext { display: flex; justify-content: space-between; gap: 10px; margin-top: 26px; }
+.les-pn {
+  display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 48%;
+  padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px;
+  color: var(--text); font-size: 13px; text-decoration: none;
+}
+.les-pn:hover { border-color: var(--accent-2); color: var(--accent-2); }
+.les-pn.next { margin-left: auto; }
+.les-pn-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 窄屏抽屉：从底部升起（站点自身侧栏已从左滑入，同向抽屉会与之混淆） */
+.les-sheet-mask {
+  position: fixed; inset: 0; z-index: 900;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  background: rgb(0 0 0 / .45); animation: x-fade .15s ease;
+}
+.les-sheet {
+  max-height: 82vh; display: flex; flex-direction: column;
+  background: var(--bg); border-top: 1px solid var(--line); border-radius: 14px 14px 0 0;
+  box-shadow: 0 -8px 32px rgb(0 0 0 / .24);
+  animation: les-rise .18s ease;
+}
+@keyframes les-rise { from { transform: translateY(16px); opacity: .5; } to { transform: none; opacity: 1; } }
+.les-sheet-head { display: flex; align-items: center; gap: 8px; padding: 14px 16px 8px; flex: 0 0 auto; }
+.les-sheet-head strong { flex: 1; font-size: 15px; }
+.les-sheet-head button {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 6px;
+  background: transparent; color: var(--muted); cursor: pointer;
+}
+.les-sheet-head button:hover { border-color: var(--accent-2); color: var(--accent-2); }
+.les-sheet-body { flex: 1; overflow-y: auto; padding: 0 16px 24px; }
 
 /* ── 俄语工具箱：元素周期表点读 ── */
 /* 元素类别基准色（低饱和底色由 color-mix 与主题面版色混合生成，双主题自适应） */

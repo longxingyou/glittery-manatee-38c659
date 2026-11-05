@@ -15,8 +15,6 @@ import '@fontsource-variable/inter'
 
 // 学习资料库标签页：内容文件较大（构建期内联 .md/.opml），懒加载独立 chunk
 const MaterialsTab = React.lazy(() => import('./russian-materials').then((m) => ({ default: m.MaterialsTab })))
-// 课程精讲：逐课精讲（教材 Урок 1–12）+ 全局总表 + 两张全局词表，构建期内联，同样懒加载
-const LessonsTab = React.lazy(() => import('./russian-lessons').then((m) => ({ default: m.LessonsTab })))
 
 // =================================================================
 // 俄语工具箱（/admin/russian，纯前端离线，无 server fn、无数据库）
@@ -27,7 +25,7 @@ const LessonsTab = React.lazy(() => import('./russian-lessons').then((m) => ({ d
 // ⑤ 动词变位：第一/第二变位法、过去时、将来时、命令式
 // =================================================================
 
-type ToolkitTab = 'translit' | 'alphabet' | 'nouns' | 'verbs' | 'elements' | 'polymer' | 'lexicon' | 'materials' | 'lessons'
+type ToolkitTab = 'translit' | 'alphabet' | 'nouns' | 'verbs' | 'elements' | 'polymer' | 'lexicon' | 'materials'
 
 // ── 音译映射（拉丁 → 西里尔；多字母组合在前，最长匹配优先）──
 const LAT2CYR: Array<[string, string]> = [
@@ -1249,7 +1247,6 @@ export function RussianToolkit() {
               [
                 ['nouns', t('ru.tab.nouns')],
                 ['verbs', t('ru.tab.verbs')],
-                ['lessons', t('ru.tab.lessons')],
                 ['materials', t('ru.tab.materials')],
                 ['lexicon', t('ru.tab.lexicon')],
                 ['translit', t('ru.tab.translit')],
@@ -1287,17 +1284,6 @@ export function RussianToolkit() {
               }
             >
               <MaterialsTab />
-            </React.Suspense>
-          )}
-          {tab === 'lessons' && (
-            <React.Suspense
-              fallback={
-                <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--muted)' }}>
-                  <span style={{ display: 'inline-block', animation: 'spin 0.9s linear infinite' }}>⟳</span>
-                </div>
-              }
-            >
-              <LessonsTab />
             </React.Suspense>
           )}
     </div>

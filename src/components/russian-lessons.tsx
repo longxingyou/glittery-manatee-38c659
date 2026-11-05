@@ -56,7 +56,7 @@ const BOOKS: BookMeta[] = [
   // ── 同系列后续教材的预留位 ──
   // 整理新书时：把 reserved 去掉、填上 title/hint，再在下面 LESSONS 里追加条目
   // （book 填该 id）。预留位在页面上可见，接入时无需改动任何渲染代码。
-  { id: 'slot-a', title: '', hint: '', reserved: true },
+  { id: 'p-russia-baz', title: '《Привет, Россия! (Базовый)》', hint: 'Базовый уровень · Урок 1–10' },
   { id: 'slot-b', title: '', hint: '', reserved: true },
 ]
 
@@ -77,6 +77,22 @@ const LESSONS: LessonMeta[] = [
   { id: 'pos', file: '13-words-by-pos.md', title: '词表 · 按词型', hint: '1,353 词按名词/动词/形容词等 10 类（另附参考书补充 95 词）', group: 'global', book: 'p-russia' },
   { id: 'theme', file: '14-words-by-theme.md', title: '词表 · 按主题', hint: '同 1,353 词按 20 个主题归集（另附参考书补充 95 词）', group: 'global', book: 'p-russia' },
   { id: 'compendium', file: '15-key-compendium.md', title: '关键内容精编', hint: '全书语法主干 · 核心问答 · 易混辨析 · 六格速查 · 高频错误自查', group: 'global', book: 'p-russia' },
+
+  // ── 《Привет, Россия! (Базовый)》 独立分区（b 前缀文件，与 Элементарный 不撞名）──
+  { id: 'b-l1', file: 'b01-urok-1.md', title: 'Урок 1', hint: 'Ру́сский язы́к — 第六格（形容词/代词）· 年份表达 · 三个「学」', group: 'lesson', book: 'p-russia-baz' },
+  { id: 'b-l2', file: 'b02-urok-2.md', title: 'Урок 2', hint: 'Наро́ды Росси́и — 第六格复数 · 不定人称句 · свой/кото́рый', group: 'lesson', book: 'p-russia-baz' },
+  { id: 'b-l3', file: 'b03-urok-3.md', title: 'Урок 3', hint: 'Необы́чные профе́ссии — 第二格形容词/代词 · 日期 · чтобы · 间接引语', group: 'lesson', book: 'p-russia-baz' },
+  { id: 'b-l4', file: 'b04-urok-4.md', title: 'Урок 4', hint: 'Языки́ и полигло́ты — 第二格复数 · 比较级 · ли 从句', group: 'lesson', book: 'p-russia-baz' },
+  { id: 'b-l5', file: 'b05-urok-5.md', title: 'Урок 5', hint: 'Выбира́ем экску́рсию — 第四格形容词 · 时间表达 · где/куда/откуда · 运动动词前缀', group: 'lesson', book: 'p-russia-baz' },
+  { id: 'b-l6', file: 'b06-urok-6.md', title: 'Урок 6', hint: 'Чем заня́ться — 第四格复数 · который 第四格 · в(о)-/вы-/пере-/до-', group: 'lesson', book: 'p-russia-baz' },
+  { id: 'b-l7', file: 'b07-urok-7.md', title: 'Урок 7', hint: 'Дорога́я моя́ столи́ца — 第三格全体系 · под-/от- · ну́жен', group: 'lesson', book: 'p-russia-baz' },
+  { id: 'b-l8', file: 'b08-urok-8.md', title: 'Урок 8', hint: 'О, спорт, ты — жизнь! — 第五格全体系 · нести/носить · когда́ 从句', group: 'lesson', book: 'p-russia-baz' },
+  { id: 'b-l9', file: 'b09-urok-9.md', title: 'Урок 9', hint: 'Иску́сство и нау́ка — если 条件句 · 及物运动动词 · где/куда́/отку́да · 阶段动词', group: 'lesson', book: 'p-russia-baz' },
+  { id: 'b-l10', file: 'b10-urok-10.md', title: 'Урок 10', hint: 'До но́вых встреч! — себя́ · -ся 动词 · никто́/ничто́ · 命令式', group: 'lesson', book: 'p-russia-baz' },
+  { id: 'b-ov', file: 'b00-overview.md', title: '总览', hint: 'Базовый 全书导航 · 语法主线 · 与 Элементарный 的衔接', group: 'global', book: 'p-russia-baz' },
+  { id: 'b-pos', file: 'b13-words-by-pos.md', title: '词表 · 按词型', hint: '121 个 Базовый 真新词按名词/动词/形容词/副词分类', group: 'global', book: 'p-russia-baz' },
+  { id: 'b-theme', file: 'b14-words-by-theme.md', title: '词表 · 按主题', hint: '同 121 词按 10 课主题归集（场景联想）', group: 'global', book: 'p-russia-baz' },
+  { id: 'b-comp', file: 'b15-key-compendium.md', title: '关键内容精编', hint: '六格体系总表 · 名词/形容词变格全表 · 运动动词九前缀 · 复合句总表 · 易混辨析', group: 'global', book: 'p-russia-baz' },
 ]
 
 /** 条目分组的展示顺序与文案 key（新增书目沿用同一套分组） */

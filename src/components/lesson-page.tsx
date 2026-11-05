@@ -10,7 +10,6 @@ import {
   LESSON_LAST_KEY,
   bookOfLesson,
   lessonNeighbors,
-  type BookMeta,
   type LessonMeta,
 } from '../lib/lessons'
 
@@ -18,10 +17,10 @@ import {
 // 单课阅读页（/lessons/$lessonId）。
 //
 // 导航只留两条，避免「三个目录」：
-// ① 顶部工具条：返回课程中心 + 书名；右侧固定放「课程与小节」（窄屏）与「打印」——
-//    所有课都在同一位置，不再有右下角浮动大纲钮；
-// ② 左侧栏（≥1000px 常驻）：上半「本册课程」，下半「本课小节」（滚动联动高亮）。
-//    窄屏时整条左栏收进一个抽屉，一个按钮同时管选课与找小节。
+// ① 顶部工具条：返回课程中心 + 书名（宽屏）+「打印」；
+// ② 左侧栏（≥1000px 常驻）：顶部切换「本课小节（滚动联动高亮）/ 本册课程」。
+//    窄屏时整条左栏收进右下角常驻浮动钮 + 浮层面板（同一套切换）：浏览中随时可开，
+//    不用遮罩，标题栏与正文都不受影响。
 //
 // 重音渲染：U+0301 → <span class="stressed">（交给 CSS 绘制，理由同 stressNodes）。
 // 只匹配「西里尔元音 + 组合锐音符」这一对，替换出的 $1 是元音本身，
@@ -93,6 +92,8 @@ export function LessonPage({ les, source }: { les: LessonMeta; source?: string }
   const t = useT()
   const bodyRef = React.useRef<HTMLDivElement>(null)
   const [navOpen, setNavOpen] = React.useState(false)
+  const floatRef = React.useRef<HTMLDivElement>(null)
+  const fabRef = React.useRef<HTMLButtonElement>(null)
   const book = bookOfLesson(les)
   const neighbors = lessonNeighbors(les)
 
@@ -118,12 +119,22 @@ export function LessonPage({ les, source }: { les: LessonMeta; source?: string }
   )
   const activeId = useActiveSection(headings, les.id)
 
-  // 抽屉开着时 Esc 关闭
+  // 浮层没有遮罩，所以用「点到面板/按钮之外就关」代替点遮罩关；Esc 同样关闭
   React.useEffect(() => {
     if (!navOpen) return
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setNavOpen(false) }
+    const onDown = (e: PointerEvent) => {
+      const target = e.target as Node | null
+      if (!target) return
+      if (floatRef.current?.contains(target) || fabRef.current?.contains(target)) return
+      setNavOpen(false)
+    }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    document.addEventListener('pointerdown', onDown, true)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.removeEventListener('pointerdown', onDown, true)
+    }
   }, [navOpen])
 
   // 打印：临时展开所有折叠块，打完还原（否则 <details> 收起时内容不会被印出）
@@ -185,10 +196,6 @@ export function LessonPage({ les, source }: { les: LessonMeta; source?: string }
           <Link to="/lessons" search={{ book: book.id }} className="les-bar-book">{book.title}</Link>
         )}
         <div className="les-bar-actions">
-          <button type="button" className="les-bar-btn les-nav-btn" onClick={() => setNavOpen(true)}>
-            <ListTree size={14} />
-            {t('les.nav.open')}
-          </button>
           <button type="button" className="les-bar-btn" onClick={doPrint}>
             <Printer size={14} />
             {t('ru.mat.print')}
@@ -197,9 +204,9 @@ export function LessonPage({ les, source }: { les: LessonMeta; source?: string }
       </div>
 
       <div className="les-layout">
-        {/* 左栏：本册课程 + 本课小节（窄屏由 CSS 隐藏，改走抽屉） */}
+        {/* 左栏：本课小节 / 本册课程 切换（窄屏由 CSS 隐藏，改走右下浮动钮） */}
         <aside className="les-rail no-print">
-          <LessonNav les={les} book={book} headings={headings} activeId={activeId} onJump={jumpTo} variant="rail" />
+          <LessonNav les={les} headings={headings} activeId={activeId} onJump={jumpTo} variant="rail" />
         </aside>
 
         <div className="les-main">
@@ -249,46 +256,54 @@ export function LessonPage({ les, source }: { les: LessonMeta; source?: string }
         </div>
       </div>
 
-      {/* 窄屏：一个抽屉同时管选课与找小节 */}
+      {/* 窄屏：右下角常驻浮动钮 + 非模态浮层，一套面板同时管选课与找小节 */}
       {navOpen && (
-        <div className="les-sheet-mask no-print" onClick={() => setNavOpen(false)}>
-          <div className="les-sheet" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-            <div className="les-sheet-head">
-              <strong>{book && !book.reserved ? book.title : t('ru.les.books')}</strong>
-              <button type="button" aria-label={t('les.nav.close')} onClick={() => setNavOpen(false)}>
-                <X size={16} />
-              </button>
-            </div>
-            <div className="les-sheet-body">
-              <LessonNav
-                les={les}
-                book={book}
-                headings={headings}
-                activeId={activeId}
-                onJump={jumpTo}
-                variant="sheet"
-                onNavigate={() => setNavOpen(false)}
-              />
-            </div>
+        <div className="les-float no-print" id="les-float-nav" role="dialog" aria-label={t('les.nav.open')} ref={floatRef}>
+          <div className="les-float-head">
+            <strong>{book && !book.reserved ? book.title : t('ru.les.books')}</strong>
+            <button type="button" aria-label={t('les.nav.close')} onClick={() => setNavOpen(false)}>
+              <X size={16} />
+            </button>
+          </div>
+          <div className="les-float-body">
+            <LessonNav
+              les={les}
+              headings={headings}
+              activeId={activeId}
+              onJump={jumpTo}
+              variant="float"
+              onNavigate={() => setNavOpen(false)}
+            />
           </div>
         </div>
       )}
+      <button
+        type="button"
+        ref={fabRef}
+        className="les-fab no-print"
+        aria-label={navOpen ? t('les.nav.close') : t('les.nav.open')}
+        aria-expanded={navOpen}
+        aria-controls="les-float-nav"
+        onClick={() => setNavOpen((v) => !v)}
+      >
+        <ListTree size={18} />
+      </button>
     </div>
   )
 }
 
 /**
- * 选课 + 找小节。两种形态：
+ * 选课 + 找小节。宽屏左栏与窄屏浮层共用同一套结构：
+ * 顶部「本课小节 / 本册课程」两个切换，一次只展开一个列表。
  *
- * · rail（≥1000px 左栏）：两段上下堆叠、课程行单行紧凑——左栏宽度固定 232px，
- *   用户是在「浏览整册书」而不是在狭窄抽屉里翻找。
- * · sheet（窄屏抽屉）：两段用顶部切换分开（本课小节 / 本册课程），课程行补一行
- *   说明文字。抽屉里同时摊开「课」和「节」两串列表正是上一版选书界面的毛病：
- *   几十行长得一样的文字挤在一起，分不清点哪个会换课、点哪个只是滚动。
+ * 为什么不上下堆叠：232px 的左栏里，44 条小节会把下方的课程列表推到千余像素
+ * 之外（等于藏起来）；而两串几十行同时摊开时，长得一样的文字挤在一起，
+ * 分不清点哪个会换课、点哪个只是滚动——上一版选书界面正是栽在这里。
+ * 两个目录用同一个切换器，层级优先级一致，默认落在「本课小节」：正在读这一课，
+ * 先跳段；要换课再切一下，代价比误触换课小。
  */
 function LessonNav({
   les,
-  book,
   headings,
   activeId,
   onJump,
@@ -296,19 +311,16 @@ function LessonNav({
   onNavigate,
 }: {
   les: LessonMeta
-  book?: BookMeta
   headings: OutlineHeading[]
   activeId: string
   onJump: (id: string) => void
-  variant?: 'rail' | 'sheet'
-  /** 抽屉里点课之后要收起抽屉（路由切换不会卸载本页，状态会留着） */
+  variant?: 'rail' | 'float'
+  /** 浮层里点课之后要收起浮层（路由切换不会卸载本页，状态会留着） */
   onNavigate?: () => void
 }) {
   const t = useT()
   const items = LESSONS.filter((m) => m.book === les.book)
   const hasSections = headings.length >= 2
-  // 抽屉每次打开都是新实例，默认落在「本课小节」：用户点「课程与小节」多半
-  // 是为了在当前这课里跳段；要换课再切一下，代价比误触换课小。
   const [tab, setTab] = React.useState<'sections' | 'lessons'>('sections')
 
   // 层级归一化：本课最浅出现的标题渲染为 lv2，更深依次 lv3 / lv4
@@ -360,21 +372,10 @@ function LessonNav({
     </div>
   )
 
-  if (variant === 'sheet') {
-    // 没有小节（总表类条目）时不显示切换，直接给课程列表
-    if (!hasSections) {
-      return (
-        <div className="les-nav">
-          <div className="les-nav-head">
-            <span className="les-nav-label">{t('les.rail.book')}</span>
-            <span className="les-nav-count">{items.length}</span>
-          </div>
-          {renderLessons(true)}
-        </div>
-      )
-    }
-    return (
-      <div className="les-nav">
+  return (
+    <div className="les-nav">
+      {/* 没有小节（总表类条目）时不显示切换，直接给课程列表 */}
+      {hasSections && (
         <div className="les-nav-tabs" role="tablist" aria-label={t('les.nav.open')}>
           <button
             type="button"
@@ -397,30 +398,8 @@ function LessonNav({
             <span className="les-nav-count">{items.length}</span>
           </button>
         </div>
-        {tab === 'sections' ? renderSections() : renderLessons(true)}
-      </div>
-    )
-  }
-
-  return (
-    <div className="les-nav">
-      <div className="les-nav-block">
-        <div className="les-nav-head">
-          <span className="les-nav-label">{book && !book.reserved ? book.title : t('les.rail.book')}</span>
-          <span className="les-nav-count">{items.length}</span>
-        </div>
-        {renderLessons(false)}
-      </div>
-
-      {hasSections && (
-        <div className="les-nav-block">
-          <div className="les-nav-head">
-            <span className="les-nav-label">{t('les.rail.sections')}</span>
-            <span className="les-nav-count">{headings.length}</span>
-          </div>
-          {renderSections()}
-        </div>
       )}
+      {hasSections && tab === 'sections' ? renderSections() : renderLessons(variant === 'float')}
     </div>
   )
 }

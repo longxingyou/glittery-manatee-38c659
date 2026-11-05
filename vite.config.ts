@@ -38,8 +38,13 @@ const sourceVersion = (): string | null => {
     const head = git(['rev-parse', '--short', 'HEAD'])
     if (!head) return null
     // 含已跟踪改动与未跟踪文件（--porcelain 自动遵守 .gitignore，不扫 dist/node_modules）
+    // ⚠ 只取 --porcelain 不够：它只记录「哪些文件变了」，同一个文件再改一次输出不变。
+    //   于是「只改 CSS 再部署」会沿用上一次的 BUILD_ID，worker 继续发上一版 HTML ——
+    //   而上一版 HTML 里写死的 assets/index-<hash>.css|js 已被新构建删除，整站无样式/白屏。
+    //   所以再叠一份工作区补丁内容（已暂存 + 未暂存）：内容一变，版本号立刻变。
     const dirty = git(['status', '--porcelain'])
-    const digest = createHash('sha256').update(`${head}\n${dirty}`).digest('hex').slice(0, 8)
+    const patch = git(['diff', 'HEAD', '--binary', '--no-color'])
+    const digest = createHash('sha256').update(`${head}\n${dirty}\n${patch}`).digest('hex').slice(0, 8)
     return `${head}-${digest}`
   } catch {
     // 不是 git 仓库 / 没装 git → 退回旧行为（时间戳+随机），宁可变号也不要报错

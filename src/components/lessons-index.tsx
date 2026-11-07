@@ -29,8 +29,10 @@ export function LessonsIndex() {
   // URL 里的书无效（手改、已下架）时回落到第一册，避免空页面
   const activeBook = realBooks.find((b) => b.id === search.book) ?? realBooks[0]
 
-  const subjects = [...new Set(BOOKS.map((b) => b.subject))]
-  const subjectLabel = (s: string) => t(`les.subject.${s}`)
+  // 顶层只分「俄语 / 杂项」；lib 的学科差异写在教材条目里，不再单开分区。
+  const bookDomain = (b: BookMeta) => (b.subject === 'russian' ? 'russian' : 'misc')
+  const domains = ['russian', 'misc'] as const
+  const domainLabel = (d: string) => t(`les.subject.${d}`)
 
   return (
     <div className="les-hub">
@@ -48,10 +50,12 @@ export function LessonsIndex() {
             value={activeBook?.id ?? ''}
             onChange={(e) => navigate({ to: '/lessons', search: { book: e.target.value } })}
           >
-            {subjects.map((s) => (
-              <optgroup key={s} label={subjects.length > 1 ? subjectLabel(s) : t('ru.les.books')}>
-                {realBooks.filter((b) => b.subject === s).map((b) => (
-                  <option key={b.id} value={b.id}>{b.title}</option>
+            {domains.map((d) => (
+              <optgroup key={d} label={domainLabel(d)}>
+                {BOOKS.filter((b) => bookDomain(b) === d).map((b) => (
+                  <option key={b.id} value={b.id} disabled={b.reserved}>
+                    {b.title || t('ru.les.slot')}
+                  </option>
                 ))}
               </optgroup>
             ))}
@@ -59,10 +63,10 @@ export function LessonsIndex() {
 
           {/* 宽屏：一列教材 */}
           <nav className="les-book-list" aria-label={t('ru.les.books')}>
-            {subjects.map((s) => (
-              <React.Fragment key={s}>
-                {subjects.length > 1 && <div className="les-books-sub">{subjectLabel(s)}</div>}
-                {BOOKS.filter((b) => b.subject === s).map((b) => (
+            {domains.map((d) => (
+              <React.Fragment key={d}>
+                <div className="les-books-sub">{domainLabel(d)}</div>
+                {BOOKS.filter((b) => bookDomain(b) === d).map((b) => (
                   <BookRow key={b.id} book={b} active={b.id === activeBook?.id} />
                 ))}
               </React.Fragment>
@@ -110,8 +114,8 @@ function BookRow({ book, active }: { book: BookMeta; active: boolean }) {
 
   if (reserved) {
     return (
-      <div className="les-book-row reserved" title={t('ru.les.slot.note')}>
-        <span className="les-book-row-title">{t('ru.les.slot')}</span>
+      <div className="les-book-row reserved" title={book.hint || t('ru.les.slot.note')}>
+        <span className="les-book-row-title">{book.title || t('ru.les.slot')}</span>
       </div>
     )
   }

@@ -5,26 +5,36 @@
 //
 // 结构分两层：**教材（BOOKS）→ 条目（LESSONS）**。
 // 条目分两类：逐课精讲（lesson）与全局条目（global，总表 / 词表）。
-// 通用课程中心：BookMeta.subject 标记学科（当前全部为 russian），
-// 未来其他学科在此追加 BOOKS/LESSONS + content/<subject>-lessons/ 目录、
-// 并在下方 mdLoaders 增加一条 glob 即可。
+// 通用课程中心：BookMeta.subject 标记学科。俄语讲义在 content/russian-lessons/；
+// lib 自编课程按 content/<学科>-lessons/<课程>/*.md 放（学科目录名对应 BOOKS 的 subject），
+// 一门课一个子目录，避免不同课程的同号课互相覆盖。
+// 新增学科只需：BOOKS 增加条目 + 对应的 content/<学科>-lessons/ 目录，
+// 下方 mdLoaders 的两条 glob 已覆盖「平铺」与「课程子目录」两种布局。
 // 同一系列还会有后续教材，BOOKS 里为它们留了可见的预留位（reserved），
 // 因此这里是「系列书架」而不是某一册书的硬编码清单：
 //   · 加一个新系列/新一册：BOOKS 里把某个 reserved 条目改写为真实条目；
-//   · 加该册的内容：LESSONS 里追加条目，book 填对应 id。
+//   · 加该册的内容：LESSONS 里追加条目，book 填对应 id，
+//     新学科的 file 建议写相对 content 的完整路径（如 math-lessons/analysis-1/01.md）。
 //
 // 重音：.md 源码保留组合锐音符 U+0301 —— renderMarkdown 不处理重音，
 // 渲染后由 lesson-page.tsx 的 stressHtml()（仅 subject === 'russian'）处理。
 // ──────────────────────────────────────────────
-const mdLoaders = import.meta.glob('../../content/russian-lessons/*.md', {
-  query: '?raw',
-  import: 'default',
-  eager: false,
-}) as Record<string, () => Promise<string>>
+const mdLoaders = {
+  ...(import.meta.glob('../../content/*-lessons/*.md', {
+    query: '?raw', import: 'default', eager: false,
+  }) as Record<string, () => Promise<string>>),
+  ...(import.meta.glob('../../content/*-lessons/*/*.md', {
+    query: '?raw', import: 'default', eager: false,
+  }) as Record<string, () => Promise<string>>),
+}
 
 const loaderByFile = new Map<string, () => Promise<string>>()
 for (const [path, load] of Object.entries(mdLoaders)) {
-  loaderByFile.set(path.split('/').pop() || path, load)
+  const rel = path.split('/content/')[1] || path
+  loaderByFile.set(rel, load)
+  // 兼容既有条目：file 只写了文件名。新学科建议写完整相对路径以避免同名。
+  const base = rel.split('/').pop() || rel
+  if (!loaderByFile.has(base)) loaderByFile.set(base, load)
 }
 
 /**
@@ -49,9 +59,9 @@ export async function loadLessonSource(file: string): Promise<string | undefined
 /** 一册教材（或一个系列）。reserved=true 表示预留位，尚无内容。 */
 export interface BookMeta {
   id: string
-  /** 学科（课程中心未来按学科分区展示；当前全部为 'russian'） */
+  /** 学科：russian / math / mechanics / meteorology / chemistry… */
   subject: string
-  /** 展示名（reserved 条目留空，渲染时用 i18n 的「预留位」文案） */
+  /** 展示名（reserved 条目可留空，留空时渲染 i18n 的「预留位」文案） */
   title: string
   /** 册别说明，例如 Элементарный уровень · Урок 1–12 */
   hint: string
@@ -60,6 +70,7 @@ export interface BookMeta {
 
 export interface LessonMeta {
   id: string
+  /** 相对 content/ 的路径；也可只写文件名（仅限全站唯一时） */
   file: string
   title: string
   hint: string
@@ -75,6 +86,10 @@ export const BOOKS: BookMeta[] = [
   // （book 填该 id）。预留位在页面上可见，接入时无需改动任何渲染代码。
   { id: 'p-russia-baz', subject: 'russian', title: '《Привет, Россия! (Базовый)》', hint: 'Базовый уровень · Урок 1–10' },
   { id: 'slot-b', subject: 'russian', title: '', hint: '', reserved: true },
+  // ── lib 自编课程：统一归「杂项」，学科只作为条目说明 ──
+  // 把书编成课后，在 content/misc-lessons/<课程>/ 放 md，再把这条 slot 改成真实条目；
+  // 需要区分学科时在 title/hint 里写（如「数学 · 数学分析（一）」），不再单开分区。
+  { id: 'slot-lib', subject: 'misc', title: '杂项 · 待接入', hint: '数学 / 力学 / 气象学 / 化学…', reserved: true },
 ]
 
 export const LESSONS: LessonMeta[] = [

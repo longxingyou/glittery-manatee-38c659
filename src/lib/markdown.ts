@@ -116,8 +116,13 @@ export function extractHeadingsFromHtml(html: string, minLevel = 2, maxLevel = 4
   const hi = Math.max(minLevel, maxLevel)
   const re = new RegExp(`<h([${lo}-${hi}])\\s+id="([^"]+)"[^>]*>([\\s\\S]*?)<\\/h\\1>`, 'g')
   for (const m of html.matchAll(re)) {
-    // 剥离尾部 <a class="anchor">#</a> 与其余标签，得到纯文本
-    const inner = m[3].replace(/<a[^>]*class="anchor"[^>]*>[\s\S]*?<\/a>/, '')
+    // 剥离尾部 <a class="anchor">#</a> 与其余标签，得到纯文本。
+    // 公式标题还有一份「隐形副本」：KaTeX 输出里 .katex-mathml 既包含可见符号，
+    // 又带 <annotation> 的原始 LaTeX 源码，直接取 textContent 会把同一个公式
+    // 念三遍（"x=γ(x−vt)x=\gamma(x-vt)x=γ(x−vt)"）。先整块删掉，只留 .katex-html。
+    const inner = m[3]
+      .replace(/<a[^>]*class="anchor"[^>]*>[\s\S]*?<\/a>/, '')
+      .replace(/<span class="katex-mathml">[\s\S]*?<\/span>/g, '')
     const text = decodeEntities(inner.replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim()
     out.push({ id: decodeEntities(m[2]), text, level: Number(m[1]) })
   }
@@ -144,7 +149,16 @@ function pickupCardHtml(href: string, code: string, note?: string): string {
 // ──────────────────────────────────────────────
 // 主渲染函数
 // ──────────────────────────────────────────────
-export function renderMarkdown(source: string, headingShift = 0) {
+export interface RenderOptions {
+  /**
+   * 把相对图片路径（讲义里写的 fig1.png / ch1/fig1.png）解析成可用的资源 URL。
+   * 课程中心由 lessons.ts 注入（图片放 src/assets/lessons/，经 Vite 出 URL）；
+   * 其余调用方不传，相对路径按原样降级为占位徽章。
+   */
+  resolveImage?: (href: string) => string | undefined
+}
+
+export function renderMarkdown(source: string, headingShift = 0, options: RenderOptions = {}) {
   // ── 预处理 0：剥离 Obsidian frontmatter（粘贴即所得；站点元数据走编辑器字段） ──
   source = source.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, (m) => (m.includes(':') ? '' : m))
 
@@ -174,6 +188,11 @@ export function renderMarkdown(source: string, headingShift = 0) {
       return `[${name}](${target})`
     }
     const index = wikiEmbeds.push(target) - 1
+    // 本地图片（含 Obsidian 的 ![[fig.png|800]] 尺寸写法）转标准图片语法，
+    // 交给 image 渲染器按 src/assets/lessons/ 的「完整相对路径 → 全局同名」解析；
+    // 解析不到再降级成徽章。
+    const localName = target.split('|')[0]
+    if (/\.(?:png|jpe?g|gif|webp|svg|avif|bmp)$/i.test(localName)) return `![](${localName})`
     return `WIKIEMBED${index}ENDWIKIEMBED`
   })
 
@@ -194,17 +213,28 @@ export function renderMarkdown(source: string, headingShift = 0) {
   // 不应被渲染），全部占位替换完成后再还原代码。
   const mathStash: string[] = []
   const mathBlocks: string[] = []
+  /** 与 mathBlocks 同序的原始 LaTeX 源：公式独占标题时用来生成有意义的锚点 id */
+  const mathSources: string[] = []
   const citeDefs = new Set<string>()
   const citeRefs: { id: string; note: string }[] = []
   const confBadges: string[] = []
   const stashCode = (m: string) => `\u0000M${mathStash.push(m) - 1}M\u0000`
-  const renderDisplay = (expression: string) => {
+  /** 占位符所在行已有的缩进（用于让列表项里的块级公式留在 <li> 内） */
+  const lineIndent = (text: string, offset: number): string => {
+    const start = text.lastIndexOf('\n', offset - 1) + 1
+    return /^[ \t]*/.exec(text.slice(start))![0]
+  }
+  const renderDisplay = (expression: string, indent = '') => {
     const index = mathBlocks.push(katex.renderToString(expression.trim(), {
       displayMode: true,
       throwOnError: false,
       strict: false,
     })) - 1
-    return `\n\nMATHBLOCK${index}ENDMATH\n\n`
+    mathSources[index] = expression.trim()
+    // 顶格写：双换行独立成段。
+    // 写在列表项里（行首有缩进）：必须单换行 + 同缩进，否则空行会终止列表，
+    // 公式被甩到列表外、编号断成两截 —— 理科讲义的「步骤 + 公式」几乎都踩这个坑。
+    return indent ? `\n${indent}MATHBLOCK${index}ENDMATH\n` : `\n\nMATHBLOCK${index}ENDMATH\n\n`
   }
   const renderInline = (expression: string) => {
     const index = mathBlocks.push(katex.renderToString(expression.trim(), {
@@ -212,9 +242,10 @@ export function renderMarkdown(source: string, headingShift = 0) {
       throwOnError: false,
       strict: false,
     })) - 1
+    mathSources[index] = expression.trim()
     return `MATHINLINE${index}ENDMATH`
   }
-  const withPlaceholders = source
+  const mathDone = source
     .replace(/```[\s\S]*?(?:```|$)|~~~[\s\S]*?(?:~~~|$)|`[^`\n]*`/g, stashCode)
     // 来源条目（列表行首的 [cite:N]）→ 锚点占位，链接目标 <span id="cite-N">
     .replace(/^([ \t]*(?:[-*+]|\d+[.)])[ \t]+)\[cite:(\d+)\]/gm,
@@ -234,10 +265,39 @@ export function renderMarkdown(source: string, headingShift = 0) {
         const index = confBadges.push(raw.trim()) - 1
         return `CONFBADGE${index}ENDCONFBADGE`
       })
-    .replace(/\\\[([\s\S]+?)\\\]/g, (_m, expression: string) => renderDisplay(expression))
+    .replace(/\\\[([\s\S]+?)\\\]/g, (_m, expression: string, offset: number, whole: string) =>
+      renderDisplay(expression, lineIndent(whole, offset)))
     .replace(/\\\(([\s\S]+?)\\\)/g, (_m, expression: string) => renderInline(expression))
-    .replace(/\$\$([\s\S]+?)\$\$/g, (_m, expression: string) => renderDisplay(expression))
-    .replace(/(?<!\$)\$([^\n$]+?)\$(?!\$)/g, (_m, expression: string) => renderInline(expression))
+    .replace(/\$\$([\s\S]+?)\$\$/g, (_m, expression: string, offset: number, whole: string) =>
+      renderDisplay(expression, lineIndent(whole, offset)))
+    // 行内 $…$：开口后不能紧跟空白、闭口前不能是空白（GitHub/Pandoc 同款规则），
+    // 否则「价格 $5 和 $10」会把「5 和」当成公式渲染成一片乱码。
+    .replace(/(?<![\\$])\$(?![\s$])([^\n$]+?)(?<!\s)\$(?![\d$])/g, (_m, expression: string) =>
+      renderInline(expression))
+
+  // ── 裸写的化学式 \ce{…} / \pu{…}（不套 $ 也能渲染）──
+  // 必须放在数学替换之后：$\ce{…}$ 里的已经变成占位符，这里只捡剩下的裸写。
+  // 手动配对花括号（Fe^{3+} 这类嵌套），配不上就原样保留，不吞正文。
+  const renderBareChem = (text: string): string => {
+    let out = ''
+    let last = 0
+    const re = /\\(ce|pu)\{/g
+    for (let m = re.exec(text); m; m = re.exec(text)) {
+      let depth = 1
+      let i = re.lastIndex
+      for (; i < text.length && depth > 0; i++) {
+        if (text[i] === '{') depth++
+        else if (text[i] === '}') depth--
+      }
+      if (depth !== 0) break
+      out += text.slice(last, m.index) + renderInline(text.slice(m.index, i))
+      last = i
+      re.lastIndex = i
+    }
+    return out + text.slice(last)
+  }
+
+  const withPlaceholders = renderBareChem(mathDone)
     .replace(/\u0000M(\d+)M\u0000/g, (_m, i: string) => mathStash[Number(i)])
 
   // ── 每次 renderMarkdown 调用独立的闭包状态 ──
@@ -259,7 +319,12 @@ export function renderMarkdown(source: string, headingShift = 0) {
           const caption = text && text.trim() ? `<figcaption>${escapeHtml(text)}</figcaption>` : ''
           return `<figure class="markdown-image pickup-figure">${pickupCardHtml(href, pickup, text)}${caption}</figure>`
         }
-        if (/^https:\/\//i.test(href)) {
+        // 相对路径（讲义里写 fig1.png / assets/fig1.png）先交给调用方解析；
+        // 课程中心会把 content/ 下的图交给 Vite 处理，解析成功就当直连图渲染。
+        const relative = !/^(?:[a-z]+:|\/)/i.test(href)
+        const src = relative ? (options.resolveImage?.(href) ?? '') : href
+        // 可直连的图：站内绝对路径（/assets/…）+ 外链 https://
+        if (/^(?:https:\/\/|data:image\/|\/(?!\/))/i.test(src)) {
           // 可选尺寸标注，用于消除图片加载导致的布局偏移（CLS）：
           //   ![说明|800x600](url)        ← alt 内管道写法（推荐）
           //   ![说明](url "800x600")      ← title 写法
@@ -281,7 +346,7 @@ export function renderMarkdown(source: string, headingShift = 0) {
           const alt = escapeHtml(captionText)
           const caption = captionText.trim()
             ? `<figcaption>${escapeHtml(captionText)}</figcaption>` : ''
-          return `<figure class="markdown-image"><img src="${escapeHtml(href)}" alt="${alt}"${titleAttr}${sizeAttr} loading="lazy" decoding="async" />${caption}</figure>`
+          return `<figure class="markdown-image"><img src="${escapeHtml(src)}" alt="${alt}"${titleAttr}${sizeAttr} loading="lazy" decoding="async" />${caption}</figure>`
         }
         return `<span class="markdown-image-alt">[图片：${escapeHtml(text || '')}]</span>`
       },
@@ -303,7 +368,15 @@ export function renderMarkdown(source: string, headingShift = 0) {
       heading(this: unknown, { tokens, depth }: { tokens: Token[]; depth: number }) {
         const parser = (this as { parser: { parseInline: (t: Token[]) => string } }).parser
         const rendered = parser.parseInline(tokens)
-        const slug = slugify(tokensToText(tokens))
+        // 公式在标记阶段还是占位符：直接 slugify 会得到 "…-mathinline0endmath" 这种脏 id，
+        // 且同一节里多个公式标题会互相抢 id。先剔除占位符再 slug；
+        // 若标题本身就是一条纯公式（剔除后为空），改用它自己的 LaTeX 源生成 id（E=mc^2 → emc2），
+        // 否则一堆纯公式小节会全叫 section / section-2。
+        const rawText = tokensToText(tokens)
+        const plainText = rawText.replace(/MATH(?:BLOCK|INLINE)\d+ENDMATH/g, ' ').trim()
+        const slugSource = plainText
+          || rawText.replace(/MATH(?:BLOCK|INLINE)(\d+)ENDMATH/g, (_m, i: string) => ` ${mathSources[Number(i)] ?? ''} `)
+        const slug = slugify(slugSource)
         const n = (slugCounts.get(slug) ?? 0) + 1
         slugCounts.set(slug, n)
         const finalSlug = n === 1 ? slug : `${slug}-${n}`

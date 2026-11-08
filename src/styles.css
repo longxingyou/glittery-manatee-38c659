@@ -255,6 +255,14 @@ kbd { color: var(--faint); border: 1px solid var(--line); border-radius: 3px; pa
 .markdown-body tbody tr:hover { background: color-mix(in srgb, var(--accent-2) 5%, transparent); }
 .markdown-body hr { border: 0; border-top: 1px solid var(--line); margin: 2.4em 0; }
 .markdown-body ul, .markdown-body ol { padding-left: 1.5em; }
+/* Tailwind preflight 会把 ol/ul 的 list-style 清零（只留缩进），
+   正文列表便成了「没有圆点也没有序号」的裸缩进 —— 理科讲义的
+   「1. 列条件 / 2. 代入 / 3. 结论」全靠序号读，这里恢复原生标记 */
+.markdown-body ul { list-style: disc; }
+.markdown-body ol { list-style: decimal; }
+.markdown-body ul ul { list-style: circle; }
+.markdown-body ol ol { list-style: lower-alpha; }
+.markdown-body li::marker { color: var(--muted); }
 .markdown-body li > ul, .markdown-body li > ol { margin: .45em 0; }
 .markdown-body code { overflow-wrap: anywhere; }
 .markdown-body.compact table { font-size: .88em; margin: 1em 0; }
@@ -2052,6 +2060,27 @@ button.title-command:hover { color: var(--text); border-color: var(--accent-2); 
 .ru-les-body.markdown-body h4,
 .ru-les-body.markdown-body h5 { scroll-margin-top: 24px; }
 
+/* ── 理科讲义（数学 / 化学 / 物理…）：公式与推导优先 ──
+   非俄语教材不带 compact，回到 15px/1.85：13px 下 KaTeX 的上下标、积分限会糊成一团。
+   公式行比正文略大、留足上下呼吸，长公式自己横向滚动（.katex-display 已设 overflow-x）。 */
+.les-science { font-size: 15px; line-height: 1.85; }
+.les-science p { margin: 1em 0; }
+.les-science .katex { font-size: 1.06em; }
+.les-science .katex-display {
+  margin: 1.5em 0;
+  padding: 6px 0;
+  scrollbar-width: thin;
+}
+/* 步骤里嵌的公式不额外撑高行距，让「1. 条件 → 2. 代入 → 3. 结论」读成一组 */
+.les-science li > p { margin: .35em 0; }
+.les-science li .katex-display { margin: .7em 0; }
+.les-science blockquote .katex-display { margin: 1em 0; }
+/* 数据表比正文小半档，公式单元格不撑破列宽 */
+.les-science table { font-size: 13.5px; }
+.les-science table .katex { font-size: 1em; }
+/* 示意图不超过一屏，避免纵向被一张图占满 */
+.les-science .markdown-image img { max-height: 72vh; object-fit: contain; }
+
 /* ── 课程中心（/lessons）：左「教材」右「课程」，课时页「一门课一条左栏」 ──
    版式约定：全站只有 4 档字号（20 / 15 / 13 / 12），层级靠字号 + 字重 + 颜色区分，
    不再用 11px 一类的过小字号堆信息。 */
@@ -2728,6 +2757,24 @@ span.row-action.is-busy { opacity: .65; cursor: default; }
 .pv-mind-wrap { flex: 1; display: flex; flex-direction: column; min-height: calc(100vh - 42px); }
 .pv-mind-toggle { display: flex; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
 .pv-mind-svg { flex: 1; width: 100%; min-height: calc(100vh - 96px); background: var(--bg); touch-action: none; }
+
+/* ── 预览：DjVu / 电子书（foliate-js）── */
+.pv-djvu-wrap, .pv-ebook-wrap { flex: 1; display: flex; flex-direction: column; min-height: calc(100vh - 42px); }
+.pv-djvu-bar, .pv-ebook-bar { display: flex; align-items: center; gap: 10px; padding: 6px 20px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+.pv-djvu-page, .pv-ebook-pct { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pv-djvu-stage { flex: 1; overflow: auto; padding: 16px 12px 60px; display: flex; justify-content: center; align-items: flex-start; background: var(--bg); }
+.pv-djvu-canvas { display: block; max-width: 100%; height: auto; background: #fff; box-shadow: 0 1px 5px rgb(0 0 0 / 0.28); }
+.pv-ebook-stage { position: relative; flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; height: calc(100vh - 96px); }
+.pv-ebook-host { flex: 1 1 auto; min-height: 0; height: 100%; }
+.pv-ebook-view { display: block; width: 100%; height: 100%; min-height: 0; }
+.pv-ebook-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
+.pv-open-ext { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--muted); text-decoration: none; }
+.pv-open-ext:hover { color: var(--accent); }
+
+@media (max-width: 640px) {
+  .pv-djvu-bar, .pv-ebook-bar { padding: 6px 12px; }
+  .pv-ebook-stage { height: calc(100svh - 96px); }
+}
 
 /* ── 预览：俄语重音 + 思维导图主题适配 ── */
 /* 俄语重音：JS 把「元音+U+0301」替换为 .ru-stress（组合符在多数字体下错位），

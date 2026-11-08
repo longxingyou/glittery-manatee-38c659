@@ -56,6 +56,32 @@ export async function loadLessonSource(file: string): Promise<string | undefined
   return undefined
 }
 
+// ──────────────────────────────────────────────
+// 讲义配图：图片放 src/assets/lessons/（可再分子目录），讲义里写 ![](fig1.png)
+// 或沿用 Obsidian 的 ![[fig1.png]] 即可。这里用 glob + ?url 把图交给 Vite：
+// 开发时按 /src/assets/… 直接服务，构建时输出带 hash 的 /assets/… 并返回 URL
+// （不能放 content/ 或 public/ 再 glob：content/ 不被 dev server 服务，public/ 不能进模块图）。
+// 解析顺序：先按完整相对路径（ch1/fig1.png），再退回全局同名文件。
+const lessonImages = import.meta.glob('../assets/lessons/**/*.{png,jpg,jpeg,webp,avif,gif,svg,bmp}', {
+  query: '?url', import: 'default', eager: true,
+}) as Record<string, string>
+
+const imageByPath = new Map<string, string>()
+const imageByName = new Map<string, string>()
+for (const [path, url] of Object.entries(lessonImages)) {
+  const rel = path.split('/assets/lessons/')[1] || path
+  imageByPath.set(rel, url)
+  const base = rel.split('/').pop() || rel
+  if (!imageByName.has(base)) imageByName.set(base, url)
+}
+
+/** 讲义里的相对图片引用（fig1.png / ch1/fig1.png）→ 可用的资源 URL；解析不到返回 undefined */
+export function resolveLessonImage(href: string): string | undefined {
+  const clean = href.trim().replace(/^\.\//, '').split(/[?#]/)[0]
+  if (!clean || /^(?:[a-z]+:|\/)/i.test(clean)) return undefined
+  return imageByPath.get(clean) ?? imageByName.get(clean.split('/').pop() || clean)
+}
+
 /** 一册教材（或一个系列）。reserved=true 表示预留位，尚无内容。 */
 export interface BookMeta {
   id: string

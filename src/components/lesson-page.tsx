@@ -10,6 +10,7 @@ import {
   LESSON_LAST_KEY,
   bookOfLesson,
   lessonNeighbors,
+  resolveLessonImage,
   type LessonMeta,
 } from '../lib/lessons'
 
@@ -106,7 +107,10 @@ export function LessonPage({ les, source }: { les: LessonMeta; source?: string }
     // headingShift=1：与「语法手册」一致，正文从 h2 起步，避免与页面 h1 冲突
     () => {
       if (!source) return ''
-      const rendered = renderMarkdown(source, 1)
+      // 配图：讲义里写 ![](fig1.png) / ![[fig1.png]] 即可，取 src/assets/lessons/
+      const rendered = renderMarkdown(source, 1, {
+        resolveImage: (href) => resolveLessonImage(href),
+      })
       return book?.subject === 'russian' ? stressHtml(rendered) : rendered
     },
     [source, book?.subject],
@@ -229,7 +233,10 @@ export function LessonPage({ les, source }: { les: LessonMeta; source?: string }
           {source && (
             <div
               ref={bodyRef}
-              className="markdown-body compact ru-les-body"
+              /* 俄语讲义信息密度高（词表/变位表），用 compact 收紧；
+                 理科讲义是他科（subject !== russian），公式与推导要多留白，
+                 走 15px/1.85 的常规字号，否则 13px 的上下标会糊成一团 */
+              className={`markdown-body ru-les-body${book?.subject === 'russian' ? ' compact' : ' les-science'}`}
               dangerouslySetInnerHTML={{ __html: html }}
             />
           )}

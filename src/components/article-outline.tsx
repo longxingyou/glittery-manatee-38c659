@@ -11,10 +11,13 @@ export interface OutlineHeading {
 /** ≥1410px 时大纲停靠为右侧粘性侧栏（占布局空间）；否则为底部玻璃抽屉 */
 const DOCK_QUERY = '(min-width: 1410px)'
 
-/** 提取标题纯文本（剔除 renderMarkdown 追加的尾部 # 锚点图标） */
+/** 提取标题纯文本（剔除 renderMarkdown 追加的尾部 # 锚点图标与公式的隐形副本） */
 function headingText(el: HTMLElement): string {
   const clone = el.cloneNode(true) as HTMLElement
   clone.querySelector('.anchor')?.remove()
+  // KaTeX 会把同一公式输出两遍：可见的 .katex-html + 给读屏/复制的 .katex-mathml
+  //（后者还带 <annotation> 原始 LaTeX）。不删干净，大纲里会念三遍同一个公式。
+  clone.querySelectorAll('.katex-mathml').forEach((n) => n.remove())
   return (clone.textContent || '').trim()
 }
 

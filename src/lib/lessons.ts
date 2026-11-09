@@ -199,6 +199,7 @@ export const LESSONS: LessonMeta[] = [
   { id: 'la-38', file: 'misc-lessons/linear-algebra/38-张量积.md', title: '38 张量积', hint: '38 张量积', group: 'lesson', book: 'lib-linalg' },
   { id: 'la-a1', file: 'misc-lessons/linear-algebra/A1-线性方程组与消元.md', title: 'A1-线性方程组与消元', hint: 'A1-线性方程组与消元', group: 'lesson', book: 'lib-linalg' },
   { id: 'la-a2', file: 'misc-lessons/linear-algebra/A2-数学预备.md', title: 'A2-数学预备', hint: 'A2-数学预备', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-a3', file: 'misc-lessons/linear-algebra/A3-数值线性代数.md', title: 'A3-数值线性代数', hint: 'A3-数值线性代数', group: 'lesson', book: 'lib-linalg' },
   { id: 'la-s1', file: 'misc-lessons/linear-algebra/S1-符号表.md', title: 'S1-符号表', hint: 'S1-符号表', group: 'lesson', book: 'lib-linalg' },
   { id: 'la-s2', file: 'misc-lessons/linear-algebra/S2-定理速查.md', title: 'S2-定理速查', hint: 'S2-定理速查', group: 'lesson', book: 'lib-linalg' },
   // <<<LA-LESSONS-END>>>

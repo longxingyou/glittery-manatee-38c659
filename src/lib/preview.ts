@@ -3,7 +3,8 @@
  *
  * 两类预览：
  * - 浏览器直渲：pdf / md / 文本 / csv / html / 图片 / 音视频 / 思维导图
- *   （xmind/mm/opml），文件字节仍走网关直连，不占 Worker。
+ *   （xmind/mm/opml）/ DjVu / 电子书（epub/mobi/azw3/cbz），文件字节仍走
+ *   网关直连，不占 Worker。
  * - 服务端转换：Office 系（ppt/doc/xls/vsd…）由网关机 LibreOffice 转成
  *   PDF 后再用同一套 PDF 查看器渲染。
  */
@@ -18,6 +19,10 @@ export type PreviewKind =
   | 'audio'
   | 'video'
   | 'mindmap'
+  /** DjVu 扫描件：djvu-rs WASM 在浏览器内解码（动态加载） */
+  | 'djvu'
+  /** EPUB / MOBI / AZW3 / CBZ：foliate-js 在浏览器内解析（动态加载） */
+  | 'ebook'
   /** 需 LibreOffice 转 PDF（见网关 converter 服务） */
   | 'office'
 
@@ -26,6 +31,13 @@ export type BlobPreviewKind = 'md' | 'text' | 'csv' | 'html' | 'mindmap'
 
 /** 浏览器拉整文件解析的大小上限（超过则提示下载查看；30MiB） */
 export const PREVIEW_BLOB_MAX_BYTES = 30 * 1024 * 1024
+
+/**
+ * DjVu / 电子书 / CBZ 的整文件上限（150MiB）。
+ * 这三类必须整文件进内存解析（zip 随机访问也依赖完整 Blob），
+ * 上限取得比文本类宽，覆盖常见扫描书与漫画。
+ */
+export const PREVIEW_EBOOK_MAX_BYTES = 150 * 1024 * 1024
 
 /** LibreOffice 转换源文件大小上限（80MiB；891MB 内存机器的安全线） */
 export const PREVIEW_CONVERT_MAX_BYTES = 80 * 1024 * 1024
@@ -42,6 +54,11 @@ const EXT_OFFICE = new Set([
 ])
 
 const EXT_MINDMAP = new Set(['xmind', 'mm', 'opml'])
+
+const EXT_DJVU = new Set(['djvu'])
+
+/** CBR（RAR）纯浏览器无可靠解压方案，刻意不收录：只能下载 */
+const EXT_EBOOK = new Set(['epub', 'mobi', 'azw3', 'cbz'])
 
 const EXT_IMAGE = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif'])
 const EXT_AUDIO = new Set(['mp3', 'wav', 'ogg', 'oga', 'm4a', 'flac', 'aac'])
@@ -72,6 +89,8 @@ export function previewKind(filename: string): PreviewKind | null {
   const ext = fileExt(filename)
   if (!ext) return null
   if (ext === 'pdf') return 'pdf'
+  if (EXT_DJVU.has(ext)) return 'djvu'
+  if (EXT_EBOOK.has(ext)) return 'ebook'
   if (EXT_MD.has(ext)) return 'md'
   if (EXT_HTML.has(ext)) return 'html'
   if (EXT_CSV.has(ext)) return 'csv'
@@ -128,6 +147,9 @@ export function previewUiState(
   }
   if ((kind === 'md' || kind === 'text' || kind === 'csv' || kind === 'html' || kind === 'mindmap')
     && sizeBytes > PREVIEW_BLOB_MAX_BYTES) {
+    return 'none'
+  }
+  if ((kind === 'djvu' || kind === 'ebook') && sizeBytes > PREVIEW_EBOOK_MAX_BYTES) {
     return 'none'
   }
   return 'ready'

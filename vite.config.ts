@@ -74,6 +74,11 @@ const config = defineConfig({
     tanstackStart(),
     viteReact(),
   ],
+  // djvu-rs 的 loader 用 `new URL('./{variant}/djvu_rs_bg.wasm', import.meta.url)`
+  // 定位 WASM；交给 Vite 处理（而不是 esbuild 预打包）才能正确解析并输出资产。
+  optimizeDeps: {
+    exclude: ['djvu-rs'],
+  },
   server: {
     // 仅本地开发：附件网关的 CORS 只放行生产源，浏览器从 localhost 跨域会被拦。
     // dev 下 attachment-store 把网关地址改写为同源 /__gwproxy/*，由这里服务端

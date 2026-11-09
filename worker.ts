@@ -45,13 +45,16 @@ const VIDEO_FRAME_ORIGINS = [
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   // Cloudflare 自动注入 Web Analytics / RUM beacon（static.cloudflareinsights.com）；
-  // api.bilibili.com 供视频面板 JSONP 解析 B站直链（手机端绕开外链播放器 iframe 风控）
-  "script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://api.bilibili.com",
-  "style-src 'self' 'unsafe-inline'",
+  // api.bilibili.com 供视频面板 JSONP 解析 B站直链（手机端绕开外链播放器 iframe 风控）；
+  // 'wasm-unsafe-eval' 供 djvu-rs 在浏览器内实例化 WASM（不放宽 JS eval）
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://static.cloudflareinsights.com https://api.bilibili.com",
+  // blob: 供电子书（foliate-js）内联样式表 / 字体资源
+  "style-src 'self' 'unsafe-inline' blob:",
   // blob: 供 X 岛 composer 本地图片/贴纸的选择预览（createObjectURL，不发起网络请求）
   "img-src 'self' https: data: blob:",
-  // Vite 会把小于 4KB 的字体子集内联为 data: URL，需放行
-  "font-src 'self' data:",
+  // Vite 会把小于 4KB 的字体子集内联为 data: URL，需放行；
+  // blob: 供 EPUB/MOBI 内嵌字体
+  "font-src 'self' data: blob:",
   // beacon 上报到 cloudflareinsights.com；
   // *.hf.space 是自建附件网关的 HF Space 部署。网关若托管在其他主机
   // （VPS/Koyeb/Cloudflare Tunnel 域名），其 origin 由 TG_GATEWAY_URL

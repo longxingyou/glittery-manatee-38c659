@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { z } from 'zod'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { unzipSync } from 'fflate'
-import { ArrowLeft, ExternalLink, FileDown, Loader2, Lock, RefreshCw } from 'lucide-react'
+import { ArrowLeft, ChevronLeft, ChevronRight, ExternalLink, FileDown, Loader2, Lock, RefreshCw } from 'lucide-react'
 import { attachmentPreviewFn, attachmentPreviewRetryFn, AttachmentDownloadButton, type AttachmentPreviewInfo } from '@/components/public-fns'
 import { useT } from '@/lib/i18n'
 import { onAuthChange } from '@/lib/auth-client'
@@ -16,6 +16,8 @@ import { fileExt, PREVIEW_CONVERT_MAX_BYTES, type PreviewKind } from '@/lib/prev
 import '@fontsource-variable/inter'
 // 仅类型引用，不产生运行时依赖（pdfjs 本体在 PdfJsView 里动态 import）
 import type { PDFDocumentProxy } from 'pdfjs-dist'
+// 仅类型引用（djvu-rs 本体在 DjvuView 里动态 import）
+import type { WasmDocument } from 'djvu-rs'
 
 export const Route = createFileRoute('/preview/$id')({
   validateSearch: z.object({
@@ -267,6 +269,32 @@ async function fetchText(url: string, onProgress?: (p: number) => void): Promise
     onProgress(Math.min(1, received / total))
   }
   out += decoder.decode()
+  return out
+}
+
+/** 跨域拉二进制（DjVu / 电子书整文件解析）；有 Content-Length 时上报 0~1 进度 */
+async function fetchBytes(url: string, onProgress?: (p: number) => void): Promise<Uint8Array<ArrayBuffer>> {
+  const res = await fetch(url, { credentials: 'same-origin' })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  if (!res.body || !onProgress) return new Uint8Array(await res.arrayBuffer())
+  const total = Number(res.headers.get('Content-Length') || 0)
+  if (!(total > 0)) return new Uint8Array(await res.arrayBuffer())
+  const reader = res.body.getReader()
+  const chunks: Uint8Array[] = []
+  let received = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    chunks.push(value!)
+    received += value!.byteLength
+    onProgress(Math.min(1, received / total))
+  }
+  const out = new Uint8Array(received)
+  let offset = 0
+  for (const chunk of chunks) {
+    out.set(chunk, offset)
+    offset += chunk.byteLength
+  }
   return out
 }
 
@@ -684,6 +712,289 @@ function FetchHint({ label, hint }: { label: string; hint?: string }) {
   return <div className="pv-fetch-hint"><Loader2 size={18} className="spin" /><span>{label}</span>{hint && <span className="pv-fetch-pct">{hint}</span>}</div>
 }
 
+/* ── DjVu：djvu-rs WASM（动态 import，不进主包）──
+ * 单页翻页 + 按容器宽度选 dpi，避免几百页同时进 canvas 撑爆内存。 */
+function DjvuView({ url, filename, fallback }: { url: string; filename: string; fallback: ReactNode }) {
+  const t = useT()
+  const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [progress, setProgress] = useState<number | null>(null)
+  const [doc, setDoc] = useState<WasmDocument | null>(null)
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(0)
+  const [width, setWidth] = useState(0)
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  useEffect(() => {
+    let alive = true
+    setPhase('loading'); setProgress(null); setDoc(null); setTotal(0); setPage(0)
+    ;(async () => {
+      try {
+        const bytes = await fetchBytes(url, (p) => { if (alive) setProgress(p) })
+        if (!alive) return
+        const djvu = await import('djvu-rs')
+        // 默认导出才是 wasm-bindgen 的 init（按 SIMD 支持自动选 wasm 变体）
+        await djvu.default()
+        if (!alive) return
+        const parsed = djvu.WasmDocument.from_bytes(bytes)
+        if (!alive) { parsed.free(); return }
+        setTotal(parsed.page_count())
+        setDoc(parsed)
+        setPhase('ready')
+      } catch (err) {
+        console.error('[preview] djvu failed', err)
+        if (alive) setPhase('error')
+      }
+    })()
+    return () => { alive = false }
+  }, [url])
+
+  // 文档释放（换文件 / 卸载）
+  useEffect(() => () => { try { doc?.free() } catch { /* 已释放 */ } }, [doc])
+
+  // 容器宽度 → 渲染 dpi（上限 1600px 宽，避免超大画布）
+  useEffect(() => {
+    const el = wrapRef.current
+    if (!el) return
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width
+      if (w) setWidth(Math.round(w))
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [phase])
+
+  useEffect(() => {
+    if (!doc || phase !== 'ready') return
+    let alive = true
+    ;(async () => {
+      try {
+        const p = doc.page(page)
+        try {
+          const base = Math.max(1, p.width_at(96))
+          const target = Math.min(1600, Math.max(320, width - 40))
+          const dpi = Math.min(200, Math.max(72, Math.round((target / base) * 96)))
+          const pixels = p.render(dpi)
+          const canvas = canvasRef.current
+          if (!alive || !canvas) return
+          canvas.width = p.width_at(dpi)
+          canvas.height = p.height_at(dpi)
+          canvas.getContext('2d')?.putImageData(new ImageData(pixels as Uint8ClampedArray<ArrayBuffer>, canvas.width, canvas.height), 0, 0)
+        } finally {
+          p.free()
+        }
+      } catch {
+        if (alive) setPhase('error')
+      }
+    })()
+    return () => { alive = false }
+  }, [doc, page, width, phase])
+
+  // ←/→ 翻页（与 PDF 查看器习惯一致）
+  useEffect(() => {
+    if (phase !== 'ready' || total <= 0) return
+    const onKey = (e: KeyboardEvent) => {
+      // 页面里还有搜索框/评论框：可编辑元素里的方向键不应翻页
+      const el = e.target as HTMLElement | null
+      if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return
+      if (e.key === 'ArrowLeft') setPage((p) => Math.max(0, p - 1))
+      else if (e.key === 'ArrowRight') setPage((p) => Math.min(total - 1, p + 1))
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [phase, total])
+
+  if (phase === 'error') {
+    return (
+      <div className="pv-gate">
+        <p>{t('preview.djvu.fail')}</p>
+        {fallback}
+      </div>
+    )
+  }
+  if (phase === 'loading') {
+    return (
+      <div className="pv-fetch-col">
+        <ProgressLine p={progress} />
+        <FetchHint label={t('preview.djvu.loading')} hint={progress == null ? undefined : `${Math.round(progress * 100)}%`} />
+      </div>
+    )
+  }
+  return (
+    <div className="pv-djvu-wrap" ref={wrapRef}>
+      <div className="pv-djvu-bar no-print">
+        <button className="row-action" disabled={page <= 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>
+          <ChevronLeft size={14} />{t('preview.ebook.prev')}
+        </button>
+        <span className="pv-djvu-page">{t('preview.djvu.page', { page: page + 1, total })}</span>
+        <button className="row-action" disabled={page >= total - 1} onClick={() => setPage((p) => Math.min(total - 1, p + 1))}>
+          {t('preview.ebook.next')}<ChevronRight size={14} />
+        </button>
+        <a href={url} target="_blank" rel="noreferrer" className="pv-open-ext" title={filename}>
+          <ExternalLink size={13} />{t('preview.pdf.newtab')}
+        </a>
+      </div>
+      <div className="pv-djvu-stage">
+        <canvas ref={canvasRef} className="pv-djvu-canvas" />
+      </div>
+    </div>
+  )
+}
+
+/* ── 电子书：foliate-js（EPUB / MOBI / AZW3 / CBZ，动态 import）──
+ * paginator 的 iframe 是 allow-same-origin + allow-scripts，书内脚本会以同源
+ * 身份执行；因此渲染前剥离 <script>、内联事件与 javascript: URL，并额外注入
+ * script-src 'none' 的 CSP meta（自闭合：XHTML 按 XML 解析，非自闭合会解析失败）。
+ * EPUB 走 book.transformTarget；MOBI/KF8 没有该钩子，改为包装 section.load
+ * 返回的 blob URL 做同样处理。 */
+const EBOOK_CSP_META = '<meta http-equiv="Content-Security-Policy" content="script-src \'none\'; object-src \'none\'" />'
+
+function guardEbookHtml(html: string): string {
+  const clean = html
+    .replace(/<script\b[\s\S]*?<\/script\s*>/gi, '')
+    .replace(/<script\b[^>]*\/?>/gi, '')
+    .replace(/\son[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/(href|xlink:href)\s*=\s*(["'])\s*javascript:[\s\S]*?\2/gi, '$1="#"')
+  if (/<head[^>]*>/i.test(clean)) return clean.replace(/<head[^>]*>/i, (m) => `${m}${EBOOK_CSP_META}`)
+  if (/<html[^>]*>/i.test(clean)) return clean.replace(/<html[^>]*>/i, (m) => `${m}<head>${EBOOK_CSP_META}</head>`)
+  return `${EBOOK_CSP_META}${clean}`
+}
+
+type FoliateBook = {
+  transformTarget?: EventTarget
+  sections?: Array<{ load?: () => Promise<string> }>
+  destroy?: () => void
+}
+
+type FoliateViewEl = HTMLElement & {
+  open: (input: Blob) => Promise<void>
+  init: (opts?: { showTextStart?: boolean }) => Promise<void>
+  goLeft: () => unknown
+  goRight: () => unknown
+  renderer?: { setStyles?: (styles: string) => void }
+  book?: FoliateBook
+}
+
+/** 书页在 iframe 里没有继承站点主题；按当前主题补一层基础配色，避免黑字压暗底 */
+function ebookCss(): string {
+  const dark = typeof document !== 'undefined' && document.documentElement.dataset.theme !== 'light'
+  return dark
+    ? 'html{background:#1e1e1e}body{color:#d4d4d4}a:link,a:visited{color:#6cb6ff}img,video{max-width:100%;height:auto}'
+    : 'html{background:#fff}body{color:#222}a:link,a:visited{color:#0969da}img,video{max-width:100%;height:auto}'
+}
+
+function EbookView({ url, filename, fallback }: { url: string; filename: string; fallback: ReactNode }) {
+  const t = useT()
+  const hostRef = useRef<HTMLDivElement>(null)
+  const viewRef = useRef<FoliateViewEl | null>(null)
+  const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [progress, setProgress] = useState<number | null>(null)
+  const [fraction, setFraction] = useState(0)
+
+  useEffect(() => {
+    let alive = true
+    const host = hostRef.current
+    if (!host) return
+    setPhase('loading'); setProgress(null); setFraction(0)
+    let view: FoliateViewEl | null = null
+    let created: string[] = []
+
+    ;(async () => {
+      try {
+        const bytes = await fetchBytes(url, (p) => { if (alive) setProgress(p) })
+        if (!alive) return
+        await import('foliate-js/view.js')
+        if (!alive) return
+        const file = new File([bytes], filename || 'book', { type: 'application/octet-stream' })
+        view = document.createElement('foliate-view') as FoliateViewEl
+        view.className = 'pv-ebook-view'
+        host.append(view)
+        viewRef.current = view
+        await view.open(file)
+        if (!alive) return
+        const book = view.book
+        if (book?.transformTarget) {
+          book.transformTarget.addEventListener('data', (ev) => {
+            const detail = (ev as CustomEvent<{ data: unknown; type?: string }>).detail
+            if (!detail || !/html|xhtml|xml/i.test(detail.type || '')) return
+            detail.data = Promise.resolve(detail.data).then((v) => (typeof v === 'string' ? guardEbookHtml(v) : v))
+          })
+        } else if (book?.sections) {
+          for (const section of book.sections) {
+            const orig = section.load?.bind(section)
+            if (!orig) continue
+            section.load = async () => {
+              const src = await orig()
+              if (typeof src !== 'string' || !src.startsWith('blob:')) return src
+              try {
+                const html = await (await fetch(src)).text()
+                const next = URL.createObjectURL(new Blob([guardEbookHtml(html)], { type: 'text/html' }))
+                created.push(next)
+                return next
+              } catch {
+                return src
+              }
+            }
+          }
+        }
+        view.addEventListener('relocate', (ev) => {
+          const detail = (ev as CustomEvent<{ fraction?: number }>).detail
+          if (alive && typeof detail?.fraction === 'number') setFraction(detail.fraction)
+        })
+        view.renderer?.setStyles?.(ebookCss())
+        await view.init({ showTextStart: true })
+        if (alive) setPhase('ready')
+      } catch (err) {
+        console.error('[preview] ebook failed', err)
+        if (alive) setPhase('error')
+      }
+    })()
+
+    return () => {
+      alive = false
+      viewRef.current = null
+      for (const u of created) URL.revokeObjectURL(u)
+      created = []
+      try { view?.book?.destroy?.() } catch { /* 已销毁 */ }
+      try { view?.remove() } catch { /* 已移除 */ }
+    }
+  }, [url, filename])
+
+  return (
+    <div className="pv-ebook-wrap">
+      {phase === 'ready' && (
+        <div className="pv-ebook-bar no-print">
+          <button className="row-action" onClick={() => void viewRef.current?.goLeft()}>
+            <ChevronLeft size={14} />{t('preview.ebook.prev')}
+          </button>
+          <span className="pv-ebook-pct">{t('preview.ebook.pct', { pct: Math.round(fraction * 100) })}</span>
+          <button className="row-action" onClick={() => void viewRef.current?.goRight()}>
+            {t('preview.ebook.next')}<ChevronRight size={14} />
+          </button>
+          <a href={url} target="_blank" rel="noreferrer" className="pv-open-ext">
+            <ExternalLink size={13} />{t('preview.pdf.newtab')}
+          </a>
+        </div>
+      )}
+      <div className="pv-ebook-stage">
+        <div className="pv-ebook-host" ref={hostRef} />
+        {phase === 'loading' && (
+          <div className="pv-ebook-overlay">
+            <ProgressLine p={progress} />
+            <FetchHint label={t('preview.ebook.loading')} hint={progress == null ? undefined : `${Math.round(progress * 100)}%`} />
+          </div>
+        )}
+        {phase === 'error' && (
+          <div className="pv-gate">
+            <p>{t('preview.ebook.fail')}</p>
+            {fallback}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function OfficeStatusView({ info, token, renderer }: { info: AttachmentPreviewInfo; token?: string; renderer?: 'js' | 'native' }) {
   const t = useT()
   const navigate = useNavigate()
@@ -816,9 +1127,15 @@ function LockView({ info }: { info: AttachmentPreviewInfo }) {
 
 function PreviewBody({ info, token, renderer }: { info: AttachmentPreviewInfo; token?: string; renderer?: 'js' | 'native' }) {
   const fileUrl = info.fileUrl || info.sameOriginUrl || ''
+  const navigate = useNavigate()
+  const fallback = <DownloadFallback info={info} token={token} navigate={navigate} />
   switch (info.kind) {
     case 'pdf':
       return info.pdfUrl ? <PdfView url={info.pdfUrl} filename={info.filename || 'document.pdf'} forcedRenderer={renderer} /> : <FetchHint label="" />
+    case 'djvu':
+      return <DjvuView url={fileUrl} filename={info.filename || ''} fallback={fallback} />
+    case 'ebook':
+      return <EbookView url={fileUrl} filename={info.filename || ''} fallback={fallback} />
     case 'office':
       return info.previewState === 'ready' && info.pdfUrl
         ? <PdfView url={info.pdfUrl} filename={`${info.filename || 'document'}.pdf`} forcedRenderer={renderer} />

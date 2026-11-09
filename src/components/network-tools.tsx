@@ -1,5 +1,6 @@
 import * as React from 'react'
 import {
+  Activity,
   BookOpen,
   Braces,
   Check,
@@ -17,6 +18,9 @@ import {
 import { useT } from '@/lib/i18n'
 
 const NET_API = '/api/net'
+
+/** DoH 面板支持的记录类型（与 api.net.ts 的 DOH_TYPES 保持一致） */
+const DOH_TYPES = ['HTTPS', 'A', 'AAAA', 'CNAME', 'TXT', 'CAA', 'MX', 'NS'] as const
 
 interface NetEnvelope {
   ok?: boolean
@@ -38,6 +42,26 @@ interface NetEnvelope {
   /** B站直链结果（action=bili_playurl） */
   streams?: string[]
   quality?: number | null
+  /** DNS / ECH 诊断结果（action=doh） */
+  doh?: DohResult
+}
+
+/** DoH 返回的单条 DNS 记录 */
+interface DohAnswer {
+  name: string
+  type: string
+  ttl: number
+  data: string
+}
+
+interface DohResult {
+  name: string
+  type: string
+  status: number
+  answers: DohAnswer[]
+  authority: DohAnswer[]
+  ech: { published: boolean; value: string | null }
+  elapsedMs: number
 }
 
 /** YouTube 站内搜索结果项 */
@@ -57,14 +81,14 @@ interface ShareLinkInfo {
   maxIps: number
 }
 
-function buildNetUrl(action: 'gh' | 'fetch' | 'reader' | 'search' | 'share_info' | 'yt_search' | 'download' | 'bili_playurl' | 'acfun_m3u8' | 'douyin_resolve' | 'bili_resolve', params: Record<string, string>): string {
+function buildNetUrl(action: 'gh' | 'fetch' | 'reader' | 'search' | 'share_info' | 'yt_search' | 'download' | 'bili_playurl' | 'acfun_m3u8' | 'douyin_resolve' | 'bili_resolve' | 'doh', params: Record<string, string>): string {
   const u = new URL(NET_API, window.location.origin)
   u.searchParams.set('action', action)
   for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v)
   return u.toString()
 }
 
-async function callNet(action: 'fetch' | 'search', params: Record<string, string>, shared = false): Promise<NetEnvelope> {
+async function callNet(action: 'fetch' | 'search' | 'doh', params: Record<string, string>, shared = false): Promise<NetEnvelope> {
   const res = await fetch(buildNetUrl(action, params), { credentials: 'same-origin' })
   let data: NetEnvelope = {}
   try { data = (await res.json()) as NetEnvelope } catch { /* 非 JSON 响应 */ }
@@ -853,6 +877,13 @@ export function NetworkTools({ shared = false }: { shared?: boolean }) {
   // 文件下载输入
   const [dlInput, setDlInput] = React.useState('')
 
+  // DNS / ECH 诊断
+  const [dohName, setDohName] = React.useState('')
+  const [dohType, setDohType] = React.useState<string>('HTTPS')
+  const [dohBusy, setDohBusy] = React.useState(false)
+  const [dohError, setDohError] = React.useState('')
+  const [dohData, setDohData] = React.useState<DohResult | null>(null)
+
   const [pageUrl, setPageUrl] = React.useState('')
   const [fetchBusy, setFetchBusy] = React.useState(false)
   const [fetchError, setFetchError] = React.useState('')
@@ -926,6 +957,47 @@ export function NetworkTools({ shared = false }: { shared?: boolean }) {
       return
     }
     window.open(buildNetUrl('reader', { u }), '_blank', 'noopener,noreferrer')
+  }
+
+  const doDoh = async (rawName?: string) => {
+    const n = (rawName ?? dohName)
+      .trim()
+      .replace(/^https?:\/\//i, '')
+      .replace(/\/.*$/, '')
+      .replace(/\.$/, '')
+      .toLowerCase()
+    if (!n) {
+      setDohError(t('admin.net.doh.badname'))
+      return
+    }
+    setDohBusy(true)
+    setDohError('')
+    setDohData(null)
+    try {
+      const data = await callNet('doh', { name: n, type: dohType }, shared)
+      if (!data.doh) throw new Error(t('admin.net.doh.failed'))
+      setDohData(data.doh)
+      setDohName(n)
+    } catch (e) {
+      setDohError(e instanceof Error ? e.message : t('admin.net.doh.failed'))
+    } finally {
+      setDohBusy(false)
+    }
+  }
+
+  const dohStatusText = (status: number) => {
+    if (status === 0) return t('admin.net.doh.status.ok')
+    if (status === 3) return t('admin.net.doh.status.nxdomain')
+    if (status === 2) return t('admin.net.doh.status.servfail')
+    if (status === 5) return t('admin.net.doh.status.refused')
+    return t('admin.net.doh.status.other').replace('{n}', String(status))
+  }
+
+  const doDohSelf = () => {
+    const host = window.location.hostname
+    setDohName(host)
+    setDohType('HTTPS')
+    void doDoh(host)
   }
 
   const doSearch = async (page = 1) => {
@@ -1062,6 +1134,89 @@ export function NetworkTools({ shared = false }: { shared?: boolean }) {
           {dlUrl && <CopyButton text={dlUrl} label={t('admin.net.gh.copyauto')} copiedKey="dl" onCopied={() => undefined} />}
         </div>
         <p style={{ color: 'var(--muted)', fontSize: 12, margin: '10px 0 0', lineHeight: 1.6 }}>{t('admin.net.dl.hint')}</p>
+      </section>
+
+      {/* ── DNS / ECH 诊断 ── */}
+      <section className="panel" style={{ marginTop: 16 }}>
+        <h2 style={{ margin: '0 0 4px', fontSize: 16 }}><Activity size={16} style={{ verticalAlign: '-3px', marginRight: 6 }} />{t('admin.net.doh.title')}</h2>
+        <p style={{ margin: '0 0 12px', color: 'var(--muted)', fontSize: 13 }}>{t('admin.net.doh.desc')}</p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+          <input
+            value={dohName}
+            onChange={(e) => setDohName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') void doDoh() }}
+            placeholder={t('admin.net.doh.ph')}
+            spellCheck={false}
+            style={{ flex: '1 1 240px' }}
+          />
+          <select
+            value={dohType}
+            onChange={(e) => setDohType(e.target.value)}
+            aria-label={t('admin.net.doh.type')}
+            style={{ width: 112 }}
+          >
+            {DOH_TYPES.map((ty) => <option key={ty} value={ty}>{ty}</option>)}
+          </select>
+          <button type="button" className="primary-button" disabled={dohBusy} onClick={() => void doDoh()}>
+            {dohBusy ? t('admin.net.doh.querying') : t('admin.net.doh.query')}
+          </button>
+          <button type="button" className="ghost-button" disabled={dohBusy} onClick={doDohSelf}>
+            {t('admin.net.doh.self')}
+          </button>
+        </div>
+        {dohError && <div className="banner error" style={{ marginTop: 10 }}>{dohError}</div>}
+        {dohData && (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', fontSize: 13 }}>
+              <span style={{ color: dohData.status === 0 ? '#3fb950' : '#d29922', fontWeight: 600 }}>{dohStatusText(dohData.status)}</span>
+              <span style={{ color: 'var(--muted)' }}>{dohData.elapsedMs} ms</span>
+              <span style={{
+                padding: '1px 8px',
+                borderRadius: 999,
+                fontSize: 12,
+                color: dohData.ech.published ? '#3fb950' : 'var(--muted)',
+                border: `1px solid ${dohData.ech.published ? 'rgba(63,185,80,0.5)' : 'var(--border)'}`,
+              }}>
+                {dohData.ech.published ? t('admin.net.doh.echyes') : t('admin.net.doh.echno')}
+              </span>
+            </div>
+            {dohData.ech.published && dohData.ech.value && (
+              <div style={{ marginTop: 10, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8 }}>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>{t('admin.net.doh.echconfig')}</div>
+                <code style={{ fontSize: 12, wordBreak: 'break-all' }}>{dohData.ech.value}</code>
+                <div style={{ marginTop: 8 }}>
+                  <CopyButton text={dohData.ech.value} label={t('admin.net.doh.copy')} copiedKey="doh-ech" onCopied={() => undefined} />
+                </div>
+              </div>
+            )}
+            {dohData.answers.length === 0 ? (
+              <p style={{ color: 'var(--muted)', fontSize: 13, margin: '10px 0 0' }}>{t('admin.net.doh.empty')}</p>
+            ) : (
+              <div style={{ overflowX: 'auto', marginTop: 10 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+                  <thead>
+                    <tr>
+                      {[t('admin.net.doh.col.type'), t('admin.net.doh.col.name'), t('admin.net.doh.col.ttl'), t('admin.net.doh.col.data')].map((h) => (
+                        <th key={h} style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', textAlign: 'left', color: 'var(--muted)', fontWeight: 500, whiteSpace: 'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dohData.answers.map((a, i) => (
+                      <tr key={`${a.type}-${a.name}-${i}`}>
+                        <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', verticalAlign: 'top', whiteSpace: 'nowrap' }}><code>{a.type}</code></td>
+                        <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', verticalAlign: 'top', wordBreak: 'break-all' }}>{a.name}</td>
+                        <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', verticalAlign: 'top' }}>{a.ttl}</td>
+                        <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', verticalAlign: 'top', wordBreak: 'break-all', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>{a.data}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <p style={{ color: 'var(--muted)', fontSize: 12, margin: '10px 0 0', lineHeight: 1.6 }}>{t('admin.net.doh.hint')}</p>
+          </div>
+        )}
       </section>
 
       {/* ── 代理搜索 ── */}

@@ -115,7 +115,7 @@ export const BOOKS: BookMeta[] = [
   // ── lib 自编课程：统一归「杂项」，学科只作为条目说明 ──
   // 把书编成课后，在 content/misc-lessons/<课程>/ 放 md，再把这条 slot 改成真实条目；
   // 需要区分学科时在 title/hint 里写（如「数学 · 数学分析（一）」），不再单开分区。
-  { id: 'slot-lib', subject: 'misc', title: '杂项 · 待接入', hint: '数学 / 力学 / 气象学 / 化学…', reserved: true },
+  { id: 'lib-linalg', subject: 'misc', title: '数学 · 线性代数', hint: 'Axler《线性代数应该这样学》第四版 · 38 讲 +《行列式入门》专题补充' },
 ]
 
 export const LESSONS: LessonMeta[] = [
@@ -151,6 +151,57 @@ export const LESSONS: LessonMeta[] = [
   { id: 'b-pos', file: 'b13-words-by-pos.md', title: '词表 · 按词型', hint: '121 个 Базовый 真新词按名词/动词/形容词/副词分类', group: 'global', book: 'p-russia-baz' },
   { id: 'b-theme', file: 'b14-words-by-theme.md', title: '词表 · 按主题', hint: '同 121 词按 10 课主题归集（场景联想）', group: 'global', book: 'p-russia-baz' },
   { id: 'b-comp', file: 'b15-key-compendium.md', title: '关键内容精编', hint: '六格体系总表 · 名词/形容词变格全表 · 运动动词九前缀 · 复合句总表 · 易混辨析', group: 'global', book: 'p-russia-baz' },
+
+  // ── 数学 · 线性代数（38 讲 + 附录 + 总表）──
+  // 内容源：content/misc-lessons/linear-algebra/（与 Rag 课程库单一真源同步）
+  // 登记顺序 = 站内上一讲/下一讲顺序；新增讲次时**按编号插入**，不要追加到末尾。
+  { id: 'la-ov', file: 'misc-lessons/linear-algebra/00-overview.md', title: '课程导航', hint: '讲什么 · 三种读法 · 知识地图 · 记号约定 · 学习计划', group: 'global', book: 'lib-linalg' },
+  // ⚠️ 以下由 _pipeline/gen_lessons_ts.py 按**真实文件名**自动生成。
+  // 手工修改会被覆盖；要改概要（hint），改脚本读到的现有条目即可。
+  // <<<LA-LESSONS-BEGIN>>>
+  { id: 'la-01', file: 'misc-lessons/linear-algebra/01-向量与坐标.md', title: '01 向量与坐标', hint: '数域为何要封闭 · 复数与旋转 · 有序数组的五种看法 · 三种运算', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-02', file: 'misc-lessons/linear-algebra/02-向量空间.md', title: '02 向量空间', hint: '六条性质（对照「八条」）· 四类例子 · 量词顺序 · 零元与逆元唯一', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-03', file: 'misc-lessons/linear-algebra/03-子空间.md', title: '03 子空间', hint: '三条判据 · 常见反例 · 和与直和', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-04', file: 'misc-lessons/linear-algebra/04-张成与线性无关.md', title: '04 张成与线性无关', hint: '线性组合 · 张成空间 · 线性相关性引理 · 长度不等式', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-05', file: 'misc-lessons/linear-algebra/05-基.md', title: '05 基', hint: '基的判定 · 削减定理 · 扩充定理', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-06', file: 'misc-lessons/linear-algebra/06-维数.md', title: '06 维数', hint: '基同长定理 · 维数不依赖基的选择 · 和维数公式', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-07', file: 'misc-lessons/linear-algebra/07-线性映射.md', title: '07 线性映射', hint: '加性与齐性两条就够 · L(V,W) 是向量空间 · 复合', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-08', file: 'misc-lessons/linear-algebra/08-零空间与值域.md', title: '08 零空间与值域', hint: '线性映射基本定理 · 单射判据 · 维数记账', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-09', file: 'misc-lessons/linear-algebra/09-矩阵.md', title: '09 矩阵', hint: '矩阵乘法为什么那样定义 · 四种读法 · 复合即相乘', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-10', file: 'misc-lessons/linear-algebra/10-可逆性与同构.md', title: '10 可逆性与同构', hint: '单射⟺满射的有限维魔法 · 同构⟺维数相等 · 换基', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-11', file: 'misc-lessons/linear-algebra/11-积与商空间.md', title: '11 积与商空间', hint: '直积的维数 · 商空间怎么读 · 商映射', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-12', file: 'misc-lessons/linear-algebra/12-对偶.md', title: '12 对偶', hint: '12 对偶', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-13', file: 'misc-lessons/linear-algebra/13-多项式的零点.md', title: '13 多项式的零点', hint: '13 多项式的零点', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-14', file: 'misc-lessons/linear-algebra/14-带余除法.md', title: '14 带余除法', hint: '14 带余除法', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-15', file: 'misc-lessons/linear-algebra/15-复系数分解.md', title: '15 复系数分解', hint: '15 复系数分解', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-16', file: 'misc-lessons/linear-algebra/16-实系数分解.md', title: '16 实系数分解', hint: '16 实系数分解', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-17', file: 'misc-lessons/linear-algebra/17-不变子空间.md', title: '17 不变子空间', hint: '17 不变子空间', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-18', file: 'misc-lessons/linear-algebra/18-极小多项式.md', title: '18 极小多项式', hint: '18 极小多项式', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-19', file: 'misc-lessons/linear-algebra/19-上三角矩阵.md', title: '19 上三角矩阵', hint: '19 上三角矩阵', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-20', file: 'misc-lessons/linear-algebra/20-可对角化.md', title: '20 可对角化', hint: '20 可对角化', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-21', file: 'misc-lessons/linear-algebra/21-可交换算子.md', title: '21 可交换算子', hint: '21 可交换算子', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-22', file: 'misc-lessons/linear-algebra/22-内积与范数.md', title: '22 内积与范数', hint: '22 内积与范数', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-23', file: 'misc-lessons/linear-algebra/23-规范正交基.md', title: '23 规范正交基', hint: '23 规范正交基', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-24', file: 'misc-lessons/linear-algebra/24-正交补与最小化.md', title: '24 正交补与最小化', hint: '24 正交补与最小化', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-25', file: 'misc-lessons/linear-algebra/25-自伴与正规算子.md', title: '25 自伴与正规算子', hint: '25 自伴与正规算子', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-26', file: 'misc-lessons/linear-algebra/26-谱定理.md', title: '26 谱定理', hint: '26 谱定理', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-27', file: 'misc-lessons/linear-algebra/27-正算子.md', title: '27 正算子', hint: '27 正算子', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-28', file: 'misc-lessons/linear-algebra/28-等距与矩阵分解.md', title: '28 等距与矩阵分解', hint: '28 等距与矩阵分解', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-29', file: 'misc-lessons/linear-algebra/29-奇异值分解.md', title: '29 奇异值分解', hint: '29 奇异值分解', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-30', file: 'misc-lessons/linear-algebra/30-SVD-的推论.md', title: '30 SVD-的推论', hint: '30 SVD-的推论', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-31', file: 'misc-lessons/linear-algebra/31-广义特征向量与幂零算子.md', title: '31 广义特征向量与幂零算子', hint: '31 广义特征向量与幂零算子', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-32', file: 'misc-lessons/linear-algebra/32-广义特征空间分解.md', title: '32 广义特征空间分解', hint: '32 广义特征空间分解', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-33', file: 'misc-lessons/linear-algebra/33-Jordan-形.md', title: '33 Jordan-形', hint: '33 Jordan-形', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-34', file: 'misc-lessons/linear-algebra/34-迹.md', title: '34 迹', hint: '34 迹', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-35', file: 'misc-lessons/linear-algebra/35-双线性型与二次型.md', title: '35 双线性型与二次型', hint: '35 双线性型与二次型', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-36', file: 'misc-lessons/linear-algebra/36-交错多重线性型.md', title: '36 交错多重线性型', hint: '36 交错多重线性型', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-37', file: 'misc-lessons/linear-algebra/37-行列式.md', title: '37 行列式', hint: '37 行列式', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-38', file: 'misc-lessons/linear-algebra/38-张量积.md', title: '38 张量积', hint: '38 张量积', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-a1', file: 'misc-lessons/linear-algebra/A1-线性方程组与消元.md', title: 'A1-线性方程组与消元', hint: 'A1-线性方程组与消元', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-a2', file: 'misc-lessons/linear-algebra/A2-数学预备.md', title: 'A2-数学预备', hint: 'A2-数学预备', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-s1', file: 'misc-lessons/linear-algebra/S1-符号表.md', title: 'S1-符号表', hint: 'S1-符号表', group: 'lesson', book: 'lib-linalg' },
+  { id: 'la-s2', file: 'misc-lessons/linear-algebra/S2-定理速查.md', title: 'S2-定理速查', hint: 'S2-定理速查', group: 'lesson', book: 'lib-linalg' },
+  // <<<LA-LESSONS-END>>>
 ]
 
 /** 条目分组的展示顺序与文案 key（新增书目沿用同一套分组） */

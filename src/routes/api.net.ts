@@ -1281,6 +1281,116 @@ async function handleYtSearchGet(request: Request, url: URL): Promise<Response> 
 }
 
 // ────────────────────────────────────────────────────────────
+// action=doh：DNS / ECH 诊断（Cloudflare DoH JSON API）
+// 用于在开启 ECH 前后检查目标域是否已发布 HTTPS/SVCB 记录与 ech= 配置。
+// ────────────────────────────────────────────────────────────
+
+const DOH_TYPES = ['A', 'AAAA', 'CNAME', 'HTTPS', 'TXT', 'CAA', 'MX', 'NS'] as const
+
+const DNS_TYPE_NAMES: Record<number, string> = {
+  1: 'A',
+  2: 'NS',
+  5: 'CNAME',
+  6: 'SOA',
+  12: 'PTR',
+  15: 'MX',
+  16: 'TXT',
+  28: 'AAAA',
+  33: 'SRV',
+  35: 'NAPTR',
+  43: 'DS',
+  46: 'RRSIG',
+  47: 'NSEC',
+  48: 'DNSKEY',
+  52: 'TLSA',
+  64: 'SVCB',
+  65: 'HTTPS',
+  257: 'CAA',
+}
+
+interface RawDnsRecord {
+  name?: string
+  type?: number
+  TTL?: number
+  data?: string
+}
+
+function mapDnsRecords(list: RawDnsRecord[] | undefined) {
+  return (list || []).map((r) => ({
+    name: r.name || '',
+    type: DNS_TYPE_NAMES[r.type ?? 0] || String(r.type ?? ''),
+    ttl: typeof r.TTL === 'number' ? r.TTL : 0,
+    data: r.data || '',
+  }))
+}
+
+async function handleDohGet(request: Request, url: URL): Promise<Response> {
+  const access = await requireNetAccess(request)
+  if (access instanceof Response) return access
+
+  const name = (url.searchParams.get('name') || '').trim().toLowerCase().replace(/\.$/, '')
+  const type = (url.searchParams.get('type') || 'HTTPS').trim().toUpperCase()
+  if (!(DOH_TYPES as readonly string[]).includes(type)) {
+    return jsonError('不支持的记录类型。')
+  }
+  // 允许下划线（_dmarc、_acme-challenge 等），拒绝 IP、协议与空白
+  const hostnameRe = /^(?=.{1,253}$)([a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
+  if (!hostnameRe.test(name)) {
+    return jsonError('域名格式不正确（请使用 example.com 或已转码的 xn-- 形式）。')
+  }
+
+  const started = Date.now()
+  let res: Response
+  try {
+    res = await fetch(
+      `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(name)}&type=${encodeURIComponent(type)}`,
+      {
+        headers: { Accept: 'application/dns-json' },
+        signal: AbortSignal.timeout(8000),
+      },
+    )
+  } catch {
+    return jsonError('DoH 查询超时或网络不可达。', 502)
+  }
+  if (!res.ok) {
+    return jsonError(`DoH 上游返回 HTTP ${res.status}。`, 502)
+  }
+
+  const data = (await res.json().catch(() => null)) as
+    | { Status?: number; Answer?: RawDnsRecord[]; Authority?: RawDnsRecord[] }
+    | null
+  if (!data || typeof data.Status !== 'number') {
+    return jsonError('DoH 响应不是有效的 DNS JSON。', 502)
+  }
+
+  const answers = mapDnsRecords(data.Answer)
+  const authority = mapDnsRecords(data.Authority)
+  // Cloudflare 的 HTTPS/SVCB 记录形如：1 . alpn="h3,h2" ipv4hint=... ech="AEX+..."
+  const echRecord = answers.find(
+    (a) => (a.type === 'HTTPS' || a.type === 'SVCB') && /\bech\s*=/i.test(a.data),
+  )
+  const echValue = echRecord
+    ? /\bech\s*=\s*"?([^"\s]+)"?/i.exec(echRecord.data)?.[1] ?? null
+    : null
+
+  return Response.json(
+    {
+      ok: true,
+      doh: {
+        name,
+        type,
+        status: data.Status,
+        answers,
+        authority,
+        ech: { published: Boolean(echRecord), value: echValue },
+        elapsedMs: Date.now() - started,
+      },
+    },
+    { headers: PRIVATE_HEADERS },
+  )
+}
+
+// ────────────────────────────────────────────────────────────
 // action=bili_playurl：B站 playurl（platform=html5 免登录 720P MP4）解析。
 // 三层链路：浏览器 → 本 Worker（管理员/分享 cookie 鉴权）→ Azure 日本网关
 // （deploy/botapi-gateway 的 /bili-playurl，HMAC 签名，伪造 bilibili Referer）
@@ -1713,6 +1823,7 @@ export const Route = createFileRoute('/api/net')({
           if (action === 'download') return await handleDownloadGet(request, url)
           if (action === 'search') return await handleSearchGet(request, url)
           if (action === 'yt_search') return await handleYtSearchGet(request, url)
+          if (action === 'doh') return await handleDohGet(request, url)
           if (action === 'bili_playurl') return await handleBiliPlayUrlGet(request, url)
           if (action === 'acfun_m3u8') return await handleAcfunM3u8Get(request, url)
           if (action === 'acfun_seg') return await handleAcfunSegGet(request, url)

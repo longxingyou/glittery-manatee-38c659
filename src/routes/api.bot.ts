@@ -814,6 +814,7 @@ const handlers: Record<string, (body: Record<string, unknown>, bot: BotUser) => 
   'comments.delete': (b) => commentsHide(b),
   'posts.list': (b) => postsList(b),
   'posts.get': (b) => postsGet(b),
+  'posts.search': (b) => postsSearch(b),
   'posts.create': (b, bot) => postsCreate(b, bot),
   'posts.update': (b, bot) => postsUpdate(b, bot),
   'posts.publish': (b, bot) => postsSetStatus(b, bot, 'published'),

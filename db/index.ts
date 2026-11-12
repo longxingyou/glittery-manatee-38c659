@@ -702,8 +702,9 @@ export async function getAdminSettings(): Promise<AdminSettings> {
   }
 }
 
-export async function saveAdminSettings(input: AdminSettings) {
-  await requireAdmin()
+export async function saveAdminSettings(input: AdminSettings, actor?: string) {
+  if (actor) await requireAdminEmail(actor)
+  else await requireAdmin()
   const trimmedTitle = input.siteTitle.trim().slice(0, 120)
   const trimmedDesc = input.siteDescription.trim().slice(0, 500)
   const trimmedBanned = input.bannedWords.trim().slice(0, 5000)
@@ -917,11 +918,20 @@ export async function getAdminStatus(): Promise<AdminStatus> {
 export async function requireAdmin() {
   const me = await getCurrentUser()
   if (!me?.email) throw new Error('请先登录。')
-  const all = adminEmailsAll(await tryGetSettingsRowReadonly())
-  if (!all.has(me.email.toLowerCase())) {
-    throw new Error(`当前邮箱 ${me.email} 不在管理员名单内。`)
-  }
+  await requireAdminEmail(me.email, `当前邮箱 ${me.email} 不在管理员名单内。`)
   return { id: me.id, email: me.email, name: me.name }
+}
+
+/**
+ * 按邮箱校验管理员身份（不走 cookie）。
+ * 供 /api/bot 这类「已由 Bearer 令牌认证、没有浏览器会话」的调用方使用：
+ * 令牌证明「是可信的服务」，邮箱仍必须落在 ADMIN_EMAILS 内，两道关缺一不可。
+ */
+export async function requireAdminEmail(email: string, message?: string) {
+  const all = adminEmailsAll(await tryGetSettingsRowReadonly())
+  if (!all.has(email.toLowerCase())) {
+    throw new Error(message || `邮箱 ${email} 不在管理员名单内。`)
+  }
 }
 
 // ============================================================
@@ -1043,6 +1053,17 @@ const PUBLISHED_KV_TTL = 1_800_000 // KV：30 分钟（cron 20 分钟刷新，ke
 // 若仍命中降级缓存，用户会持续看不到 DB 文章。3s 后强制重查 Neon。
 const PUBLISHED_DEGRADED_TTL = 3_000
 let publishedCache: { at: number; data: PostData[]; dbOk: boolean; ttl: number } | null = null
+// ── HTML 缓存键口径（必须与 worker.ts 一致）──
+// worker 的 KV 键是 `html:v=<BUILD_ID>:<pathname>`，边缘键是 `<origin><pathname>?__v=<BUILD_ID>`。
+// 这里若继续清 `html:/posts/xxx` 这种不带版本的旧键，删除会「静默无效」：
+// 改稿/下架后页面仍拿旧 HTML 直到 TTL 到期（最长 1 小时）。
+declare const __BUILD_ID__: string | undefined
+const HTML_CACHE_VERSION = `v=${typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev'}`
+
+const htmlKvKey = (pathname: string) => `html:${HTML_CACHE_VERSION}:${pathname}`
+const edgeHtmlUrl = (origin: string, pathname: string) =>
+  `${origin}${pathname}?__v=${typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev'}`
+
 /**
  * 文章写入/删除后主动失效全部相关缓存。
  * @param slug       变更文章的 slug（清单篇页 + 单篇缓存）
@@ -1058,23 +1079,23 @@ export function invalidatePublishedCache(slug?: string, categories?: string[]) {
   const kv = getEnv().SG_CACHE
   // KV 删除经熔断器：写额度用尽时静默跳过，旧键按 TTL 自然过期，不影响发文
   void safeKvDelete(kv, 'posts:published')
-  void safeKvDelete(kv, 'html:/')
-  void safeKvDelete(kv, 'html:/archive')
+  void safeKvDelete(kv, htmlKvKey('/'))
+  void safeKvDelete(kv, htmlKvKey('/archive'))
   const paths = ['/', '/archive']
   if (slug) {
-    void safeKvDelete(kv, `html:/posts/${slug}`)
+    void safeKvDelete(kv, htmlKvKey(`/posts/${slug}`))
     void safeKvDelete(kv, `post:${slug}`)
     paths.push(`/posts/${slug}`)
   }
   for (const name of categories ?? []) {
     const enc = encodeURIComponent(name)
-    void safeKvDelete(kv, `html:/category/${enc}`)
+    void safeKvDelete(kv, htmlKvKey(`/category/${enc}`))
     paths.push(`/category/${enc}`)
   }
-  // 当前 colo 边缘 HTML（键与 worker.ts edgeCacheUrl 同口径：origin + pathname）
+  // 当前 colo 边缘 HTML（键与 worker.ts edgeCacheUrl 同口径：origin + pathname + ?__v=）
   const origin = getWorkerOrigin()
   if (origin) {
-    for (const p of paths) void edgeCacheDelete(`${origin}${p}`)
+    for (const p of paths) void edgeCacheDelete(edgeHtmlUrl(origin, p))
   }
 }
 
@@ -1087,19 +1108,19 @@ export function invalidatePublishedCache(slug?: string, categories?: string[]) {
  */
 export function invalidateCategoryHtml(names: string[] = []): void {
   const kv = getEnv().SG_CACHE
-  void safeKvDelete(kv, 'html:/')
-  void safeKvDelete(kv, 'html:/archive')
+  void safeKvDelete(kv, htmlKvKey('/'))
+  void safeKvDelete(kv, htmlKvKey('/archive'))
   const paths = ['/', '/archive']
   for (const raw of names) {
     const name = (raw ?? '').trim()
     if (!name) continue
     const enc = encodeURIComponent(name)
-    void safeKvDelete(kv, `html:/category/${enc}`)
+    void safeKvDelete(kv, htmlKvKey(`/category/${enc}`))
     paths.push(`/category/${enc}`)
   }
   const origin = getWorkerOrigin()
   if (origin) {
-    for (const p of paths) void edgeCacheDelete(`${origin}${p}`)
+    for (const p of paths) void edgeCacheDelete(edgeHtmlUrl(origin, p))
   }
 }
 
@@ -1272,8 +1293,10 @@ export type PostSaveInput = {
   downloadable?: boolean
 }
 
-export async function savePost(input: PostSaveInput): Promise<{ id: number; slug: string }> {
-  await requireAdmin()
+export async function savePost(input: PostSaveInput, actor?: string): Promise<{ id: number; slug: string }> {
+  // actor：已由 /api/bot 的 Bearer 令牌认证的服务身份；不传则走浏览器 cookie 鉴权
+  if (actor) await requireAdminEmail(actor)
+  else await requireAdmin()
   await ensureSchema()
 
   const slug = input.slug
@@ -1381,8 +1404,32 @@ export async function savePost(input: PostSaveInput): Promise<{ id: number; slug
   return { id: ins.id, slug: ins.slug }
 }
 
-export async function deletePost(id: number): Promise<void> {
-  await requireAdmin()
+/**
+ * 只切换发布状态（draft ↔ published），不重写正文。
+ * 供 /api/bot 的 posts.publish / posts.unpublish 使用：把「发表」做成独立一步，
+ * 避免外部调用方一条请求就能「写内容 + 直接上线」。
+ */
+export async function setPostStatus(id: number, status: PostStatus, actor?: string): Promise<{ slug: string }> {
+  if (actor) await requireAdminEmail(actor)
+  else await requireAdmin()
+  await ensureSchema()
+  const [row] = await useDb()
+    .select({ slug: schema.posts.slug, categories: schema.posts.categories })
+    .from(schema.posts)
+    .where(eq(schema.posts.id, id))
+    .limit(1)
+  if (!row) throw new Error('文章不存在。')
+  await useDb()
+    .update(schema.posts)
+    .set({ status, updatedAt: sql`NOW()` })
+    .where(eq(schema.posts.id, id))
+  invalidatePublishedCache(row.slug, row.categories ?? [])
+  return { slug: row.slug }
+}
+
+export async function deletePost(id: number, actor?: string): Promise<void> {
+  if (actor) await requireAdminEmail(actor)
+  else await requireAdmin()
   await ensureSchema()
   const rows = await useDb()
     .select({
@@ -1418,8 +1465,9 @@ export type PostEgg = { postSlug: string; html: string; renderMd: boolean; enabl
 /** 彩蛋 HTML 体积上限：512KB（约 10 倍于典型单页攻略，超出说明塞入了应走附件的资源） */
 export const POST_EGG_MAX_BYTES = 512 * 1024
 
-export async function savePostEgg(input: { slug: string; html: string; renderMd: boolean; enabled: boolean }): Promise<PostEgg> {
-  await requireAdmin()
+export async function savePostEgg(input: { slug: string; html: string; renderMd: boolean; enabled: boolean }, actor?: string): Promise<PostEgg> {
+  if (actor) await requireAdminEmail(actor)
+  else await requireAdmin()
   await ensureSchema()
   const slug = input.slug.trim()
   if (!slug) throw new Error('路径（slug）不能为空。')
@@ -1446,15 +1494,17 @@ export async function savePostEgg(input: { slug: string; html: string; renderMd:
   return { postSlug: slug, html, renderMd: input.renderMd, enabled: input.enabled, updatedAt: now.toISOString() }
 }
 
-export async function deletePostEgg(slug: string): Promise<void> {
-  await requireAdmin()
+export async function deletePostEgg(slug: string, actor?: string): Promise<void> {
+  if (actor) await requireAdminEmail(actor)
+  else await requireAdmin()
   await ensureSchema()
   await useDb().delete(schema.postEggs).where(eq(schema.postEggs.postSlug, slug))
 }
 
 /** 后台编辑器读取（含未启用版本）；仅管理员 */
-export async function getPostEggAdmin(slug: string): Promise<PostEgg | null> {
-  await requireAdmin()
+export async function getPostEggAdmin(slug: string, actor?: string): Promise<PostEgg | null> {
+  if (actor) await requireAdminEmail(actor)
+  else await requireAdmin()
   if (!isDbConfigured()) return null
   return readWithSchemaFallback(async () => {
     const rows = await withDbRetry(
@@ -1617,8 +1667,9 @@ export async function saveCategory(input: {
   name: string
   nameEn?: string | null
   nameRu?: string | null
-}): Promise<{ id: number; name: string }> {
-  await requireAdmin()
+}, actor?: string): Promise<{ id: number; name: string }> {
+  if (actor) await requireAdminEmail(actor)
+  else await requireAdmin()
   await ensureSchema()
   const name = input.name.trim()
   if (!name) throw new Error('分类名不能为空。')
@@ -1680,8 +1731,9 @@ export async function saveCategory(input: {
   return ins
 }
 
-export async function deleteCategory(id: number): Promise<void> {
-  await requireAdmin()
+export async function deleteCategory(id: number, actor?: string): Promise<void> {
+  if (actor) await requireAdminEmail(actor)
+  else await requireAdmin()
   await ensureSchema()
   const rows = await useDb().select({ name: schema.categories.name }).from(schema.categories).where(eq(schema.categories.id, id)).limit(1)
   if (!rows.length) return
@@ -1842,8 +1894,9 @@ export async function insertAttachment(params: {
   /** 无 R2 绑定时的降级路径：base64 直接入库 */
   base64Content?: string
   password?: string
-}): Promise<AttachmentPublic> {
-  await requireAdmin()
+}, actor?: string): Promise<AttachmentPublic> {
+  if (actor) await requireAdminEmail(actor)
+  else await requireAdmin()
   await ensureSchema()
   const passwordRow = params.password && params.password.length > 0 ? await hashPassword(params.password) : null
   // Office 系且网关可整流回源（tg1）的附件上传后即进入 PDF 转换队列；
@@ -1952,8 +2005,9 @@ export async function getAttachmentFullRow(id: number): Promise<{
   )
 }
 
-export async function setAttachmentPassword(id: number, password: string | null): Promise<void> {
-  await requireAdmin()
+export async function setAttachmentPassword(id: number, password: string | null, actor?: string): Promise<void> {
+  if (actor) await requireAdminEmail(actor)
+  else await requireAdmin()
   if (!password || password.trim() === '') {
     await useDb()
       .update(schema.attachments)
@@ -1969,8 +2023,9 @@ export async function setAttachmentPassword(id: number, password: string | null)
 }
 
 /** 切换附件「游客可见」：默认 false（需登录）。ensureSchema 兜底补列（新部署首调）。 */
-export async function setAttachmentGuestVisible(id: number, visible: boolean): Promise<void> {
-  await requireAdmin()
+export async function setAttachmentGuestVisible(id: number, visible: boolean, actor?: string): Promise<void> {
+  if (actor) await requireAdminEmail(actor)
+  else await requireAdmin()
   await ensureSchema()
   await useDb()
     .update(schema.attachments)
@@ -1978,8 +2033,9 @@ export async function setAttachmentGuestVisible(id: number, visible: boolean): P
     .where(eq(schema.attachments.id, id))
 }
 
-export async function deleteAttachment(id: number): Promise<void> {
-  await requireAdmin()
+export async function deleteAttachment(id: number, actor?: string): Promise<void> {
+  if (actor) await requireAdminEmail(actor)
+  else await requireAdmin()
   await ensureSchema()
   // 先取 R2 对象键，删元数据后同步删对象（对象存储失败由后台重试/生命周期兜底）
   const rows = await useDb()
@@ -2609,8 +2665,9 @@ export async function anonymizeAccount(): Promise<{
 // 管理员：评论者管理 / 警告 / 反馈处理
 // ============================================================
 
-export async function adminListCommenters(): Promise<CommenterAdminView[]> {
-  await requireAdmin()
+export async function adminListCommenters(actor?: string): Promise<CommenterAdminView[]> {
+  if (actor) await requireAdminEmail(actor)
+  else await requireAdmin()
   // 读优先（稳态零 DDL）+ 超时重试
   const agg = await readWithSchemaFallback(() =>
     withDbRetry(
@@ -2659,8 +2716,8 @@ export async function adminListCommenters(): Promise<CommenterAdminView[]> {
 }
 
 /** 管理员修改/清空他人个签（管理行为不做违禁词拦截——用于处置违规内容） */
-export async function adminSetSignature(userId: string, signature: string): Promise<{ signature: string; updatedBy: string }> {
-  const admin = await requireAdmin()
+export async function adminSetSignature(userId: string, signature: string, actor?: string): Promise<{ signature: string; updatedBy: string }> {
+  const admin = actor ? { email: actor } : await requireAdmin()
   if (!userId || userId.startsWith('deleted')) throw new Error('目标用户不存在。')
   await ensureSchema()
   const sig = signature.slice(0, MAX_SIGNATURE_CHARS)
@@ -2676,8 +2733,8 @@ export async function adminSetSignature(userId: string, signature: string): Prom
   return { signature: sig, updatedBy: admin.email }
 }
 
-export async function adminIssueWarning(input: { userId: string; message: string }): Promise<{ id: number }> {
-  const admin = await requireAdmin()
+export async function adminIssueWarning(input: { userId: string; message: string }, actor?: string): Promise<{ id: number }> {
+  const admin = actor ? { email: actor } : await requireAdmin()
   const userId = input.userId.trim()
   const message = input.message.trim().slice(0, 500)
   if (!userId || userId.startsWith('deleted')) throw new Error('目标用户不存在。')
@@ -2698,8 +2755,9 @@ export async function adminIssueWarning(input: { userId: string; message: string
   return { id: row.id }
 }
 
-export async function adminListFeedback(): Promise<FeedbackAdminItem[]> {
-  await requireAdmin()
+export async function adminListFeedback(actor?: string): Promise<FeedbackAdminItem[]> {
+  if (actor) await requireAdminEmail(actor)
+  else await requireAdmin()
   // 读优先（稳态零 DDL）+ 超时重试
   const rows = await readWithSchemaFallback(() =>
     withDbRetry(
@@ -2746,8 +2804,9 @@ export async function adminListFeedback(): Promise<FeedbackAdminItem[]> {
   }))
 }
 
-export async function adminSetFeedbackStatus(id: number, status: 'open' | 'resolved' | 'dismissed'): Promise<{ ok: true }> {
-  await requireAdmin()
+export async function adminSetFeedbackStatus(id: number, status: 'open' | 'resolved' | 'dismissed', actor?: string): Promise<{ ok: true }> {
+  if (actor) await requireAdminEmail(actor)
+  else await requireAdmin()
   await useDb()
     .update(schema.feedback)
     .set({ status, resolvedAt: status === 'open' ? null : sql`NOW()` })
@@ -2781,8 +2840,9 @@ export async function listUserTags(): Promise<UserTag[]> {
   return rows.map((r) => ({ id: r.id, name: r.name, color: r.color, effect: (r.effect as UserTag['effect']) || 'solid' }))
 }
 
-export async function createUserTag(input: { name: string; color: string; effect: string }): Promise<UserTag> {
-  await requireAdmin()
+export async function createUserTag(input: { name: string; color: string; effect: string }, actor?: string): Promise<UserTag> {
+  if (actor) await requireAdminEmail(actor)
+  else await requireAdmin()
   await ensureSchema()
   const name = input.name.trim().slice(0, 20)
   if (!name) throw new Error('标签名不能为空。')
@@ -2797,8 +2857,9 @@ export async function createUserTag(input: { name: string; color: string; effect
   return { id: row.id, name: row.name, color: row.color, effect: row.effect as UserTag['effect'] }
 }
 
-export async function updateUserTag(id: number, input: { name?: string; color?: string; effect?: string }): Promise<UserTag> {
-  await requireAdmin()
+export async function updateUserTag(id: number, input: { name?: string; color?: string; effect?: string }, actor?: string): Promise<UserTag> {
+  if (actor) await requireAdminEmail(actor)
+  else await requireAdmin()
   await ensureSchema()
   const set: Record<string, unknown> = {}
   if (input.name !== undefined) {
@@ -2814,8 +2875,9 @@ export async function updateUserTag(id: number, input: { name?: string; color?: 
   return { id: row.id, name: row.name, color: row.color, effect: row.effect as UserTag['effect'] }
 }
 
-export async function deleteUserTag(id: number): Promise<{ ok: true }> {
-  await requireAdmin()
+export async function deleteUserTag(id: number, actor?: string): Promise<{ ok: true }> {
+  if (actor) await requireAdminEmail(actor)
+  else await requireAdmin()
   await ensureSchema()
   await useDb().delete(schema.userTags).where(eq(schema.userTags.id, id))
   // 同步清理所有用户资料中对该标签的引用
@@ -2828,8 +2890,9 @@ export async function deleteUserTag(id: number): Promise<{ ok: true }> {
 }
 
 /** 给用户设置标签（覆盖式；tagIds 为空表示清空） */
-export async function setUserTags(userId: string, tagIds: number[]): Promise<{ tags: number[] }> {
-  await requireAdmin()
+export async function setUserTags(userId: string, tagIds: number[], actor?: string): Promise<{ tags: number[] }> {
+  if (actor) await requireAdminEmail(actor)
+  else await requireAdmin()
   if (!userId || userId.startsWith('deleted')) throw new Error('目标用户不存在。')
   await ensureSchema()
   const valid = Array.from(new Set(tagIds.filter((n) => Number.isFinite(n) && n > 0)))
@@ -3306,8 +3369,9 @@ export async function saveSiteContent(input: {
   key: string
   lang: string
   body: string
-}): Promise<{ key: string; lang: string; body: string }> {
-  await requireAdmin()
+}, actor?: string): Promise<{ key: string; lang: string; body: string }> {
+  if (actor) await requireAdminEmail(actor)
+  else await requireAdmin()
   if (!SITE_CONTENT_KEYS.includes(input.key as SiteContentKey)) throw new Error('不支持的内容块。')
   if (!SITE_CONTENT_LANGS.includes(input.lang as SiteContentLang)) throw new Error('不支持的语言。')
   const body = (input.body || '').slice(0, 20000)

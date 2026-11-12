@@ -24,6 +24,21 @@ export interface ServerEnv {
   PUBLIC_ORIGIN?: string
   /** 管理员邮箱白名单（逗号/分号/空格分隔） */
   ADMIN_EMAILS?: string
+  /**
+   * /api/bot 的共享密钥（QQ bot 以 `Authorization: Bearer <token>` 出示）。
+   * 未配置时该路由整体关闭（返回 503），不会退化成「无鉴权可写」。
+   */
+  BOT_TOKEN?: string
+  /** /api/bot 使用的站点账号邮箱；须同时出现在 ADMIN_EMAILS 中才能发文 */
+  BOT_EMAIL?: string
+  /** 上述账号的显示名（评论署名）；缺省取邮箱前缀 */
+  BOT_NAME?: string
+  /**
+   * /api/bot 允许调用的 action 白名单（逗号分隔）。
+   * 未配置时只开放只读动作 + posts.create（草稿），发布/删除/设置类写操作一律 403。
+   * 需要扩大权限时显式配置，例如：BOT_ALLOWED_ACTIONS=ping,posts.list,posts.create,posts.publish
+   */
+  BOT_ALLOWED_ACTIONS?: string
   /** YouTube Data API v3 key（/api/net?action=yt_search 站内视频搜索用） */
   YT_API_KEY?: string
   /** KV 缓存命名空间：公开数据（文章列表等）跨 colo 共享，绕过 CF→Neon 高延迟 */

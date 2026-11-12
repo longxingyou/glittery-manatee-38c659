@@ -16,3 +16,10 @@ worker-configuration.d.ts
 
 # Local Netlify folder（历史遗留，迁移后不再使用）
 .netlify
+
+# 本地调试产物：CA 证书与私钥、HTTP 缓存、一次性临时脚本、抓包/工具二进制
+ca/
+cache/
+_tmp_*.py
+*.exe
+*.dll

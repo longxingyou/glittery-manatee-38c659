@@ -26,6 +26,7 @@ import { isConvertibleForPreview } from '../src/lib/preview.js'
 import {
   DEFAULT_SITE_DESCRIPTION,
   DEFAULT_SITE_TITLE,
+  DEFAULT_POST_AUTHOR,
   type AdminSettings,
   type AdminStatus,
   type AttachmentPublic,
@@ -293,6 +294,7 @@ const schemaStatements = [
       language TEXT NOT NULL DEFAULT 'zh',
       translation_key TEXT,
       downloadable BOOLEAN NOT NULL DEFAULT FALSE,
+      author TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ
     )`,
@@ -302,6 +304,8 @@ const schemaStatements = [
     sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS translation_key TEXT`,
     // 既有库增量迁移：下载/导出开关（幂等）
     sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS downloadable BOOLEAN NOT NULL DEFAULT FALSE`,
+    // 既有库增量迁移：文章署名（幂等；NULL = 回落到站点默认作者）
+    sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS author TEXT`,
     sql`CREATE INDEX IF NOT EXISTS posts_translation_key_idx ON posts (translation_key)`,
     sql`CREATE TABLE IF NOT EXISTS categories (
       id SERIAL PRIMARY KEY,
@@ -942,6 +946,15 @@ export function readingTime(content: string): number {
   return Math.max(2, Math.ceil(clean.length / 500))
 }
 
+/** 空署名回落到站点默认作者（静态与 DB 文章共用） */
+function resolveAuthor(v?: string | null): string {
+  return (v || '').trim().slice(0, 60) || DEFAULT_POST_AUTHOR
+}
+/** 存入 DB 时保留空值（NULL），由展示层回落 */
+function storedAuthor(v?: string | null): string | null {
+  return (v || '').trim().slice(0, 60) || null
+}
+
 function mapStaticPost(p: {
   slug: string
   title: string
@@ -951,6 +964,7 @@ function mapStaticPost(p: {
   content: string
   readingTime?: number
   download?: boolean
+  author?: string
 }): PostData {
   return {
     id: null,
@@ -967,6 +981,7 @@ function mapStaticPost(p: {
     language: 'zh',
     translationKey: null,
     downloadable: p.download === true,
+    author: resolveAuthor(p.author),
   }
 }
 
@@ -982,6 +997,7 @@ type DbPostRow = {
   language: string | null
   translationKey: string | null
   downloadable?: boolean | null
+  author?: string | null
   createdAt: Date | string
   updatedAt: Date | string | null
 }
@@ -1002,6 +1018,7 @@ function mapDbPost(row: DbPostRow): PostData {
     language: isPostLanguage(row.language) ? row.language : 'zh',
     translationKey: row.translationKey || null,
     downloadable: row.downloadable === true,
+    author: resolveAuthor(row.author),
   }
 }
 
@@ -1024,6 +1041,8 @@ export async function listDbPosts(includeDrafts = true, includeContent = false, 
     date: schema.posts.date,
     language: schema.posts.language,
     translationKey: schema.posts.translationKey,
+    downloadable: schema.posts.downloadable,
+    author: schema.posts.author,
     createdAt: schema.posts.createdAt,
     updatedAt: schema.posts.updatedAt,
   }
@@ -1291,6 +1310,8 @@ export type PostSaveInput = {
   translationKey?: string | null
   /** 访客可见的下载/导出入口开关 */
   downloadable?: boolean
+  /** 文章署名；空串/省略 = 回落站点默认作者（更新时省略则保持原值） */
+  author?: string | null
 }
 
 export async function savePost(input: PostSaveInput, actor?: string): Promise<{ id: number; slug: string }> {
@@ -1376,6 +1397,7 @@ export async function savePost(input: PostSaveInput, actor?: string): Promise<{ 
           language,
           translationKey,
           downloadable: input.downloadable === true,
+          ...(input.author !== undefined ? { author: storedAuthor(input.author) } : {}),
           updatedAt: sql`NOW()`,
         })
         .where(eq(schema.posts.id, input.id)),
@@ -1397,6 +1419,7 @@ export async function savePost(input: PostSaveInput, actor?: string): Promise<{ 
       language,
       translationKey,
       downloadable: input.downloadable === true,
+      author: storedAuthor(input.author),
     })
     .returning({ id: schema.posts.id, slug: schema.posts.slug })
   await anchorPromise

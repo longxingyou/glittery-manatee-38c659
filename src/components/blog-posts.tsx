@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router'
-import { ArrowUpRight, CalendarDays, Clock3, Hash, Sparkles } from 'lucide-react'
+import { ArrowUpRight, CalendarDays, Clock3, Hash, Sparkles, UserRound } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { foldPostsForLang, type PostData } from '@/lib/utils'
+import { DEFAULT_POST_AUTHOR, foldPostsForLang, type PostData } from '@/lib/utils'
 import { useLang, useT, useCatName } from '@/lib/i18n'
 
 export default function BlogPosts({ title, posts }: { title: string; posts: PostData[] }) {
@@ -60,7 +60,7 @@ export default function BlogPosts({ title, posts }: { title: string; posts: Post
                   <div className="card-tags">{post.categories.slice(0, 2).map((category) => <span key={category}>#{catName(category)}</span>)}</div>
                   <h3>{post.title}</h3>
                   <p>{post.summary}</p>
-                  <div className="card-meta"><span><CalendarDays size={13} />{post.date}</span><span><Clock3 size={13} />{t('feed.minutes', { n: post.readingTime })}</span><ArrowUpRight size={17} /></div>
+                  <div className="card-meta"><span title={t('post.meta.author')}><UserRound size={13} />{post.author || DEFAULT_POST_AUTHOR}</span><span><CalendarDays size={13} />{post.date}</span><span><Clock3 size={13} />{t('feed.minutes', { n: post.readingTime })}</span><ArrowUpRight size={17} /></div>
                 </div>
               </article>
             </Link>

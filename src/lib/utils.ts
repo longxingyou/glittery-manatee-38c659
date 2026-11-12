@@ -31,6 +31,8 @@ export type PostData = {
   translationKey: string | null
   /** 访客可见的下载/导出入口开关 */
   downloadable: boolean
+  /** 文章署名；空值回落到 DEFAULT_POST_AUTHOR */
+  author: string
 }
 
 /** 列表折叠时的语言优先级：当前语言 → 英语 → 任一 */
@@ -171,6 +173,8 @@ export function pickupMarkdown(code: string): string {
 
 export const DEFAULT_SITE_TITLE = 'ThoracicTag4669 · 可运行的文字'
 export const DEFAULT_SITE_DESCRIPTION = '随性记录。'
+/** 文章未单独署名时显示的默认作者 */
+export const DEFAULT_POST_AUTHOR = 'ThoracicTag4669'
 
 // ---- 前后台共享工具 ----
 export function formatBytes(bytes: number) {

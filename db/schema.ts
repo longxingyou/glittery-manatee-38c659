@@ -55,6 +55,7 @@ export const posts = pgTable(
     language: text('language').notNull().default('zh'), // zh | en | ru
     translationKey: text('translation_key'), // 同一篇文章的多语言版本共享此键（通常取原文 slug）
     downloadable: boolean('downloadable').notNull().default(false), // 访客可见的下载/导出入口开关
+    author: text('author'), // 文章署名；空 = 回落到站点默认作者
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }),
   },

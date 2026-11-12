@@ -132,6 +132,7 @@ type PostSaveInput = {
   language?: PostLanguage
   translationKey?: string | null
   downloadable?: boolean
+  author?: string | null
 }
 // 注意：handler 链上不能用 `as unknown as` 断言（会破坏 Start 编译器的链式识别，
 // 导致文件被静默跳过编译）。类型用返回值注解表达。
@@ -872,13 +873,14 @@ export function PostEditorPage() {
     language: PostLanguage
     translationKey: string | null
     downloadable: boolean
+    author: string
     attachments: AttachmentPublic[]
     categoryOptions: CategoryInfo[]
     allPosts: PostData[]
   }>({
     id: null, title: '', slug: '', summary: '', content: '', categories: [], status: 'draft',
     date: new Date().toISOString().slice(0, 10), language: 'zh', translationKey: null,
-    downloadable: false, attachments: [], categoryOptions: [], allPosts: [],
+    downloadable: false, author: '', attachments: [], categoryOptions: [], allPosts: [],
   })
   const [preview, setPreview] = React.useState(true)
   const editor = useMarkdownEditor('')
@@ -905,6 +907,7 @@ export function PostEditorPage() {
             content: post.content, categories: [...post.categories], status: post.status,
             date: post.date, language: post.language, translationKey: post.translationKey,
             downloadable: post.downloadable === true,
+            author: post.author || '',
             attachments, categoryOptions: categories, allPosts: posts,
           })
           editor.setValue(post.content)
@@ -939,6 +942,7 @@ export function PostEditorPage() {
             categories: [...post.categories],
             status: 'draft',
             date: new Date().toISOString().slice(0, 10),
+            author: post.author || '',
             attachments: [],
           }))
           setTranslatingFrom(post.title)
@@ -1043,6 +1047,7 @@ export function PostEditorPage() {
           language: bootstrap.language,
           translationKey: bootstrap.translationKey,
           downloadable: bootstrap.downloadable,
+          author: bootstrap.author.trim(),
         },
       })
       // 彩蛋文章：文章保存成功后，把内容（HTML 或 Markdown 源）作为彩蛋保存（直接启用）
@@ -1140,6 +1145,18 @@ export function PostEditorPage() {
               <button type="button" className="ghost-button" onClick={slugFromTitle}>{t('admin.slug.gen')}</button>
             </div>
             <small className="muted">{t('admin.slug.hint')}</small>
+          </label>
+        </div>
+        <div className="meta-row">
+          <label style={{ flex: 1 }}>
+            {t('admin.f.author')}
+            <input
+              value={bootstrap.author}
+              maxLength={60}
+              placeholder={t('admin.f.author.ph')}
+              onChange={(e) => setBootstrap((b) => ({ ...b, author: e.target.value }))}
+            />
+            <small className="muted">{t('admin.f.author.hint')}</small>
           </label>
         </div>
         <div className="meta-row">

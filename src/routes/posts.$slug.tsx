@@ -1,10 +1,10 @@
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
-import { ArrowLeft, CalendarDays, Check, Clock3, Download, Globe, Hash, Printer, Share2 } from 'lucide-react'
+import { ArrowLeft, CalendarDays, Check, Clock3, Download, Globe, Hash, Printer, Share2, UserRound } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArticleOutline } from '@/components/article-outline'
 import { CommentSection } from '@/components/comment-section'
 import { AttachmentPanel, publicServerFns } from '@/components/public-fns'
-import { getPostSiblings, DEFAULT_SITE_TITLE, type PostData } from '@/lib/utils'
+import { getPostSiblings, DEFAULT_SITE_TITLE, DEFAULT_POST_AUTHOR, type PostData } from '@/lib/utils'
 import { renderMarkdown, extractHeadingsFromHtml } from '@/lib/markdown'
 import { useMermaidLazy } from '@/lib/use-mermaid'
 import { getPublicOrigin } from '@/lib/server-env'
@@ -280,6 +280,7 @@ function RouteComponent() {
             <h1>{post.title}</h1>
             <p>{post.summary}</p>
             <div className="article-meta">
+              <span title={t('post.meta.author')}><UserRound size={14} />{post.author || DEFAULT_POST_AUTHOR}</span>
               <span title={t('post.meta.date')}><CalendarDays size={14} />{post.date}</span>
               <span title={t('post.meta.reading')}><Clock3 size={14} />{t('post.reading', { n: post.readingTime })}</span>
               <span title={t('post.meta.categories')}><Hash size={14} />{post.categories.map((c: string) => catName(c)).join(' · ')}</span>

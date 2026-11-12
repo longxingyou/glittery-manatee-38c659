@@ -25,6 +25,8 @@ import { BOT_MANIFEST } from '../lib/bot-manifest.js'
 // ──────────────────────────────────────────────
 
 const DEFAULT_BOT_EMAIL = 'qqbot@syntaxgarden.local'
+/** 未配置 BOT_NAME 时 bot 的默认署名 */
+const DEFAULT_BOT_NAME = '白饭没吃饱'
 // 附件走 base64 直传：4MB 原文约 5.4MB，留出余量
 const MAX_BODY_BYTES = 8 * 1024 * 1024
 
@@ -95,12 +97,13 @@ type BotUser = { id: string; email: string; name: string }
 async function getBotUser(): Promise<BotUser> {
   const env = getEnv()
   const email = (env.BOT_EMAIL || DEFAULT_BOT_EMAIL).trim().toLowerCase()
-  const name = (env.BOT_NAME || email.split('@')[0] || 'bot').trim().slice(0, 40)
+  const name = (env.BOT_NAME || DEFAULT_BOT_NAME || email.split('@')[0] || 'bot').trim().slice(0, 40)
 
   const [found] = await dbApi.useDb().select().from(users).where(eq(users.email, email)).limit(1)
   if (found) {
     if (!found.confirmedAt) throw new HttpError(`bot 账号 ${email} 尚未完成邮箱验证。`, 409)
-    return { id: found.id, email: found.email, name: found.displayName || name }
+    // 署名以 BOT_NAME / 默认值为准（bot 账号没有独立的改名入口，避免旧 displayName 覆盖配置）
+    return { id: found.id, email: found.email, name }
   }
 
   const password = dbApi.randomHex(24)
@@ -438,6 +441,8 @@ async function postsCreate(body: Record<string, unknown>, bot: BotUser) {
     language: d.language ?? 'zh',
     translationKey: d.translationKey ?? null,
     downloadable: d.downloadable ?? false,
+    // bot 发起的文章自动署名（后台可再改）
+    author: bot.name,
   }, bot.email)
 
   return { ok: true, id: saved.id, slug: saved.slug, status: 'draft' }

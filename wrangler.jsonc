@@ -25,6 +25,13 @@
   // 跨账号无法用 Custom Domain。改为由朋友账号创建代理 Worker + Custom Domain
   // 转发到本 Worker 的 workers.dev 地址。
   // 下面 workers.dev 子域名已由 Cloudflare 自动分配，国内访问需经朋友代理。
+  // 2026-11：自有域名 loong.me.uk 已接入本账号的 Cloudflare（zone 在本账号下），
+  // 用 Custom Domain 直接绑定 @ 与 www；旧域名 wow.xn--fpr224a.mom 仍由朋友账号的
+  // 代理 Worker 转发到本 Worker 的 workers.dev 地址，两者并存。
+  "routes": [
+    { "pattern": "loong.me.uk", "custom_domain": true },
+    { "pattern": "www.loong.me.uk", "custom_domain": true },
+  ],
   "observability": {
     "enabled": true,
   },
@@ -54,11 +61,11 @@
   // 附件二进制存储在 Telegram 云端（经 Bot API 代理转发/取回）：
   // 完全免费、无配额、无需绑卡；分片 ≤19 MiB 绕开 bot 上传 50MB / 下载 20MB 限制。
   // 需要 secrets：TG_BOT_TOKEN（bot token）、TG_STORAGE_CHAT_ID（存文件的私有频道/群组）。
-  // 面向用户的规范站点源：本 Worker 实际运行在 workers.dev，
-  // 经朋友账号的代理 Worker 转发到 wow.xn--fpr224a.mom（国内可访问）。
-  // 邮件验证/重置链接与确认跳转必须用此域名构造（request.url 是 workers.dev）。
+  // 面向用户的规范站点源：自有域名 loong.me.uk（Cloudflare Custom Domain 直连本 Worker）。
+  // 旧域名 wow.xn--fpr224a.mom 仍经朋友账号的代理 Worker 转发到本 Worker 的 workers.dev。
+  // 邮件验证/重置链接与确认跳转必须用此域名构造（request.url 是 workers.dev 或代理域名）。
   "vars": {
-    "PUBLIC_ORIGIN": "https://wow.xn--fpr224a.mom",
+    "PUBLIC_ORIGIN": "https://loong.me.uk",
     // OSCA 对象存储（中科院高能所 OCloud）：文渊归档冗余备份
     // AK/SK 走 wrangler secret put / .dev.vars，不写在这里
     "OSCA_ENDPOINT": "https://fgws3-ocloud.ihep.ac.cn",

@@ -1,6 +1,9 @@
 # 网关域名（DNS 需先 A 记录指向本机，且 80/443 入站放行）
 # Caddy 会自动向 Let's Encrypt 申请并续期证书。
 # Caddy 默认不限制请求体大小、不设响应超时，大文件分片（≤2000MB）可直接透传。
+#
+# 2026-11：新增自有域名 loong.me.uk，与旧域名并存（旧域名是朋友的二级域名）。
+# 新域名接管后，gw.loong.me.uk 即网关，dl.loong.me.uk 即下载专用域。
 
 # 只用 HTTP/1.1：h2 下浏览器的 6 路并发会复用同一条 TCP 连接，国际链路
 # 丢包时单流整体受阻；h1 下浏览器开出 6 条独立 TCP 流，吞吐与稳定性更好。
@@ -24,7 +27,7 @@
 	}
 }
 
-gw.xn--fpr224a.mom {
+gw.xn--fpr224a.mom, gw.loong.me.uk {
 	# 文渊文档内的相对链接形如 /?did=xxx&dt=yyy（目录页 [[catalog]] 与正文互跳）。
 	# 根路径 / 同时是网关入口，故仅当带 did 查询参数时 307 跳进 /wen/，把用户留在文渊里。
 	# 注意：redir 首个路径样式参数会被当成内联 matcher，必须用命名 matcher。
@@ -51,6 +54,6 @@ gw.xn--fpr224a.mom {
 
 # 下载专用域（手机整文件直下）：DNS A 记录先灰云签发证书，再开橙云代理。
 # 橙云后浏览器/下载器连的是 Cloudflare 边缘，CF 回源到本机的 443。
-dl.xn--fpr224a.mom {
+dl.xn--fpr224a.mom, dl.loong.me.uk {
 	reverse_proxy gateway:8080
 }

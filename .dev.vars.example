@@ -25,10 +25,10 @@ TG_BOT_TOKEN=123456:ABC-xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 TG_STORAGE_CHAT_ID=-100xxxxxxxxxx
 
 # 文渊（文档管理器）归档：X 岛整串“归档到文渊”功能使用
-# WENYUAN_API_URL 为文渊对外地址（反代后的 https 域名）；留空默认 https://gw.xn--fpr224a.mom
+# WENYUAN_API_URL 为文渊对外地址（反代后的 https 域名）；留空默认 https://gw.loong.me.uk
 # WENYUAN_ADMIN_PASSWORD 为文渊 bootstrap 管理员密码（admin_password.txt 中的那串）
 # 未配置 WENYUAN_ADMIN_PASSWORD 时归档接口返回 503
-WENYUAN_API_URL=https://gw.xn--fpr224a.mom
+WENYUAN_API_URL=https://gw.loong.me.uk
 WENYUAN_ADMIN_PASSWORD=your-wenyuan-admin-password
 
 # OSCA 对象存储（中科院高能所 OCloud，1TB 配额）：文渊归档冗余备份

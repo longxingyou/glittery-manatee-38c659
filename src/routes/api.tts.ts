@@ -14,7 +14,7 @@ import { createFileRoute } from '@tanstack/react-router'
  * - body 流式透传，不在 Worker 内存缓冲整段 mp3。
  */
 
-const TTS_UPSTREAM = 'https://gw.xn--fpr224a.mom/tts'
+const TTS_UPSTREAM = 'https://gw.loong.me.uk/tts'
 const TTS_TEXT_MAX = 600
 
 export const Route = createFileRoute('/api/tts')({

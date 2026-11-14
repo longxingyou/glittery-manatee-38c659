@@ -3,4 +3,4 @@ Allow: /
 Disallow: /admin
 Disallow: /api/
 
-Sitemap: https://wow.xn--fpr224a.mom/sitemap.xml
+Sitemap: https://loong.me.uk/sitemap.xml

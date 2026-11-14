@@ -73,7 +73,7 @@ export interface ServerEnv {
    */
   XDNMB_DB?: D1Database
   /**
-   * 文渊文档管理器地址（如 https://gw.xn--fpr224a.mom），用于「归档到文渊」。
+   * 文渊文档管理器地址（如 https://gw.loong.me.uk），用于「归档到文渊」。
    * Worker 调用其 /api/admin/login 与 /api/documents；未配置则隐藏归档能力。
    */
   WENYUAN_API_URL?: string

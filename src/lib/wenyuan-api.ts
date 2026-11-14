@@ -9,7 +9,7 @@
  */
 import { getEnv } from './server-env.js'
 
-export const DEFAULT_BASE = 'https://gw.xn--fpr224a.mom'
+export const DEFAULT_BASE = 'https://gw.loong.me.uk'
 export const LOGIN_TIMEOUT_MS = 25_000
 
 export type WenDoc = {

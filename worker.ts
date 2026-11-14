@@ -244,6 +244,11 @@ function cachedHtmlResponse(body: string, cacheStatus: string): Response {
   return new Response(body, { status: 200, headers })
 }
 
+// 扫描器高频探测路径（实测 2026-11 每天约 3.3 万次 /sql、空 UA、全部 404）。
+// 直接在边缘返回纯文本 404，不进 SSR：既省 Workers 每日请求配额，
+// 也避免 404 页面渲染时执行 root loader 触发不必要的 DB 查询。
+const SCANNER_PROBE_PATHS = new Set(['/sql', '/wp-login.php', '/xmlrpc.php', '/.env', '/.git/config'])
+
 export default {
   async fetch(request: Request, env: AssetsEnv, ctx: ExecutionCtx): Promise<Response> {
     setWorkerEnv(env)
@@ -255,6 +260,13 @@ export default {
     if (url.protocol === 'http:' && !url.hostname.endsWith('localhost') && url.hostname !== '127.0.0.1') {
       url.protocol = 'https:'
       return Response.redirect(url.toString(), 301)
+    }
+
+    if (SCANNER_PROBE_PATHS.has(url.pathname)) {
+      return new Response('Not Found', {
+        status: 404,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=86400' },
+      })
     }
 
     // 本地 vite dev（run_worker_first 模式下所有请求先进 Worker）：把 Vite 开发态

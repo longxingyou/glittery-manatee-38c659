@@ -318,9 +318,15 @@ async function handleConvertPollPost(request: Request): Promise<Response> {
     return Response.json({ error: 'unauthorized' }, { status: 401 })
   }
   if (!gatewayConfig()) return Response.json({ error: 'gateway not configured' }, { status: 503 })
+  // 空闲轮询不碰 Neon：converter 每 5 秒一次，若每次都查库/回填，compute 永不休眠，
+  // 免费版 100 CU-h/月会被直接烧光（2026-11 已烧到 80%）。只有入队写过 KV 标记时才查库。
+  if (!(await dbApi.hasPreviewPending())) return new Response(null, { status: 204 })
   await dbApi.backfillPreviewStates(20).catch(() => undefined)
   const job = await dbApi.claimPreviewJob().catch(() => null)
-  if (!job) return new Response(null, { status: 204 })
+  if (!job) {
+    dbApi.markPreviewQueueDrained()
+    return new Response(null, { status: 204 })
+  }
   const manifest = decodeAttachmentManifest(job.storageKey)
   if (!manifest) {
     // 非 tg1 清单不应进队（入队规则保证）；快速消耗重试次数后置 failed

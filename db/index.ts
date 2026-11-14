@@ -1957,6 +1957,8 @@ export async function insertAttachment(params: {
       passwordHash: schema.attachments.passwordHash,
       storageKey: schema.attachments.storageKey,
     })
+  // 标记队列非空，converter 的 5 秒轮询才会真正查 Neon
+  if (initialPreviewState === 'pending') markPreviewPending()
   return toPublic(row!)
 }
 
@@ -2101,6 +2103,33 @@ export interface PreviewJob {
   attempts: number
 }
 
+// ── 预览转换队列的 KV 标记（Neon 免费额度保护）──
+// converter 每 5 秒轮询 /api/comments?action=convert-poll。若每次轮询都查 Neon
+// （backfillPreviewStates + claimPreviewJob），compute 就永远不会进入 auto-suspend：
+// 实测 2026-11 前 13 天烧掉 80.56 CU-h（免费额度 100 CU-h/月），并在上个月直接耗尽。
+// 因此入队时写标记 '1'；队列空时写 '0'（15 分钟过期，保留 processing 超时重领窗口）。
+// 空闲轮询看到非 '1' 直接 204，不碰数据库。
+const PREVIEW_PENDING_KEY = 'preview:pending'
+const PREVIEW_PENDING_TTL = 7 * 24 * 3600
+const PREVIEW_DRAINED_TTL = 15 * 60
+
+/** 入队 / 重新入队时调用 */
+function markPreviewPending(): void {
+  void safeKvPut(getEnv().SG_CACHE, PREVIEW_PENDING_KEY, '1', PREVIEW_PENDING_TTL)
+}
+
+/** 轮询用：无 KV 绑定时返回 true，保持旧行为（本地 dev / 未配置） */
+export async function hasPreviewPending(): Promise<boolean> {
+  const kv = getEnv().SG_CACHE
+  if (!kv) return true
+  return (await safeKvGet(kv, PREVIEW_PENDING_KEY)) === '1'
+}
+
+/** 队列已空：15 分钟内不再查库（覆盖 processing 任务 15 分钟超时重领窗口） */
+export function markPreviewQueueDrained(): void {
+  void safeKvPut(getEnv().SG_CACHE, PREVIEW_PENDING_KEY, '0', PREVIEW_DRAINED_TTL)
+}
+
 /**
  * 旧附件回填：把 preview_state 为 NULL 的行按格式判定翻成
  * pending（可转换）/ unsupported（浏览器直渲或不支持）。每次轮询处理一小批，
@@ -2118,6 +2147,7 @@ export async function backfillPreviewStates(batchSize = 20): Promise<void> {
     .where(isNull(schema.attachments.previewState))
     .orderBy(schema.attachments.id)
     .limit(batchSize)
+  let queued = false
   for (const r of rows) {
     const target = isConvertibleForPreview({
       filename: r.filename,
@@ -2126,6 +2156,7 @@ export async function backfillPreviewStates(batchSize = 20): Promise<void> {
     })
       ? 'pending'
       : 'unsupported'
+    if (target === 'pending') queued = true
     await useDb()
       .update(schema.attachments)
       .set({ previewState: target })
@@ -2134,6 +2165,7 @@ export async function backfillPreviewStates(batchSize = 20): Promise<void> {
         isNull(schema.attachments.previewState),
       ))
   }
+  if (queued) markPreviewPending()
 }
 
 /**
@@ -2198,6 +2230,7 @@ export async function completePreviewJob(
     .update(schema.attachments)
     .set({ previewState: giveUp ? 'failed' : 'pending', previewAt: new Date() })
     .where(eq(schema.attachments.id, id))
+  if (!giveUp) markPreviewPending()
 }
 
 /** 手动重新入队（预览页「重新转换」）：仅对可转换且已失败的附件生效 */
@@ -2223,6 +2256,7 @@ export async function requeuePreview(id: number): Promise<'queued' | 'notfound' 
     .update(schema.attachments)
     .set({ previewState: 'pending', previewAttempts: 0, previewAt: new Date() })
     .where(eq(schema.attachments.id, id))
+  markPreviewPending()
   return 'queued'
 }
 
@@ -2246,6 +2280,7 @@ export async function autoRequeuePreviewFailed(limit = 10): Promise<number> {
     RETURNING id
   `)
   const rows = (res as unknown as { rows?: Array<Record<string, unknown>> }).rows || []
+  if (rows.length) markPreviewPending()
   return rows.length
 }
 

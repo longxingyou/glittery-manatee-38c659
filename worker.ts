@@ -489,34 +489,26 @@ export default {
     }
   },
 
-  // Cron 触发器（每 5 分钟）：预热 Neon compute 避免休眠冷启动。
-  // KV 额度优化：每次 cron 都跑 SELECT 1（0 KV 操作）；
-  // 文章列表 KV 仅在计划分钟为 :00/:20/:40 时刷新（3 次/小时 = 72 次写/天，
-  // 远低于免费版 1000 次写/天上限）。
+  // Cron 触发器（每小时 :00）：刷新文章列表 KV + 预热 Neon compute，顺带跑失败转换重试与文渊对账。
+  // Neon 免费 compute 额度优化：每 20 分钟唤醒一次（5 分钟 auto-suspend）约 180 h/月，
+  // 曾烧掉本月 80% 额度；改为每小时一次后约 60 h/月。前台靠 HTML 边缘缓存 + KV 命中，
+  // 不依赖保活；DB 闲置时允许自动休眠，评论/登录/附件首个请求承担一次 0.5~3 s 冷启动。
   // X岛爬虫 + TG 推送已搬到独立 Worker（crawler/），主站 cron 仅保留 warmupDb + autoRequeuePreviewFailed。
-  async scheduled(event: unknown, env: AssetsEnv, ctx: ExecutionCtx): Promise<void> {
+  async scheduled(_event: unknown, env: AssetsEnv, ctx: ExecutionCtx): Promise<void> {
     setWorkerEnv(env)
-    const scheduledTime = (event as { scheduledTime?: number } | null)?.scheduledTime
-    const minute = scheduledTime ? new Date(scheduledTime).getMinutes() : new Date().getMinutes()
-    const refreshCache = minute % 20 === 0
     ctx.waitUntil(import('./db/index.js').then(async (m) => {
-      // Neon 免费 compute 额度优化：X岛搜索已走 D1 边缘读，不再每 5 分钟 SELECT 1 保活
-      // （否则 Neon 永不休眠，~730h/月烧光免费额度）。仅 :00/:20/:40 刷文章列表 KV 时
-      // 顺带预热一次，DB 闲置时允许自动休眠；评论/登录/附件首个请求承担一次冷启动。
-      if (refreshCache) await m.warmupDb(true)
-      // 转换失败自动重试（attempts<3 + 10 分钟退避）：同样只在 20 分钟节拍跑，
-      // 避免每 5 分钟的 UPDATE 又把 Neon 唤醒
-      if (refreshCache) try { await m.autoRequeuePreviewFailed() } catch { /* 下轮 cron 再试 */ }
+      await m.warmupDb(true)
+      // 转换失败自动重试（attempts<3 + 10 分钟退避）：每小时跑一次，
+      // 避免更频繁的 UPDATE 又把 Neon 唤醒。
+      try { await m.autoRequeuePreviewFailed() } catch { /* 下轮 cron 再试 */ }
       // X 岛爬虫 + TG 推送已搬到独立 Worker（crawler/），不再占用主站 cron 预算
     }))
     // 文渊 → OSCA 桶对账同步：revision 变了重传、文渊删了桶里跟着删。
     // 覆盖文渊 UI 直接编辑/删除（Worker 路由感知不到）；每拍限量防子请求超限。
-    if (refreshCache) {
-      ctx.waitUntil(
-        import('./src/lib/wenyuan-sync.js')
-          .then((m) => m.runWenyuanOscaSync())
-          .catch((e) => console.warn('[wenyuan-osca-sync]', e instanceof Error ? e.message : e)),
-      )
-    }
+    ctx.waitUntil(
+      import('./src/lib/wenyuan-sync.js')
+        .then((m) => m.runWenyuanOscaSync())
+        .catch((e) => console.warn('[wenyuan-osca-sync]', e instanceof Error ? e.message : e)),
+    )
   },
 }

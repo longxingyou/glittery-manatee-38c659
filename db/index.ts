@@ -205,10 +205,10 @@ export function useDb(): Db {
 
 /**
  * 预热 Neon compute 并刷新 KV 缓存。
- * 由 Workers Cron 每 5 分钟调用，确保：
- *   1. Neon compute 保持活跃（避免冷启动 5~10s 唤醒延迟）——每次都执行
- *   2. 文章列表 KV 每 20 分钟刷新一次（refreshCache=true 时），
- *      前台永远从 KV 读（<50ms），不查 Neon，同时把 KV 写入压到 72 次/天。
+ * 由 Workers Cron 每小时调用，确保：
+ *   1. Neon compute 每小时活跃一次（每次约 5 分钟），把免费额度消耗压到 ~60 h/月
+ *   2. 文章列表 KV 每小时刷新一次（refreshCache=true 时），
+ *      前台永远从 KV 读（<50ms），不查 Neon，同时 KV 写入仅 24 次/天。
  */
 export async function warmupDb(refreshCache = true): Promise<void> {
   if (!isDbConfigured()) return
@@ -219,7 +219,7 @@ export async function warmupDb(refreshCache = true): Promise<void> {
 
   if (!refreshCache) return
   try {
-    // 2. 每 20 分钟刷新一次文章列表 KV（forceRefresh 跳过内存/KV，查 DB 并写 KV）。
+    // 2. 每小时刷新一次文章列表 KV（forceRefresh 跳过内存/KV，查 DB 并写 KV）。
     // cron 有 30s 执行预算：SELECT 1 占 8s，留给文章查询 ~20s。
     // 用 10s 超时 + 1 次重试（10s+0.3s+10s=20.3s），确保在预算内完成并写入 KV。
     await listPublishedPostsDetailed(10_000, false, true)
@@ -1064,10 +1064,10 @@ export async function listDbPosts(includeDrafts = true, includeContent = false, 
 // 已发布列表缓存：悬停预取（翻译组 siblings 会调 publishedPostsFn）
 // 可能在首页卡片上连续触发，避免每次都打 Neon 全表。发布/改稿/删除时主动失效。
 // 省 KV 额度：内存与 KV 使用不同 TTL——
-//   内存 5 分钟（同 isolate 零成本）；KV 30 分钟，cron 每 20 分钟刷新一次，
-//   KV key 永不过期但内容持续更新。文章变更走主动失效，不受 TTL 影响。
+//   内存 5 分钟（同 isolate 零成本）；KV 2 小时（cron 每小时刷新一次，
+//   key 持续存活，留 1 小时冗余覆盖 cron 偶发失败/延迟）。文章变更走主动失效，不受 TTL 影响。
 const PUBLISHED_MEM_TTL = 300_000 // 进程内存：5 分钟
-const PUBLISHED_KV_TTL = 1_800_000 // KV：30 分钟（cron 20 分钟刷新，key 持续存活）
+const PUBLISHED_KV_TTL = 7_200_000 // KV：2 小时（cron 每小时刷新）
 // 降级结果的缓存 TTL 更短：SSR 降级后客户端补拉通常在几秒内发起，
 // 若仍命中降级缓存，用户会持续看不到 DB 文章。3s 后强制重查 Neon。
 const PUBLISHED_DEGRADED_TTL = 3_000
@@ -1202,7 +1202,7 @@ export async function listPublishedPostsDetailed(timeoutMs = 15_000, includeCont
   publishedCache = { at: Date.now(), data: merged, dbOk: dbPosts.ok, ttl }
 
   // 成功结果回填 KV（仅不含 content 的版本，跨 colo 共享）
-  // 正常情况下该分支几乎只由 cron（每 20 分钟）走到：用户请求在第 2 步即命中 KV。
+  // 正常情况下该分支几乎只由 cron（每小时）走到：用户请求在第 2 步即命中 KV。
   // safeKvPut 带熔断器 + 限额错误识别，写额度用尽时静默跳过，不影响响应。
   if (dbPosts.ok && !includeContent) {
     await safeKvPut(kv, kvKey, JSON.stringify({ posts: merged, dbOk: true, at: Date.now() }),

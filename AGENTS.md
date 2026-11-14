@@ -35,9 +35,9 @@ This register tracks all free-tier quotas and mitigations. Check monthly; treat 
 
 | Service | Quota / Limit | Current Mitigation | Risk Level | Action if Exceeded |
 |---------|--------------|-------------------|------------|-------------------|
-| **Neon Compute** | 500 h/month (free) | `warmupDb` reduced to 20-min cadence inside `refreshCache` (was every 5 min). Cold starts acceptable. | Low | If approaching limit again, increase cron interval to 60 min or remove warmup entirely. |
+| **Neon Compute** | 500 h/month (free) | `warmupDb` runs hourly (cron `0 * * * *`, `refreshCache` always true) ≈ 60 h/month. Neon console "Suspend after" should be set to the minimum (1 min) if allowed. Cold starts acceptable. | Low | Raise cron interval to 2 h (and `PUBLISHED_KV_TTL` to 3 h) or disable warmup entirely. |
 | **Neon Storage** | 500 MB | Static posts + comments only. Monitor via Neon dashboard. | Low | Prune old comments / migrate to D1 if >400 MB. |
-| **Cloudflare Workers** | 100,000 req/day | `wenyuan-sync` batched at ≤12 PUT + ≤10 DELETE per 20-min tick. | Low | Increase tick interval or add request sampling. |
+| **Cloudflare Workers** | 100,000 req/day | `wenyuan-sync` batched at ≤12 PUT + ≤10 DELETE per hourly tick. | Low | Increase tick interval or add request sampling. |
 | **CF KV Writes (SG_CACHE)** | 1,000/day | `wenyuan-sync` only writes state when `updated > 0`. Cache writes minimized. | Low | Batch more aggressively or switch to D1 for sync state. |
 | **CF D1 (XDNMB_DB)** | 100,000 writes/day | Read-only for main site; crawler writes controlled. | Low | Reduce crawl frequency or shard index. |
 | **Resend** | Free tier (domain not verified) | Registration/reset emails only. | Medium | Verify domain or switch to SMTP relay if volume grows. |

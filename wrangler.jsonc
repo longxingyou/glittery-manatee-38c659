@@ -28,6 +28,10 @@
   // 2026-11：自有域名 loong.me.uk 已接入本账号的 Cloudflare（zone 在本账号下），
   // 用 Custom Domain 直接绑定 @ 与 www；旧域名 wow.xn--fpr224a.mom 仍由朋友账号的
   // 代理 Worker 转发到本 Worker 的 workers.dev 地址，两者并存。
+  // workers.dev 必须保持开启：旧域名 wow.xn--fpr224a.mom 在朋友账号的代理 Worker
+  // 会转发到本 Worker 的 workers.dev 地址；一旦绑定 Custom Domain 后 Cloudflare 默认
+  // 会关闭 workers.dev，所以这里显式打开。
+  "workers_dev": true,
   "routes": [
     { "pattern": "loong.me.uk", "custom_domain": true },
     { "pattern": "www.loong.me.uk", "custom_domain": true },
@@ -35,11 +39,13 @@
   "observability": {
     "enabled": true,
   },
-  // 处理器只在 :00/:20/:40 三个节拍刷文章列表 KV 并顺带预热 Neon（SELECT 1）+ wenyuan-sync 对账。
+  // 每小时 :00 刷文章列表 KV 并顺带预热 Neon（SELECT 1）+ wenyuan-sync 对账。
   // X岛搜索已走 D1 边缘读，不再为防冷启动全程保活 Neon。
-  // cron 节拍对齐为每 20 分钟一次，避免无谓唤醒 Neon。
+  // Neon 免费额度：每 20 分钟唤醒一次（叠加 5 分钟 auto-suspend）约 180 h/月，
+  // 已烧掉本月 80% 计算额度；改为每小时一次后约 60 h/月，前台靠 HTML 边缘缓存 +
+  // KV 命中，首访偶发一次 0.5~3 s 冷启动可接受。
   "triggers": {
-    "crons": ["*/20 * * * *"]
+    "crons": ["0 * * * *"]
   },
   // KV 缓存：公开数据（已发布文章列表）跨 colo 共享，绕过 CF→Neon 高延迟链路。
   // 文章变更时主动失效；KV 读延迟 <50ms，远低于 Neon 查询（8~15s）。

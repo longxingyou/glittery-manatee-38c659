@@ -5,7 +5,7 @@ import { z } from 'zod'
 import * as dbApi from '../../db/index.js'
 import { attachments, comments, users } from '../../db/schema.js'
 import { getEnv } from '../lib/server-env.js'
-import { safeKvDelete } from '../lib/cache.js'
+import { safeKvDelete, TtlCache } from '../lib/cache.js'
 import { BOT_MANIFEST } from '../lib/bot-manifest.js'
 
 // ──────────────────────────────────────────────
@@ -62,8 +62,44 @@ class HttpError extends Error {
   }
 }
 
-const json = (data: unknown, status = 200) =>
-  Response.json(data, { status, headers: { 'Cache-Control': 'no-store' } })
+const json = (data: unknown, status = 200, extraHeaders?: Record<string, string>) =>
+  Response.json(data, { status, headers: { 'Cache-Control': 'no-store', ...extraHeaders } })
+
+// ──────────────────────────────────────────────
+// 只读 action 的进程内缓存（Neon 优化）。
+//
+// bot 的查询形态高度重复（同一个 posts.list / comments.list 反复轮询），而每次
+// 调用都要走一次 Neon 往返（跨境 + 冷启动可达数百毫秒）。这里在 isolate 内做
+// 30s 的 TtlCache：命中即返回，完全不碰数据库。不用 KV —— KV 免费版每天只有
+// 1,000 次写，bot 轮询会把额度烧穿；进程内存免费且无限额。
+//
+// 失效策略：任何写操作成功后清空整个只读缓存（同一 bot 的自读自写立刻一致）；
+// 站内其他来源的改动（访客评论、后台编辑）最多陈旧 30s，对 bot 可接受。
+// ──────────────────────────────────────────────
+const BOT_CACHE_TTL_MS = 30_000
+const BOT_READ_ACTIONS = new Set([
+  'posts.list',
+  'posts.get',
+  'posts.search',
+  'comments.list',
+  'attachments.list',
+  'categories.list',
+  'settings.get',
+  'siteContent.list',
+  'users.list',
+  'userTags.list',
+  'feedback.list',
+])
+const botReadCache = new TtlCache<unknown>(200)
+
+/** 缓存键：action + 排序后的参数（丢掉 action 自身），保证参数顺序不影响命中 */
+function botCacheKey(action: string, body: Record<string, unknown>): string {
+  const parts = Object.keys(body)
+    .filter((k) => k !== 'action' && body[k] !== undefined)
+    .sort()
+    .map((k) => `${k}=${JSON.stringify(body[k])}`)
+  return `${action}?${parts.join('&')}`
+}
 
 /** 定时安全比较：先各自 SHA-256 再逐字节异或，避免按字节提前返回泄露前缀 */
 async function tokenEquals(a: string, b: string): Promise<boolean> {
@@ -893,6 +929,13 @@ export const Route = createFileRoute('/api/bot')({
             )
           }
 
+          // 只读 action 先查进程内缓存：命中时连 ensureSchema / bot 账号查询都不碰
+          const cacheKey = BOT_READ_ACTIONS.has(action) ? botCacheKey(action, body) : ''
+          if (cacheKey) {
+            const hit = botReadCache.get(cacheKey)
+            if (hit !== undefined) return json(hit, 200, { 'x-bot-cache': 'hit' })
+          }
+
           // 建表检查放在 ping 之前：首次调用也要能解析/创建 bot 账号
           await dbApi.ensureSchema()
           const bot = await getBotUser()
@@ -900,7 +943,11 @@ export const Route = createFileRoute('/api/bot')({
           if (!handler) return json({ ok: true, bot, actions: allowed.size })
 
           try {
-            return json(await handler(body, bot))
+            const result = await handler(body, bot)
+            // 写操作成功后清空只读缓存，保证 bot 自读自写立刻一致
+            if (cacheKey) botReadCache.set(cacheKey, result, BOT_CACHE_TTL_MS)
+            else botReadCache.clear()
+            return json(result, 200, cacheKey ? { 'x-bot-cache': 'miss' } : undefined)
           } catch (e) {
             // 把「不在管理员名单」翻译成可操作的提示，避免 bot 拿到一串 SQL/权限原文
             if (e instanceof Error && /管理员名单/.test(e.message)) {

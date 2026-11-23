@@ -283,7 +283,7 @@ export const Route = createRootRoute({
       scripts: [{ type: 'application/ld+json', children: JSON.stringify(websiteLd) }],
     }
   },
-  loader: async () => {
+  loader: async ({ location }: { location: { pathname: string } }) => {
     const staticCountBy = new Map<string, number>()
     for (const p of allPosts as { categories: string[] }[]) {
       for (const c of p.categories) staticCountBy.set(c, (staticCountBy.get(c) || 0) + 1)
@@ -291,10 +291,23 @@ export const Route = createRootRoute({
     const staticLabels: CategoryLabel[] = Array.from(new Set(allPosts.flatMap((p: { categories: string[] }) => p.categories)))
       .sort()
       .map((name) => ({ name, nameEn: null, nameRu: null, count: staticCountBy.get(name) || 0 }))
-    const [settingsResult, categoriesResult] = await Promise.all([
-      publicServerFns.settingsFn().catch(() => ({ public: { siteTitle: DEFAULT_SITE_TITLE, siteDescription: DEFAULT_SITE_DESCRIPTION, customCss: '' }, isAdmin: false as const, adminStatus: null })),
-      publicServerFns.allCategoriesFn().catch(() => staticLabels),
-    ])
+
+    // 元素周期表页是纯静态内容（elements.json / isotopes.json），不依赖任何 DB 数据。
+    // SSR 时跳过 settingsFn / allCategoriesFn 两次 Neon 查询：
+    //   - 避免 Neon 冷启动（0.5~3s）拖慢首字节
+    //   - 侧栏分类在客户端空闲时由 usePublishedPosts / allCategoriesFn 补拉兜底
+    // 只有非周期表页才走完整 DB 加载。
+    const isPeriodicTable = location.pathname === '/periodic-table'
+
+    const [settingsResult, categoriesResult] = isPeriodicTable
+      ? [
+          { public: { siteTitle: DEFAULT_SITE_TITLE, siteDescription: DEFAULT_SITE_DESCRIPTION, customCss: '' }, isAdmin: false as const, adminStatus: null },
+          staticLabels,
+        ]
+      : await Promise.all([
+          publicServerFns.settingsFn().catch(() => ({ public: { siteTitle: DEFAULT_SITE_TITLE, siteDescription: DEFAULT_SITE_DESCRIPTION, customCss: '' }, isAdmin: false as const, adminStatus: null })),
+          publicServerFns.allCategoriesFn().catch(() => staticLabels),
+        ])
     return {
       settings: settingsResult.public,
       isAdmin: settingsResult.isAdmin,
@@ -352,17 +365,29 @@ function RootComponent() {
   // 硬加载可能命中构建期静态快照（HIT-ASSET）/边缘 HTML 缓存，侧边栏分类停留在部署时点
   // （后台新增分类后尤其明显）。挂载后直查一次分类（server fn 不经 HTML 缓存），
   // 签名有差异才整体替换，暖态结果一致不更新、无闪烁；思路同 usePublishedPosts。
+  // 延后到浏览器空闲执行：分类不影响首屏阅读与交互，避免与水合抢资源、提前唤醒 Neon。
   const [liveCats, setLiveCats] = useState<CategoryLabel[]>(categories || [])
   useEffect(() => {
     let alive = true
     const sig = (list: CategoryLabel[]) =>
       list.map((c) => `${c.name}|${c.nameEn ?? ''}|${c.nameRu ?? ''}|${c.count ?? ''}`).join('\n')
     const initialSig = sig(categories || [])
-    publicServerFns
-      .allCategoriesFn()
-      .then((fresh) => { if (alive && sig(fresh) !== initialSig) setLiveCats(fresh) })
-      .catch(() => { /* 网络/DB 异常：继续使用 loader/快照数据 */ })
-    return () => { alive = false }
+    const run = () => {
+      if (!alive) return
+      publicServerFns
+        .allCategoriesFn()
+        .then((fresh) => { if (alive && sig(fresh) !== initialSig) setLiveCats(fresh) })
+        .catch(() => { /* 网络/DB 异常：继续使用 loader/快照数据 */ })
+    }
+    let cancel: () => void = () => {}
+    if (typeof requestIdleCallback === 'function') {
+      const id = requestIdleCallback(run, { timeout: 4000 })
+      cancel = () => cancelIdleCallback(id)
+    } else {
+      const id = setTimeout(run, 1200)
+      cancel = () => clearTimeout(id)
+    }
+    return () => { alive = false; cancel() }
     // 仅挂载时执行一次
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

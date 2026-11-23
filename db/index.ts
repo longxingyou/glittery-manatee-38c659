@@ -2330,6 +2330,8 @@ export type CommenterAdminView = {
   commentCount: number
   warningCount: number
   createdAt: string | null
+  /** 邮箱是否已验证（false = 注册后未点验证链接） */
+  confirmed: boolean
 }
 
 export type FeedbackAdminItem = {
@@ -2727,50 +2729,83 @@ export async function adminListCommenters(actor?: string): Promise<CommenterAdmi
   if (actor) await requireAdminEmail(actor)
   else await requireAdmin()
   // 读优先（稳态零 DDL）+ 超时重试
-  const agg = await readWithSchemaFallback(() =>
+  // 以 users 表为主（含未验证账号），再合并历史上没有 users 行的评论者
+  const { userRows, agg, profileRows, warnRows } = await readWithSchemaFallback(() =>
     withDbRetry(
-      () =>
-        useDb()
-          .select({
-            userId: schema.comments.userId,
-            userName: sql<string>`max(${schema.comments.userName})`,
-            email: sql<string>`max(${schema.comments.userEmail})`,
-            commentCount: sql<number>`count(*)::int`,
-          })
-          .from(schema.comments)
-          .where(and(eq(schema.comments.status, 'published'), sql`${schema.comments.userId} NOT LIKE 'deleted%'`))
-          .groupBy(schema.comments.userId),
+      async () => {
+        const db = useDb()
+        const [users, commentsAgg, profiles, warningsAgg] = await Promise.all([
+          db
+            .select({
+              userId: schema.users.id,
+              email: schema.users.email,
+              displayName: schema.users.displayName,
+              confirmedAt: schema.users.confirmedAt,
+              createdAt: schema.users.createdAt,
+            })
+            .from(schema.users),
+          db
+            .select({
+              userId: schema.comments.userId,
+              userName: sql<string>`max(${schema.comments.userName})`,
+              email: sql<string>`max(${schema.comments.userEmail})`,
+              commentCount: sql<number>`count(*)::int`,
+            })
+            .from(schema.comments)
+            .where(and(eq(schema.comments.status, 'published'), sql`${schema.comments.userId} NOT LIKE 'deleted%'`))
+            .groupBy(schema.comments.userId),
+          db.select().from(schema.profiles),
+          db
+            .select({ userId: schema.warnings.userId, n: sql<number>`count(*)::int` })
+            .from(schema.warnings)
+            .groupBy(schema.warnings.userId),
+        ])
+        return { userRows: users, agg: commentsAgg, profileRows: profiles, warnRows: warningsAgg }
+      },
       { timeoutMs: 8000 },
     ),
   )
-  const ids = agg.map((r) => r.userId)
-  // 资料行与警告聚合计数互相独立：并行发出，省一个串行往返
-  const [profileRows, warnRows] = ids.length
-    ? await Promise.all([
-        useDb().select().from(schema.profiles).where(inArray(schema.profiles.userId, ids)),
-        useDb()
-          .select({ userId: schema.warnings.userId, n: sql<number>`count(*)::int` })
-          .from(schema.warnings)
-          .where(inArray(schema.warnings.userId, ids))
-          .groupBy(schema.warnings.userId),
-      ])
-    : [[], []]
   const profileMap = new Map(profileRows.map((p) => [p.userId, p]))
   const warnMap = new Map(warnRows.map((w) => [w.userId, w.n]))
-  return agg.map((r) => {
-    const p = profileMap.get(r.userId)
-    return {
-      userId: r.userId,
-      email: (p?.email || r.email || '').toLowerCase(),
-      displayName: p?.displayName || r.userName,
+  const aggMap = new Map(agg.map((r) => [r.userId, r]))
+  const rows: CommenterAdminView[] = []
+  const seen = new Set<string>()
+  for (const u of userRows) {
+    const p = profileMap.get(u.userId)
+    const a = aggMap.get(u.userId)
+    rows.push({
+      userId: u.userId,
+      email: (p?.email || u.email || a?.email || '').toLowerCase(),
+      displayName: p?.displayName || u.displayName || a?.userName || '',
       signature: p?.signature || '',
       signatureUpdatedBy: p?.signatureUpdatedBy ?? null,
       tags: parseTagIds(p?.tags || ''),
-      commentCount: r.commentCount,
-      warningCount: warnMap.get(r.userId) ?? 0,
+      commentCount: a?.commentCount ?? 0,
+      warningCount: warnMap.get(u.userId) ?? 0,
+      createdAt: u.createdAt ? new Date(u.createdAt).toISOString() : null,
+      confirmed: u.confirmedAt != null,
+    })
+    seen.add(u.userId)
+  }
+  // 历史评论者（没有对应 users 行，例如早期迁移数据）：仍然列出，视为已验证
+  for (const a of agg) {
+    if (seen.has(a.userId)) continue
+    const p = profileMap.get(a.userId)
+    rows.push({
+      userId: a.userId,
+      email: (p?.email || a.email || '').toLowerCase(),
+      displayName: p?.displayName || a.userName,
+      signature: p?.signature || '',
+      signatureUpdatedBy: p?.signatureUpdatedBy ?? null,
+      tags: parseTagIds(p?.tags || ''),
+      commentCount: a.commentCount,
+      warningCount: warnMap.get(a.userId) ?? 0,
       createdAt: p?.createdAt ? new Date(p.createdAt).toISOString() : null,
-    }
-  }).sort((a, b) => b.commentCount - a.commentCount)
+      confirmed: true,
+    })
+  }
+  // 未验证账号排在最前，方便管理员处理；其余按评论数降序
+  return rows.sort((a, b) => Number(a.confirmed) - Number(b.confirmed) || b.commentCount - a.commentCount)
 }
 
 /** 管理员修改/清空他人个签（管理行为不做违禁词拦截——用于处置违规内容） */
@@ -2811,6 +2846,24 @@ export async function adminIssueWarning(input: { userId: string; message: string
     .values({ userId, email, message, issuedBy: admin.email })
     .returning({ id: schema.warnings.id })
   return { id: row.id }
+}
+
+/** 管理员手动将账号标记为已验证（验证邮件丢失或无法送达时的兜底） */
+export async function adminConfirmUser(userId: string, actor?: string): Promise<{ ok: true }> {
+  if (actor) await requireAdminEmail(actor)
+  else await requireAdmin()
+  if (!userId || userId.startsWith('deleted')) throw new Error('目标用户不存在。')
+  await ensureSchema()
+  const updated = await useDb()
+    .update(schema.users)
+    .set({ confirmedAt: sql`NOW()`, confirmTokenHash: null, confirmExpires: null })
+    .where(and(eq(schema.users.id, userId), isNull(schema.users.confirmedAt)))
+    .returning({ id: schema.users.id })
+  if (updated.length === 0) {
+    const [exists] = await useDb().select({ id: schema.users.id }).from(schema.users).where(eq(schema.users.id, userId)).limit(1)
+    if (!exists) throw new Error('目标用户不存在。')
+  }
+  return { ok: true }
 }
 
 export async function adminListFeedback(actor?: string): Promise<FeedbackAdminItem[]> {

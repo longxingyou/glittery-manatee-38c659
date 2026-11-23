@@ -5,6 +5,7 @@ import { publicServerFns } from '@/components/public-fns'
 import { getPublicOrigin } from '@/lib/server-env'
 import { useT, useCatName } from '@/lib/i18n'
 import { renderMarkdown, extractHeadingsFromHtml } from '@/lib/markdown'
+import { ensureMathForSource } from '@/lib/markdown-math'
 import { useMermaidLazy } from '@/lib/use-mermaid'
 import { buildExportBody, downloadDocx, downloadHtml, downloadMarkdown, EXPORT_CSS } from '@/lib/export-doc'
 
@@ -18,6 +19,8 @@ export const Route = createFileRoute('/export/$slug')({
       // 彩蛋页不进此路由：在文章页由浮动按钮接管
       throw notFound()
     }
+    // 客户端软导航时先按需加载 KaTeX（服务端为 no-op）
+    await ensureMathForSource(post.content || '')
     return { post }
   },
   component: ExportPage,

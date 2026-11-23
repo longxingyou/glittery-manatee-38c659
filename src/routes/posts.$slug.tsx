@@ -6,6 +6,7 @@ import { CommentSection } from '@/components/comment-section'
 import { AttachmentPanel, publicServerFns } from '@/components/public-fns'
 import { getPostSiblings, DEFAULT_SITE_TITLE, DEFAULT_POST_AUTHOR, type PostData } from '@/lib/utils'
 import { renderMarkdown, extractHeadingsFromHtml } from '@/lib/markdown'
+import { ensureMathForSource } from '@/lib/markdown-math'
 import { useMermaidLazy } from '@/lib/use-mermaid'
 import { getPublicOrigin } from '@/lib/server-env'
 import { saveBlob } from '@/lib/export-doc'
@@ -38,6 +39,9 @@ export const Route = createFileRoute('/posts/$slug')({
     const egg = await eggPromise
 
     if (post) {
+      // 客户端软导航（非首屏）时先按需加载 KaTeX，避免正文以 TeX 占位符形式先出现。
+      // 服务端执行时该函数直接返回，不影响 SSR。
+      await ensureMathForSource(post.content || '')
       // 无翻译组的文章 siblings 就是自身；有翻译组且列表可用时才算同组兄弟
       const siblings = post.translationKey && all
         ? getPostSiblings(all, post.slug)

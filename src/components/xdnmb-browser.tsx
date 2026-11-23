@@ -220,13 +220,15 @@ export function XdnmbBrowser() {
     return () => document.body.classList.remove('sg-xdnmb-imm')
   }, [immersive])
 
-  // 全局快捷键：Ctrl/Cmd+K 打开搜索（command palette 惯例）
+  // "/" 打开匿名版搜索；Ctrl/⌘+K 永远归站点全局搜索（与其它页面搜索框同理）
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault()
-        setSearch((s) => ({ ...s, open: !s.open }))
-      }
+      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return
+      const target = e.target as HTMLElement | null
+      const tag = target?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) return
+      e.preventDefault()
+      setSearch((s) => ({ ...s, open: true }))
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)

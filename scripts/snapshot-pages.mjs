@@ -7,9 +7,10 @@
  * Neon（1~7s，弱网下更长）。快照把这些页面变成"静态资产"，CF 全球边缘秒出。
  *
  * 快照页面：
- *   /            → dist/client/index.html
- *   /archive     → dist/client/archive.html
- *   /category/*  → dist/client/category/<name>.html（从首页/归档页链接中发现）
+ *   /              → dist/client/index.html
+ *   /archive       → dist/client/archive.html
+ *   /periodic-table→ dist/client/periodic-table.html（元素周期表，内容静态，无需 SSR/DB）
+ *   /category/*    → dist/client/category/<name>.html（从首页/归档页链接中发现）
  *
  * 新鲜度：部署时点的列表 + 客户端 usePublishedPosts SWR 补拉（新增/删除均修正）。
  * 文章页内容会经后台编辑，不做快照，保持 SSR + 三级缓存链路。
@@ -38,6 +39,7 @@ const warn = (...a) => console.warn('[snapshot] ⚠️', ...a)
 async function cleanPreviousSnapshots() {
   await rm(path.join(distClient, 'index.html'), { force: true })
   await rm(path.join(distClient, 'archive.html'), { force: true })
+  await rm(path.join(distClient, 'periodic-table.html'), { force: true })
   await rm(path.join(distClient, 'category'), { recursive: true, force: true })
 }
 
@@ -119,6 +121,9 @@ async function main() {
 
     const homeHtml = await snapshotPage('/', path.join(distClient, 'index.html'))
     const archiveHtml = await snapshotPage('/archive', path.join(distClient, 'archive.html'))
+    // 元素周期表：内容完全静态（elements.json / isotopes.json），无需 SSR 打 DB。
+    // 快照后冷 colo 首访也由 ASSETS 边缘直出，TTFB 接近 0；?el= 深链仍走 SSR。
+    await snapshotPage('/periodic-table', path.join(distClient, 'periodic-table.html'))
 
     const catNames = new Set([
       ...(homeHtml ? discoverCategoryLinks(homeHtml) : []),
@@ -127,7 +132,7 @@ async function main() {
     for (const name of catNames) {
       await snapshotPage(`/category/${encodeURIComponent(name)}`, path.join(distClient, 'category', `${name}.html`))
     }
-    log(`完成：1 首页 + 1 归档 + ${catNames.size} 分类页`)
+    log(`完成：1 首页 + 1 归档 + 1 周期表 + ${catNames.size} 分类页`)
   } finally {
     try { server.httpServer.close() } catch { /* ignore */ }
   }

@@ -6,6 +6,9 @@
  */
 import startHandler from '@tanstack/react-start/server-entry'
 
+// 服务端同步注册 KaTeX 渲染器：SSR / 服务端 API 的输出保持完整公式。
+// 只被 Worker 入口引用，因此不会进入客户端构建（客户端走 markdown-math.ts 动态加载）。
+import './src/lib/markdown-math.server'
 import { setWorkerCtx, setWorkerEnv, setWorkerRequest, getEnv, type ServerEnv } from './src/lib/server-env'
 import { TtlCache, safeKvGet, safeKvPut, edgeCacheGet, edgeCacheSet } from './src/lib/cache'
 
@@ -172,6 +175,10 @@ function withSecurityHeaders(response: Response, request: Request): Response {
   // DB 文章。降级响应只给浏览器短缓存 + stale-while-revalidate，客户端补拉会修正。
   const isHtml = (response.headers.get('content-type') || '').includes('text/html')
   const isAdmin = isAdminPagePath(url.pathname)
+  // 周期表元素深链（?el=Fe）会改变 SSR 输出。若沿用按 pathname 建键的共享缓存，
+  // ?el=Fe 的 HTML 会被发给 ?el=Cu，客户端按 URL 选中 Cu 时触发 React 水合不一致。
+  // 这类响应不进任何共享缓存（含浏览器），每次按 URL 重新 SSR。
+  const isElementDeepLink = url.pathname === '/periodic-table' && url.searchParams.has('el')
   // /preview/* 的 SSR 内容随登录态/密码令牌变化（门禁 vs 含签名 URL 的预览数据），
   // 既不能进浏览器共享缓存也不能进边缘缓存：一律 private no-store。
   const isPreviewPage = url.pathname.startsWith('/preview/')
@@ -180,6 +187,9 @@ function withSecurityHeaders(response: Response, request: Request): Response {
   if (isHtml && isPreviewPage) {
     headers.set('Cache-Control', 'private, no-store, must-revalidate')
     headers.set('X-Robots-Tag', 'noindex, nofollow')
+  } else if (isHtml && isElementDeepLink) {
+    // 深链 HTML 由查询参数决定内容，绝不能进边缘/代理共享缓存
+    headers.set('Cache-Control', 'private, no-store, must-revalidate')
   } else if (isHtml && isAdmin) {
     // 管理后台 HTML 一律禁缓存：无显式 Cache-Control 时浏览器走启发式缓存，
     // 会长期引用旧 JS bundle（静态资源带 hash 是 immutable），新功能在用户端不生效
@@ -199,7 +209,20 @@ function withSecurityHeaders(response: Response, request: Request): Response {
   if (response.body !== null) {
     headers.delete('Content-Length')
   }
-  return new Response(response.body, {
+  // body 可能已被上游读取过（bodyUsed=true），此时直接 new Response(body) 会抛 TypeError:
+  // "Cannot construct a Response with a locked body". 降级为重新创建带安全头的 Response，
+  // 用空 body 或原始 body 均可（content-length 已删，传输层走 chunked）。
+  const body = response.body
+  if (body && body.locked) {
+    // 无法继续使用这个 body，只能返回无 body 的响应（404/500 状态页）
+    console.warn('[worker] response.body locked while applying security headers')
+    return new Response(response.status >= 400 ? null : body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    })
+  }
+  return new Response(body, {
     status: response.status,
     statusText: response.statusText,
     headers,
@@ -251,10 +274,14 @@ const SCANNER_PROBE_PATHS = new Set(['/sql', '/wp-login.php', '/xmlrpc.php', '/.
 
 export default {
   async fetch(request: Request, env: AssetsEnv, ctx: ExecutionCtx): Promise<Response> {
-    setWorkerEnv(env)
-    setWorkerCtx(ctx)
-    setWorkerRequest(request)
-    const url = new URL(request.url)
+    // Cloudflare 标准防线：任何未捕获异常 → 将请求 passthrough 到源站/默认 Worker，而非返回 500。
+    // 主 try-catch 已覆盖大部分路径，这里作为最外层兜底（含同步异常）。
+    ctx.passThroughOnException()
+    try {
+      setWorkerEnv(env)
+      setWorkerCtx(ctx)
+      setWorkerRequest(request)
+      const url = new URL(request.url)
 
     // HTTP → HTTPS 自动重定向（本地 dev / wrangler 走 http 代理，豁免 localhost）
     if (url.protocol === 'http:' && !url.hostname.endsWith('localhost') && url.hostname !== '127.0.0.1') {
@@ -298,19 +325,27 @@ export default {
 
     // 静态资源：通过 Assets 绑定服务并添加长期缓存头
     // /assets/* 文件名含内容哈希，可永久缓存
-    // /stickers/* 和根目录静态文件（favicon/og 图等）变更频率极低；
+    // /stickers/*、/elements/*（周期表实物图）、/audio/*（元素真人发音）
+    // 和根目录静态文件（favicon/og 图等）变更频率极低；
     // /sw.js 必须单独处理（.js 不在上面扩展名白名单里，否则会落到 SSR 链路 404），
     // 并给 no-cache 以保证浏览器能及时拿到新版 SW（靠字节比对触发更新）。
     // 未命中 ASSETS 的路径（如 /rss.xml、/sitemap.xml 动态路由）会继续走 SSR
     const isStaticAsset =
       url.pathname.startsWith('/assets/') ||
       url.pathname.startsWith('/stickers/') ||
+      url.pathname.startsWith('/elements/') ||
+      url.pathname.startsWith('/audio/') ||
       url.pathname === '/sw.js' ||
       /^\/[^/]+\.(?:png|jpe?g|gif|webp|svg|ico|webmanifest|txt)$/i.test(url.pathname)
 
-    try {
       if (isStaticAsset && env.ASSETS) {
         const assetResponse = await env.ASSETS.fetch(request)
+        // 206：媒体元素用 Range: bytes=0- 拉取音频，必须原样转发，
+        // 否则会落到 SSR 分支返回 404（周期表发音即因此无声）。
+        // 304：带条件头的静态资源，同样原样返回。
+        if (assetResponse.status === 206 || assetResponse.status === 304) {
+          return assetResponse
+        }
         if (assetResponse.status === 200) {
           const headers = new Headers(assetResponse.headers)
           if (url.pathname.startsWith('/assets/')) {
@@ -340,21 +375,33 @@ export default {
       // 未快照的路径（文章页等）ASSETS 返回 404 → 落回下面的 SSR + 三级缓存链路。
       // ?preview=1 是管理员实时预览，绝不能被部署时点快照顶替。
       // /egg/ 是彩蛋原始 HTML 出口（handler 自带缓存策略），不走资产直出。
-      if (env.ASSETS && request.method === 'GET' && !isAdminPagePath(url.pathname) && !url.pathname.startsWith('/egg/') && !url.pathname.startsWith('/preview/') && url.searchParams.get('preview') !== '1') {
+      // ?el= 元素深链的 SSR 内容随参数变化，快照直出会丢掉选中态，必须走 SSR。
+      const isElDeepLinkAsset = url.pathname === '/periodic-table' && url.searchParams.has('el')
+      if (env.ASSETS && request.method === 'GET' && !isAdminPagePath(url.pathname) && !url.pathname.startsWith('/egg/') && !url.pathname.startsWith('/preview/') && url.searchParams.get('preview') !== '1' && !isElDeepLinkAsset) {
         try {
-          const prerendered = await env.ASSETS.fetch(request)
-          const isHtmlAsset =
-            prerendered.status === 200 &&
-            (prerendered.headers.get('content-type') || '').includes('text/html')
-          if (isHtmlAsset) {
-            const headers = new Headers(buildSecurityHeaders())
-            headers.set('Content-Type', 'text/html; charset=utf-8')
-            headers.set('Cache-Control', 'public, max-age=120, s-maxage=600, stale-while-revalidate=3600, stale-if-error=86400')
-            headers.set('Vary', 'Accept-Encoding')
-            headers.set('X-Cache', 'HIT-ASSET')
-            // 资产 body 是流，必须删除 Content-Length（chunked 编码），防 520
-            headers.delete('Content-Length')
-            return new Response(prerendered.body, { status: 200, headers })
+          // ASSETS 绑定对干净 URL（/periodic-table → periodic-table.html）的支持不一致：
+          // 部分版本只认精确路径，导致快照文件虽已上传却返回 404、落回 SSR。
+          // 这里依次尝试原路径与 .html 后缀，命中任一即直出快照（零 SSR / 零 Neon）。
+          const tryPaths = [url.pathname]
+          if (!/\.[a-z0-9]+$/i.test(url.pathname)) {
+            tryPaths.push(url.pathname.replace(/\/?$/, '.html'))
+          }
+          for (const tryPath of tryPaths) {
+            const asReq = new Request(new URL(tryPath, request.url).toString(), request)
+            const prerendered = await env.ASSETS.fetch(asReq)
+            const isHtmlAsset =
+              prerendered.status === 200 &&
+              (prerendered.headers.get('content-type') || '').includes('text/html')
+            if (isHtmlAsset) {
+              const headers = new Headers(buildSecurityHeaders())
+              headers.set('Content-Type', 'text/html; charset=utf-8')
+              headers.set('Cache-Control', 'public, max-age=120, s-maxage=600, stale-while-revalidate=3600, stale-if-error=86400')
+              headers.set('Vary', 'Accept-Encoding')
+              headers.set('X-Cache', 'HIT-ASSET')
+              // 资产 body 是流，必须删除 Content-Length（chunked 编码），防 520
+              headers.delete('Content-Length')
+              return new Response(prerendered.body, { status: 200, headers })
+            }
           }
         } catch { /* ASSETS 异常 → 继续走 SSR 链路 */ }
       }
@@ -363,8 +410,12 @@ export default {
       // 公开 HTML 对所有访客一致（登录态完全由客户端管理，无 set-cookie/个性化内容）。
       // /egg/ 彩蛋页由路由 handler 自带缓存头，不进入本缓存（管理员改彩蛋需即时生效）。
       const acceptsHtml = request.headers.get('accept')?.includes('text/html')
+      // /rss.xml 与 /sitemap.xml 的内容取决于查询参数（?raw=1 / ?lang=），且可能是 XML。
+      // 若按 pathname 进入 HTML 三级缓存，浏览器点「中文」(?raw=1) 会命中缓存的说明页，
+      // 表现为「点了没反应 / 又回到说明页 / 加载很慢」——必须整体绕过 HTML 缓存。
+      const isFeedOrSitemap = url.pathname === '/rss.xml' || url.pathname === '/sitemap.xml'
       const cacheableHtml =
-        acceptsHtml && !isAdminPagePath(url.pathname) && !url.pathname.startsWith('/api/') && !url.pathname.startsWith('/egg/') && !url.pathname.startsWith('/preview/')
+        acceptsHtml && !isFeedOrSitemap && !isElDeepLinkAsset && !isAdminPagePath(url.pathname) && !url.pathname.startsWith('/api/') && !url.pathname.startsWith('/egg/') && !url.pathname.startsWith('/preview/')
       const kv = env.SG_CACHE
       // 缓存键含构建版本：新构建读不到旧外壳（见 HTML_CACHE_VERSION 注释）
       const htmlCacheKey = `html:${HTML_CACHE_VERSION}:${url.pathname}`
@@ -401,7 +452,50 @@ export default {
       }
 
       const ssrStartedAt = Date.now()
-      const response = await startHandler.fetch(request)
+      // SSR 超时保护：Neon/D1 冷启动偶发 3-8s（免费 10s CPU 上限），超时后降级返回快照资产。
+      // 仅作用于非管理页面 + 有快照的路径（周期表、首页、归档、分类页）。
+      const SSR_TIMEOUT_MS = 8000
+      const canFallbackToAsset =
+        env.ASSETS &&
+        request.method === 'GET' &&
+        !isAdminPagePath(url.pathname) &&
+        !url.pathname.startsWith('/egg/') &&
+        !url.pathname.startsWith('/preview/') &&
+        url.searchParams.get('preview') !== '1' &&
+        !isElDeepLinkAsset
+      let response: Response
+      if (canFallbackToAsset) {
+        response = await Promise.race([
+          startHandler.fetch(request),
+          new Promise<Response>((resolve) => {
+            setTimeout(() => {
+              // 尝试返回 .html 快照；失败则 resolve null（走下面的 catch）
+              const tryFallbackAsset = async () => {
+                try {
+                  const asReq = new Request(new URL(url.pathname.replace(/\/?$/, '.html'), request.url).toString(), request)
+                  const hit = await env.ASSETS!.fetch(asReq)
+                  if (hit.status === 200 && (hit.headers.get('content-type') || '').includes('text/html')) {
+                    const headers = new Headers(buildSecurityHeaders())
+                    headers.set('Content-Type', 'text/html; charset=utf-8')
+                    headers.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300, stale-if-error=86400')
+                    headers.set('Vary', 'Accept-Encoding')
+                    headers.set('X-Cache', 'SSR-TIMEOUT-FALLBACK')
+                    headers.delete('Content-Length')
+                    resolve(new Response(hit.body, { status: 200, headers }))
+                    return
+                  }
+                } catch { /* ignore */ }
+                // 无法降级 → 让 SSR 正常跑完（已经超时了但跑完的结果仍可用）
+                setTimeout(() => resolve(null as unknown as Response), 0)
+              }
+              void tryFallbackAsset()
+            }, SSR_TIMEOUT_MS)
+          }),
+        ])
+        if (!response) response = await startHandler.fetch(request) // 兜底：fallback 失败，SSR 可能已完成
+      } else {
+        response = await startHandler.fetch(request)
+      }
       const transformed = withSecurityHeaders(response, request)
       const ssrMs = Date.now() - ssrStartedAt
 

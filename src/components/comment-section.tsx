@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { renderMarkdown } from '@/lib/markdown'
+import { useMarkdownMath } from '@/lib/use-markdown-math'
 import { useMermaidLazy } from '@/lib/use-mermaid'
 import { listUserTagsFn } from '@/components/user-fns'
 import { UserTagList } from '@/components/user-tag-badge'
@@ -298,6 +299,8 @@ function MarkdownComposer({ value, onChange, placeholder, ariaLabel, rows = 5, a
 
 export function CommentSection({ postSlug }: { postSlug: string }) {
   const t = useT()
+  // 评论在水合后才拉取渲染；KaTeX 就绪后重渲染一次，公式不留 TeX 原文
+  useMarkdownMath()
   const [comments, setComments] = useState<CommentItem[]>([])
   const [user, setUser] = useState<AuthUser | null>(null)
   // 服务端身份（读取 sg_auth cookie），决定编辑/删除权限按钮

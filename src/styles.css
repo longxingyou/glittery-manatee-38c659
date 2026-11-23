@@ -120,7 +120,6 @@ kbd { color: var(--faint); border: 1px solid var(--line); border-radius: 3px; pa
 .auth-chip { border: 1px solid var(--line); background: var(--chrome-2); height: 27px; display: flex; align-items: center; gap: 6px; padding: 2px 8px 2px 3px; border-radius: 14px; cursor: pointer; }
 .auth-chip > span { width: 21px; height: 21px; display: grid; place-items: center; border-radius: 50%; background: var(--accent); color: #072c27; font: 700 9px ui-monospace, monospace; }
 .auth-chip b { font-size: 11px; color: var(--muted); font-weight: 500; }
-
 .activitybar { grid-row: 2; grid-column: 1; position: sticky; top: 35px; align-self: start; height: calc(100dvh - 57px); background: var(--chrome); border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; padding: 4px 0; }
 .activity { position: relative; border: 0; background: transparent; width: 47px; height: 46px; display: grid; place-items: center; color: var(--muted); cursor: pointer; }
 .activity:hover, .activity.active { color: var(--text); }
@@ -560,7 +559,10 @@ kbd { color: var(--faint); border: 1px solid var(--line); border-radius: 3px; pa
 .stat-card.tone-3::before { background: var(--purple); }
 .stat-card.tone-4::before { background: var(--orange); }
 
-.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 18px; display: grid; gap: 14px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 18px; display: grid; gap: 14px; min-width: 0; }
+/* 面板是隐式单列 grid：自动列宽会被子项的 min-content 顶开（一行不换行的标题就能
+   把内容撑到圆角边框外面，窄屏尤其明显）。允许子项收缩，溢出交给各自的滚动容器处理。 */
+.panel > * { min-width: 0; }
 .panel-head { display: flex; align-items: center; gap: 8px; }
 .panel-head.between { justify-content: space-between; }
 .panel-head h3 { margin: 0; font-size: 15px; }
@@ -794,6 +796,23 @@ kbd { color: var(--faint); border: 1px solid var(--line); border-radius: 3px; pa
 .skeleton-table { height: 340px; background: linear-gradient(90deg, var(--panel) 0%, var(--panel-2) 50%, var(--panel) 100%); background-size: 200% 100%; animation: shimmer 1.3s linear infinite; border: 1px solid var(--line); border-radius: 6px; }
 .skeleton-list { height: 240px; background: linear-gradient(90deg, var(--panel) 0%, var(--panel-2) 50%, var(--panel) 100%); background-size: 200% 100%; animation: shimmer 1.3s linear infinite; border: 1px solid var(--line); border-radius: 6px; }
 @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+/* 周期表水合前：表格已可见但事件还没挂上，用忙碌光标 + 标题行角标说明 */
+.ru-pt-booting { position: relative; }
+.ru-pt-booting .ru-el { cursor: progress; }
+.ru-pt-boot-hint { margin-left: auto; flex-shrink: 0; padding: 3px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel-2); color: var(--muted); font-size: 11px; line-height: 1.4; }
+/* 周期表骨架屏：形状与真实版面一致，避免加载期间出现无关文案与大幅跳动 */
+.ru-pt-skel { display: flex; flex-direction: column; gap: 12px; }
+.ru-pt-skel-bar, .ru-pt-skel-cell { display: block; border-radius: 6px; background: linear-gradient(90deg, var(--panel) 0%, var(--panel-2) 50%, var(--panel) 100%); background-size: 200% 100%; animation: shimmer 1.3s linear infinite; }
+.ru-pt-skel-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.ru-pt-skel-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+.ru-pt-skel-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: start; }
+.ru-pt-skel-grid { display: grid; grid-template-columns: repeat(18, minmax(0, 1fr)); gap: 4px; }
+.ru-pt-skel-cell { aspect-ratio: 1 / 1; border-radius: 4px; }
+.ru-pt-skel-side { display: none; flex-direction: column; gap: 8px; }
+@media (min-width: 1240px) {
+  .ru-pt-skel-body { grid-template-columns: minmax(0, 1fr) 320px; }
+  .ru-pt-skel-side { display: flex; }
+}
 /* 明确的加载提示头：旋转图标 + 文字 + 副标题，避免纯骨架块让人困惑 */
 .skeleton-panel { display: flex; flex-direction: column; gap: 14px; }
 .skeleton-header { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); }
@@ -847,9 +866,12 @@ kbd { color: var(--faint); border: 1px solid var(--line); border-radius: 3px; pa
   .sidebar { position: fixed; left: 43px; top: 35px; bottom: 22px; width: 245px; transform: translateX(-110%); transition: transform .25s ease; box-shadow: 20px 0 50px rgba(0,0,0,.3); }.sidebar.open { transform: translateX(0); }.sidebar-mobile-head { height: 37px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; color: var(--muted); font-size: 10px; }.sidebar-mobile-head button { border: 0; background: none; }.editor-area { grid-column: 2; }.mobile-only { display: grid; }.top-menu { display: none; }.brand-mark span { display: none; }.title-command { width: 42vw; }.sidebar-scrim { display: block; position: fixed; inset: 35px 0 22px 43px; z-index: 30; border: 0; background: rgba(0,0,0,.45); }.hero-section { grid-template-columns: 33px 1fr; }.hero-orbit { display: none; }.line-numbers { padding-top: 73px; }.masonry-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 620px) {
-  .workbench { grid-template: 35px 1fr 22px / 1fr; }.activitybar { display: none; }.editor-area { grid-column: 1; }.statusbar span:nth-child(2), .statusbar span:nth-last-child(2) { display: none; }.title-command { display: none; }.window-actions { margin-left: auto; }.sidebar { left: 0; }.sidebar-scrim { inset: 35px 0 22px 0; }.hero-copy { padding: 43px 18px 39px; }.hero-section { min-height: 330px; grid-template-columns: 27px 1fr; }.hero-copy h1 { font-size: 42px; }.hero-code { font-size: 10px; }.feed-header { padding: 35px 17px 16px; }.feed-header p { display: none; }.category-strip { padding: 0 17px; }.masonry-grid { padding: 0 17px; grid-template-columns: 1fr; }.post-card article, .post-card:nth-child(3n + 1) article, .post-card:nth-child(4n + 2) article { min-height: 270px; }.post-card:nth-child(3n + 1) .card-symbol { height: 83px; }.article-page { padding: 37px 18px 80px; }.back-link { margin-bottom: 35px; }.article-header h1 { font-size: 40px; }.article-meta button { margin-left: 0; }.comments-heading { align-items: flex-start; }.comments-heading p { display: none; }.comment { grid-template-columns: 28px 1fr; }.comment-avatar { width: 27px; height: 27px; }.comment-editor-foot > span { display: none; }
+  .workbench { grid-template: 35px 1fr 22px / 1fr; }.activitybar { display: none; }.editor-area { grid-column: 1; }.statusbar span:nth-child(2), .statusbar span:last-of-type { display: none; }.statusbar .status-cf { display: none; }.title-command { display: none; }.window-actions { margin-left: auto; }.sidebar { left: 0; }.sidebar-scrim { inset: 35px 0 22px 0; }.hero-copy { padding: 43px 18px 39px; }.hero-section { min-height: 330px; grid-template-columns: 27px 1fr; }.hero-copy h1 { font-size: 42px; }.hero-code { font-size: 10px; }.feed-header { padding: 35px 17px 16px; }.feed-header p { display: none; }.category-strip { padding: 0 17px; }.masonry-grid { padding: 0 17px; grid-template-columns: 1fr; }.post-card article, .post-card:nth-child(3n + 1) article, .post-card:nth-child(4n + 2) article { min-height: 270px; }.post-card:nth-child(3n + 1) .card-symbol { height: 83px; }.article-page { padding: 37px 18px 80px; }.back-link { margin-bottom: 35px; }.article-header h1 { font-size: 40px; }.article-meta button { margin-left: 0; }.comments-heading { align-items: flex-start; }.comments-heading p { display: none; }.comment { grid-template-columns: 28px 1fr; }.comment-avatar { width: 27px; height: 27px; }.comment-editor-foot > span { display: none; }
   /* 手机端：显示标题栏中的搜索/用户中心图标按钮（activitybar 已隐藏） */
   .phone-only { display: grid; }
+  /* 手机端：标题栏用户按钮只显示头像，避免「Проверено」等长词溢出 */
+  .auth-chip b { display: none; }
+  .auth-chip { padding: 2px 3px; }
   /* 模态框：收窄边距、可滚动、安全区适配 */
   .modal-backdrop { padding: 12px; padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
   .auth-modal-body { padding: 24px 18px; }
@@ -1431,6 +1453,9 @@ button.title-command:hover { color: var(--text); border-color: var(--accent-2); 
 .commenter-meta small { color: var(--muted); font: 10px ui-monospace, SFMono-Regular, Consolas, monospace; word-break: break-all; }
 .commenter-stats { display: flex; gap: 10px; color: var(--faint); font: 10px ui-monospace, SFMono-Regular, Consolas, monospace; }
 .commenter-stats .warn-count { color: var(--red); }
+.commenter-head .user-confirm-btn { margin-left: auto; flex: none; }
+.user-status-badge { display: inline-block; margin-left: 6px; padding: 1px 5px; border-radius: 3px; vertical-align: middle; font: 9px ui-monospace, SFMono-Regular, Consolas, monospace; font-weight: 600; }
+.user-status-badge.unverified { color: var(--red); border: 1px solid color-mix(in srgb, var(--red) 40%, transparent); background: color-mix(in srgb, var(--red) 10%, transparent); }
 .commenter-sig, .commenter-warn { display: grid; gap: 7px; }
 .commenter-sig > label, .commenter-warn > label { display: grid; gap: 5px; color: var(--muted); font-size: 11px; }
 .commenter-sig textarea, .commenter-warn textarea { width: 100%; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--text); padding: 8px 11px; font: 12px/1.6 ui-monospace, SFMono-Regular, Consolas, monospace; resize: vertical; outline: 0; }
@@ -2356,16 +2381,53 @@ button.title-command:hover { color: var(--text); border-color: var(--accent-2); 
 .ru-el[data-c="lanth"] { --el-c: var(--el-lanth); }
 .ru-el[data-c="act"] { --el-c: var(--el-act); }
 .ru-pt-wrap { overflow-x: auto; margin-top: 2px; padding-bottom: 4px; }
+
+/* 主体 + 详情侧栏：宽屏右侧常驻吸附，窄屏底部抽屉 */
+.ru-pt-main { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: start; }
+.ru-pt-main-body { min-width: 0; }
+.ru-el-detail-placeholder { display: none; }
+/* 悬停速览：复用右侧空栏，只在桌面双栏布局出现 */
+.ru-el-peek { color: var(--text); }
+@media (min-width: 1240px) {
+  .ru-el-peek { display: flex; flex-direction: column; gap: 12px; }
+}
+.ru-el-peek-head { display: flex; align-items: center; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.ru-el-peek-sym { font-size: 30px; font-weight: 700; line-height: 1; color: var(--accent-2); }
+.ru-el-peek-title strong { display: block; font-size: 14px; line-height: 1.3; }
+.ru-el-peek-title small { color: var(--muted); font-size: 11px; }
+.ru-el-peek-grid { display: grid; grid-template-columns: 1fr; gap: 4px; }
+.ru-el-peek-grid > div { display: flex; justify-content: space-between; gap: 10px; font-size: 11.5px; }
+.ru-el-peek-grid span { color: var(--muted); }
+.ru-el-peek-grid b { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+.ru-el-peek-conf { display: flex; flex-direction: column; gap: 2px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 11px; }
+.ru-el-peek-conf span { color: var(--muted); }
+.ru-el-peek-conf b { font-family: ui-monospace, monospace; font-size: 11px; word-break: break-word; }
+.ru-el-peek-hint { margin: 0; color: var(--faint); font-size: 10.5px; }
+@media (min-width: 1240px) {
+  .ru-pt-main { grid-template-columns: minmax(0, 1fr) 320px; }
+  .ru-el-detail-placeholder {
+    display: block; padding: 16px; border: 1px dashed var(--line); border-radius: 10px;
+    color: var(--muted); font-size: 12px; line-height: 1.5;
+  }
+  .ru-el-detail-panel {
+    margin-top: 0; position: sticky; top: 8px; align-self: start;
+    max-height: calc(100vh - 56px); overflow-y: auto;
+  }
+  .ru-el-detail-scrim { display: none; }
+}
 .ru-pt {
   display: grid;
   grid-template-columns: repeat(18, minmax(54px, 1fr));
   gap: 4px;
   min-width: 1020px;
 }
-/* 含周期号/族号表头的 19 列版本（第 1 列 26px 放周期号，元素列右移一列） */
+/* 含周期号/族号表头的 19 列版本（第 1 列 26px 放周期号，元素列右移一列）
+   列宽下限 70px：9px 下最长的「Дармштадтий」实测 61.8px，70px 格子的可写
+   宽度是 70 - 4(padding) - 2(border) = 64px，留 2px 余量（字体回退时西里尔
+   字形可能略宽），保证单行；再窄就会断成两行并留下「й」这类单字母残行。 */
 .ru-pt-19 {
-  grid-template-columns: 26px repeat(18, minmax(50px, 1fr));
-  min-width: 1040px;
+  grid-template-columns: 26px repeat(18, minmax(70px, 1fr));
+  min-width: 1354px;
 }
 .ru-pt-colhead {
   font-size: 10px;
@@ -2383,17 +2445,35 @@ button.title-command:hover { color: var(--text); border-color: var(--accent-2); 
   align-items: center;
   justify-content: center;
 }
-/* 元素表标题行：标题 + 中俄版本切换 */
-.ru-el-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.ru-el-ver { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; flex-shrink: 0; }
+/* 元素表标题行：标题 + 中俄版本切换。
+   窄屏放不下时换行，否则标题的 min-content 会把整列撑宽，右侧 RU/CN 被裁到视口外。 */
+.ru-el-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 10px; }
+.ru-el-head h2 { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 520px) {
+  .ru-el-head h2 { flex: 1 1 100%; }
+  /* 窄屏减掉面板内边距，给表格与控件让出宽度 */
+  .ru-pt-panel { padding: 14px 12px; }
+  /* 名称语言控件独占一行，避免「跟随 / 中 / EN / RU」被挤出视口 */
+  .ru-el-head .ru-el-ver { flex: 1 1 100%; flex-shrink: 1; }
+  .ru-el-head .ru-el-ver .ru-el-ver-label { font-size: 9px; padding: 0 5px; flex-shrink: 1; }
+  .ru-el-head .ru-el-ver button { flex: 1 1 0; min-width: 0; padding: 4px 4px; font-size: 11px; }
+}
+.ru-el-ver { display: inline-flex; align-items: stretch; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; flex-shrink: 0; max-width: 100%; }
+.ru-el-ver-label {
+  display: inline-flex; align-items: center; padding: 0 8px;
+  font-size: 10px; letter-spacing: .04em; color: var(--faint);
+  background: var(--panel-2); border-right: 1px solid var(--line);
+  white-space: nowrap;
+}
 .ru-el-ver button {
   font-size: 11.5px;
-  padding: 3px 11px;
+  padding: 3px 9px;
   background: transparent;
   color: var(--muted);
   border: 0;
   cursor: pointer;
 }
+.ru-el-ver button:focus-visible { outline: 2px solid var(--accent-2); outline-offset: -2px; }
 .ru-el-ver button + button { border-left: 1px solid var(--line); }
 .ru-el-ver button.active { background: var(--accent); color: #fff; }
 .ru-el {
@@ -2401,6 +2481,7 @@ button.title-command:hover { color: var(--text); border-color: var(--accent-2); 
   flex-direction: column;
   align-items: center;
   gap: 1px;
+  position: relative;
   padding: 5px 2px 4px;
   border: 1px solid color-mix(in srgb, var(--el-c, var(--muted)) 42%, var(--line));
   border-radius: 7px;
@@ -2408,6 +2489,8 @@ button.title-command:hover { color: var(--text); border-color: var(--accent-2); 
   color: var(--text);
   cursor: pointer;
   line-height: 1.12;
+  /* 文字永远不许画到格子外面（窄屏俄语长词会顶到相邻格上） */
+  overflow: hidden;
   transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
 }
 .ru-el:hover { border-color: var(--el-c, var(--accent)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--el-c, var(--accent)) 55%, transparent); transform: translateY(-1px); z-index: 1; }
@@ -2415,14 +2498,19 @@ button.title-command:hover { color: var(--text); border-color: var(--accent-2); 
 .ru-el .n { font-size: 9px; color: var(--muted); align-self: flex-start; line-height: 1; }
 .ru-el .s { font-size: 15px; font-weight: 700; letter-spacing: 0.02em; }
 .ru-el .nm {
-  font-size: 9.5px;
+  font-size: 9px;
   color: var(--muted);
   line-height: 1.2;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  max-width: 100%;
   word-break: break-word;
+  overflow-wrap: anywhere;
+  /* 配合元素上的 lang="ru"：窄格子里按音节断词，而不是硬切 */
+  hyphens: auto;
+  -webkit-hyphens: auto;
   font-family: var(--font-ru);
 }
 .ru-el-series {
@@ -2480,6 +2568,845 @@ button.title-command:hover { color: var(--text); border-color: var(--accent-2); 
 }
 .ru-el-say b { color: var(--accent); font-family: var(--font-ru); }
 .ru-el-say:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+
+/* 新周期表：控件条 */
+.ru-el-controls {
+  display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center;
+  margin-bottom: 8px; font-size: 12px;
+}
+.ru-el-ctrl-group { display: inline-flex; align-items: center; gap: 4px; }
+.ru-el-ctrl-group button {
+  font-size: 11.5px; padding: 2px 9px; border: 1px solid var(--line); border-radius: 6px;
+  background: transparent; color: var(--muted); cursor: pointer;
+}
+.ru-el-ctrl-group button:hover { color: var(--text); }
+.ru-el-ctrl-group button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.ru-el-ctrl-label { font-size: 11px; color: var(--muted); margin-right: 2px; }
+.ru-el-field-select {
+  font-size: 11.5px; padding: 2px 6px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--panel-2); color: var(--text); cursor: pointer;
+}
+/* 图例：可点击按钮（高亮类别） */
+.ru-el-legend-item-btn {
+  display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--muted);
+  background: transparent; border: 0; cursor: pointer; padding: 2px 4px; border-radius: 4px;
+}
+.ru-el-legend-item-btn:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); color: var(--text); }
+.ru-el-legend-item-btn.active { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--text); }
+.ru-el-legend-item-btn i {
+  width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0;
+  background: color-mix(in srgb, var(--el-c, var(--muted)) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--el-c, var(--muted)) 55%, transparent);
+}
+/* 色阶条 */
+.ru-el-colorbar { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 11px; color: var(--muted); }
+.ru-el-colorbar-label { white-space: nowrap; }
+.ru-el-colorbar-strip {
+  flex: 1; height: 10px; border-radius: 4px; min-width: 140px;
+  display: flex; overflow: hidden; border: 1px solid var(--line);
+}
+.ru-el-colorbar-strip span { height: 100%; }
+.ru-el-colorbar-min, .ru-el-colorbar-max { font-variant-numeric: tabular-nums; }
+/* block 高亮 & 变暗 */
+.ru-el.dimmed { opacity: 0.28; filter: grayscale(0.5); }
+.ru-el[data-block]:not(.dimmed) { /* 确保非高亮保持清晰 */ }
+/* 原子量 */
+.ru-el .w { font-size: 8px; color: var(--muted); line-height: 1; }
+/* 数值字段叠加：把所选属性写进格子，并在底部加一条极简数据条 */
+.ru-el .w.val { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.ru-el-valbar {
+  position: absolute; left: 4px; right: 4px; bottom: 2px; height: 2px;
+  border-radius: 2px; overflow: hidden; pointer-events: none;
+  background: color-mix(in srgb, var(--accent-2) 18%, transparent);
+}
+.ru-el-valbar i { display: block; height: 100%; border-radius: 2px; background: var(--accent-2); opacity: .6; }
+
+/* 详细属性面板 */
+.ru-el-detail-panel {
+  position: relative;
+  margin-top: 12px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--panel-2); display: flex; flex-direction: column; gap: 10px;
+}
+.ru-el-detail-close {
+  position: absolute; top: 8px; right: 8px; z-index: 2;
+  width: 28px; height: 28px; display: grid; place-items: center;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
+  color: var(--muted); font-size: 13px; line-height: 1; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.ru-el-detail-close:hover { color: var(--fg); border-color: var(--accent); }
+.ru-el-detail-head { display: flex; align-items: center; gap: 14px; padding-bottom: 10px; padding-right: 26px; border-bottom: 1px solid var(--line); }
+/* 窄屏（底部抽屉）的遮罩：点击任意空白处收起详情 */
+.ru-el-detail-scrim {
+  position: fixed; inset: 0; z-index: 39; background: rgba(0, 0, 0, .38);
+  animation: ru-pt-fade .18s ease-out;
+}
+@keyframes ru-pt-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.ru-el-detail-header-left { display: flex; align-items: baseline; gap: 6px; }
+.ru-el-detail-z { font-size: 11px; color: var(--muted); }
+.ru-el-detail-sym { font-size: 32px; font-weight: 700; line-height: 1; letter-spacing: 0.03em; font-family: var(--font-ru); }
+.ru-el-detail-header-right { flex: 1; min-width: 0; }
+.ru-el-detail-name { font-size: 18px; font-weight: 600; font-family: var(--font-ru); line-height: 1.25; }
+.ru-el-detail-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.ru-el-detail-meta { display: flex; gap: 10px; margin-top: 6px; font-size: 11px; color: var(--muted); flex-wrap: wrap; align-items: center; }
+.ru-el-detail-meta a { color: var(--accent); text-decoration: none; }
+.ru-el-detail-meta a:hover { text-decoration: underline; }
+.ru-el-say-btn {
+  font-size: 14px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px;
+  background: transparent; color: var(--text); cursor: pointer;
+}
+.ru-el-say-btn:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+
+/* section + rows */
+.ru-el-section { border-top: 1px solid var(--line); padding-top: 8px; }
+.ru-el-section h4 { margin: 0 0 6px; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.ru-el-section-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 14px; }
+.ru-el-detail-row { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; font-size: 12.5px; line-height: 1.4; padding: 2px 0; }
+.ru-el-detail-row.full { grid-column: 1 / -1; }
+.ru-el-detail-k { color: var(--muted); text-align: right; }
+.ru-el-detail-v { font-variant-numeric: tabular-nums; word-break: break-word; }
+/* 单位切换小按钮 */
+.ru-el-unit-switch { display: inline-flex; margin-left: 8px; vertical-align: middle; transform: translateY(-1px); }
+.ru-el-unit-switch button {
+  font-size: 10px; padding: 0 5px; border: 1px solid var(--line); border-radius: 3px;
+  background: transparent; color: var(--muted); cursor: pointer; line-height: 1.3;
+}
+.ru-el-unit-switch button + button { border-left: 0; }
+.ru-el-unit-switch button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* 电离能网格 */
+.ru-el-ie-grid { display: flex; flex-wrap: wrap; gap: 3px; }
+.ru-el-ie-item {
+  display: inline-flex; flex-direction: column; align-items: center;
+  min-width: 48px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px;
+  font-size: 10.5px; line-height: 1.2; background: var(--panel-1);
+}
+.ru-el-ie-n { color: var(--muted); font-size: 9px; }
+.ru-el-ie-v { font-variant-numeric: tabular-nums; }
+.ru-el-ie-more { font-size: 11px; color: var(--muted); padding: 0 4px; }
+
+/* 列表视图 */
+.ru-el-list { margin-top: 10px; overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+.ru-el-list-head, .ru-el-list-row {
+  display: grid; grid-template-columns: 42px 56px minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) 72px 72px 72px;
+  gap: 8px; padding: 6px 10px; font-size: 12px; align-items: center;
+  /* 数据行的分类色条统一放在共用规则里，表头同样保留 3px 透明边框，
+     否则表头会比数据整体左移 3px */
+  border-left: 3px solid transparent;
+}
+/* 表头与数据单元格统一截断，避免长元素名把 1fr 列撑出不同宽度导致错位 */
+.ru-el-list-head > span, .ru-el-list-row > span {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ru-el-list-head {
+  font-size: 11px; color: var(--muted); border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; background: var(--panel-2);
+}
+.ru-el-list-row {
+  /* button 作为网格容器会按内容收缩，必须显式撑满，否则列宽与表头不一致 */
+  width: 100%; text-align: left;
+  border-top: 1px solid var(--line); cursor: pointer; background: transparent;
+  border-right: 0; border-bottom: 0;
+}
+.ru-el-list-row:hover { background: color-mix(in srgb, var(--accent) 6%, transparent); border-left-color: color-mix(in srgb, var(--el-c, var(--accent)) 60%, transparent); }
+.ru-el-list-row.sel { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.ru-el-list-row .sym { font-weight: 600; font-family: var(--font-ru); }
+/* ── 新增：简介、图片、链接 ── */
+.ru-el-summary { padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: color-mix(in srgb, var(--accent) 4%, transparent); font-size: 12.5px; line-height: 1.65; color: var(--text); }
+.ru-el-summary-attr { margin-top: 6px; font-size: 10.5px; color: var(--faint); font-style: italic; border-top: 1px dashed var(--line); padding-top: 5px; }
+.ru-el-audio-credit { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; font-size: 11px; color: var(--muted); }
+.ru-el-audio-credit-tag { padding: 1px 7px; border-radius: 999px; font-size: 10px; border: 1px solid var(--line); color: var(--faint); }
+.ru-el-audio-credit a { color: var(--accent); text-decoration: none; }
+.ru-el-audio-credit a:hover { text-decoration: underline; }
+/* 面板是定高 flex 列：图片卡片必须禁止收缩，否则会被压成一条线、
+   再被 overflow:hidden 裁掉，看起来就是“图片展示不全” */
+.ru-el-img-card { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); overflow: hidden; }
+/* 图片还没下载完时先画骨架：不能 display:none —— 隐藏容器里的 lazy 图永远不会开始加载 */
+.ru-el-img-card[data-ready="false"] { min-height: 240px; justify-content: center; }
+.ru-el-img-card[data-ready="false"] img,
+.ru-el-img-card[data-ready="false"] .ru-el-img-attr { display: none; }
+.ru-el-img-card[data-ready="false"]::before { content: ""; width: 108px; height: 108px; border-radius: 10px; background: color-mix(in srgb, var(--line) 48%, transparent); animation: ru-img-pulse 1.3s ease-in-out infinite; }
+@keyframes ru-img-pulse { 50% { opacity: .38; } }
+.ru-el-img-card img { display: block; width: auto; height: auto; max-width: 100%; max-height: 300px; border-radius: 6px; object-fit: contain; background: var(--bg); }
+.ru-el-img-attr { font-size: 10px; color: var(--faint); text-align: center; line-height: 1.4; padding: 2px 6px; max-width: 320px; word-break: break-word; }
+.ru-el-img-attr a { color: var(--muted); text-decoration: underline dotted; }
+.ru-el-img-attr a:hover { color: var(--accent); }
+.ru-el-img-title { color: var(--faint); }
+/* 104–118：只能以单个原子合成、无可见宏观样品的设计占位卡 */
+.ru-el-img-ph {
+  flex-direction: row; align-items: center; gap: 14px; padding: 13px 15px;
+  width: 100%; text-align: left; border-style: dashed;
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--line));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 7%, var(--panel)), var(--panel) 62%);
+}
+.ru-el-img-ph-glyph { flex: none; width: 62px; height: 62px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); background: color-mix(in srgb, var(--accent) 9%, transparent); }
+.ru-el-img-ph-glyph .z { font: 10px/1.4 ui-monospace, monospace; color: var(--muted); }
+.ru-el-img-ph-glyph .sym { font-size: 23px; font-weight: 700; color: var(--accent); line-height: 1.1; }
+.ru-el-img-ph-body { min-width: 0; }
+.ru-el-img-ph-title { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+.ru-el-img-ph-note { margin: 0; font-size: 11px; line-height: 1.55; color: var(--muted); }
+.ru-el-links { display: flex; flex-direction: column; gap: 6px; padding-top: 6px; border-top: 1px dashed var(--line); }
+.ru-el-links a { color: var(--accent); text-decoration: none; font-size: 12px; }
+.ru-el-links a:hover { text-decoration: underline; }
+.ru-el-license { font-size: 10px; color: var(--faint); line-height: 1.4; }
+/* ── Phase 2：温度游标 & Liquid 高亮 ── */
+.ru-el-temp-ctrl { gap: 8px 10px; }
+.ru-el-temp-slider { -webkit-appearance: none; appearance: none; width: 180px; height: 6px; border-radius: 3px; background: linear-gradient(to right, #ff8c9e, #a0dca0, #7fb3ff); outline: none; cursor: pointer; }
+.ru-el-temp-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); border: 2px solid var(--panel); cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+.ru-el-temp-slider::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: var(--accent); border: 2px solid var(--panel); cursor: pointer; }
+.ru-el-temp-val { font-family: ui-monospace, monospace; font-size: 12px; min-width: 72px; text-align: right; color: var(--text); padding: 2px 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel); }
+/* 属性阈值滑杆：把低于阈值的元素压暗 */
+.ru-el-threshold-slider { width: 140px; accent-color: var(--accent-2); cursor: pointer; }
+.ru-el-threshold-val {
+  font-family: ui-monospace, monospace; font-size: 11px; color: var(--text);
+  min-width: 78px; text-align: right; font-variant-numeric: tabular-nums;
+}
+.ru-el-liquid { border: 2px solid var(--accent) !important; }
+.ru-el.liquid-hl { box-shadow: 0 0 0 2px var(--accent), 0 0 6px color-mix(in srgb, var(--accent) 45%, transparent); transform: translateY(-1px); }
+.ru-el-legend-temp { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--accent); padding: 2px 10px; border: 1px dashed var(--accent); border-radius: 4px; }
+.ru-el-legend-hl { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+.ru-el-legend-hl .liquid-bd { display: inline-block; width: 14px; height: 14px; border-radius: 3px; background: var(--bg); box-shadow: 0 0 0 2px var(--accent) inset; }
+/* ── Phase 3：螺旋版面 ── */
+/* 原子序数连线：流动虚线表现周期律的连续趋势 */
+.ru-pt-spiral-line { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.ru-pt-spiral-line polyline {
+  fill: none;
+  stroke: color-mix(in srgb, var(--accent) 55%, transparent);
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  stroke-dasharray: 3 3;
+  animation: ru-spiral-flow 2.4s linear infinite;
+}
+@keyframes ru-spiral-flow { to { stroke-dashoffset: -12; } }
+@media (prefers-reduced-motion: reduce) { .ru-pt-spiral-line polyline { animation: none; } }
+.ru-pt-spiral { position: relative; width: 100%; min-width: 580px; aspect-ratio: 1 / 1; max-width: 680px; margin: 0 auto; background: radial-gradient(circle, color-mix(in srgb, var(--accent) 4%, transparent) 0%, transparent 70%); border-radius: 50%; }
+/* 辅助层：周期弧线 / 周期间连接线 / 族号 / 周期号 */
+.ru-pt-spiral-guides { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.ru-pt-spiral-guides path, .ru-pt-spiral-guides circle { fill: none; stroke: color-mix(in srgb, var(--line) 90%, transparent); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.ru-pt-spiral-guides .conn { stroke: color-mix(in srgb, var(--accent) 40%, transparent); stroke-dasharray: 3 3; }
+.ru-pt-spiral-guides text { fill: var(--faint); font: 1.55px ui-monospace, SFMono-Regular, Consolas, monospace; }
+.ru-pt-spiral-guides text.per { fill: var(--accent); font-size: 1.8px; font-weight: 700; }
+.ru-pt-spiral-guides text.hub { fill: var(--muted); font-size: 2.6px; font-weight: 600; letter-spacing: .12em; }
+.ru-pt-spiral-guides text.hub-sub { fill: var(--faint); font-size: 1.7px; }
+.ru-pt-spiral .ru-el.spiral { position: absolute; width: 20px; height: 20px; padding: 0; font-size: 9px; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; border-radius: 50%; border: 1px solid rgba(127,127,127,.35); box-shadow: 0 1px 3px rgba(0,0,0,.15); transition: transform .15s, box-shadow .15s; z-index: 1; }
+.ru-pt-spiral .ru-el.spiral:hover { transform: translate(-50%, -50%) scale(1.45) !important; z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,.35); }
+.ru-pt-spiral .ru-el.spiral.sel { transform: translate(-50%, -50%) scale(1.5) !important; z-index: 20; box-shadow: 0 0 0 2px var(--accent), 0 6px 18px rgba(0,0,0,.35); }
+.ru-pt-spiral .ru-el.spiral .n { font-size: 5.5px; opacity: .7; }
+.ru-pt-spiral .ru-el.spiral .s { font-size: 9px; font-weight: 700; }
+.ru-pt-spiral .ru-el.spiral .nm, .ru-pt-spiral .ru-el.spiral .w { display: none; }
+.ru-pt-spiral-note { max-width: 680px; margin: 10px auto 0; padding: 0 12px; font-size: 11px; line-height: 1.6; color: var(--muted); text-align: center; }
+/* 左阶梯（Janet 32 列）：f(1-14) + d(15-24) + p(25-30) + s(31-32) */
+/* 列宽压到 minmax(22px, 1fr)：常见「笔记本 + 侧边栏」宽度（≈1000px）下也能整表放下，
+   不再出现首屏只剩空白前缀 + 横向滚动条的情况。 */
+.ru-pt-33 {
+  grid-template-columns: 20px repeat(32, minmax(22px, 1fr));
+  min-width: 780px;
+  gap: 2px;
+}
+.ru-pt-blockhead {
+  grid-row: 1;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: center;
+  align-self: end;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 2px;
+}
+.ru-pt-33 .ru-el { padding: 4px 1px 3px; border-radius: 5px; gap: 0; }
+.ru-pt-33 .ru-el .s { font-size: 12px; }
+.ru-pt-33 .ru-el .n { font-size: 8px; }
+.ru-pt-33 .ru-el .nm,
+.ru-pt-33 .ru-el .w { display: none; }
+
+/* 门捷列夫短表（俄语教材版）：8 个族，第 VIII 族横跨 3 个子列（三联组横排），
+   第 1-3 周期各 1 行，第 4-7 周期各 2 行（上排主族 a / 下排副族 б） */
+/* 短表名字用 8px，同样按「最长的 Дармштадтий」反推：
+   8px 时约 54.9px，64px 格子的可写宽度是 58px，留余量保持单行。 */
+.ru-pt-short {
+  grid-template-columns: 30px repeat(10, minmax(64px, 1fr));
+  grid-template-rows: auto repeat(11, minmax(54px, auto));
+  min-width: 700px;
+  gap: 3px;
+}
+/* 表下的镧系/锕系条带：Ce-Lu、Th-Lr 各 14 格一行 */
+.ru-pt-short-fblocks {
+  display: grid;
+  gap: 4px;
+  margin-top: 7px;
+  min-width: 700px;
+}
+.ru-pt-fblock {
+  display: grid;
+  grid-template-columns: 66px repeat(14, minmax(22px, 1fr));
+  gap: 3px;
+}
+.ru-pt-fblock-label {
+  font-size: 9.5px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 2px;
+  text-align: right;
+  line-height: 1.15;
+  font-family: var(--font-ru);
+}
+.ru-pt-fblock .ru-el { padding: 4px 1px 3px; border-radius: 5px; gap: 0; }
+.ru-pt-fblock .ru-el .s { font-size: 12px; }
+.ru-pt-fblock .ru-el .n { font-size: 8px; }
+.ru-pt-fblock .ru-el .nm,
+.ru-pt-fblock .ru-el .w { display: none; }
+/* 短表列较窄：名字小一号，俄语长词按音节换行，避免拦腰截断 */
+.ru-pt-short .ru-el .nm {
+  font-size: 8px;
+  word-break: normal;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+}
+/* La/Ac 在 III 族的 * 标记：指向表下的镧系/锕系条带 */
+.ru-el-star {
+  position: absolute;
+  top: 1px;
+  right: 3px;
+  font-size: 9px;
+  line-height: 1;
+  color: var(--muted);
+}
+
+/* ── 手机横屏：把整个面板旋转 90° 铺满竖屏视口 ──
+   不依赖 Screen Orientation API（iOS Safari 不支持）；设备真的转成横屏后
+   由下面的 orientation 查询取消旋转，交还给原生横屏布局。
+   结构上固定头部、只让表格区域滚动：详情抽屉是 position:fixed，
+   若外层自身可滚动，它会跟着滚出屏幕（transform 祖先会让 fixed 变成随内容滚动）。 */
+.ru-pt-land {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vh;
+  height: 100vw;
+  /* dvh/dvw：手机浏览器地址栏收起时 100vh 会大于可视高度，旋转后会顶出屏幕 */
+  width: 100dvh;
+  height: 100dvw;
+  transform: rotate(90deg) translateY(-100%);
+  transform-origin: top left;
+  z-index: 90;
+  margin: 0 !important;
+  /* 紧凑 padding：100dvw 只有 ~375px，每 px 都要省 */
+  padding: 6px 10px calc(6px + env(safe-area-inset-bottom, 0px));
+  border: 0;
+  border-radius: 0;
+  overflow: hidden;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ru-pt-land > * { flex: none; }
+.ru-pt-land .ru-pt-main { flex: 1 1 auto; min-height: 0; display: block; }
+.ru-pt-land .ru-pt-main-body { height: 100%; overflow: auto; overscroll-behavior: contain; }
+
+/* ── 横屏紧凑化：每个行都压缩到最小占用 ── */
+
+/* 标题行：隐藏标题文字（退出按钮就是状态提示），压缩到 22px */
+.ru-pt-land .ru-el-head { flex-wrap: nowrap !important; gap: 4px; align-items: center; height: 22px; min-height: 0; overflow: hidden; }
+.ru-pt-land .ru-el-head h2 { display: none; }
+.ru-pt-land .ru-pt-boot-hint { display: none; }
+
+/* 语言切换组：最小 padding，覆盖窄屏独占一行的规则 */
+.ru-pt-land .ru-el-head .ru-el-ver { flex: none !important; width: auto; gap: 2px; padding: 0 4px; height: 22px; flex-shrink: 0; }
+.ru-pt-land .ru-el-ver-label { font-size: 10px; padding: 0 3px; flex-shrink: 0 !important; }
+.ru-pt-land .ru-el-ver button { flex: none !important; min-width: 0; padding: 2px 6px; font-size: 11px; height: 22px; line-height: 1; }
+
+/* 退出横屏按钮 */
+.ru-pt-land .ru-pt-exit { padding: 2px 10px; font-size: 11px; height: 22px; line-height: 1; }
+
+/* 搜索框：26px 高，placeholder 缩短 */
+.ru-pt-land .ru-el-search { height: 26px; gap: 4px; padding: 0 6px; font-size: 12px; flex-shrink: 0; }
+.ru-pt-land .ru-el-search input { height: 100%; font-size: 12px; }
+.ru-pt-land .ru-el-search input::placeholder { color: transparent; } /* 省空间：placeholder 隐形，输入框仍可聚焦 */
+.ru-pt-land .ru-el-search-kbd { display: none; }
+
+/* 控制栏：整行减高，按钮紧凑，次要组隐藏 */
+.ru-pt-land .ru-el-controls { height: 28px; gap: 4px; padding: 0 2px; flex-shrink: 0; }
+.ru-pt-land .ru-el-controls .ru-el-ctrl-group { gap: 2px; padding: 0; }
+.ru-pt-land .ru-el-controls .ru-el-ctrl-label { font-size: 10px; margin-right: 2px; }
+.ru-pt-land .ru-el-controls button,
+.ru-pt-land .ru-el-controls select { padding: 2px 6px; font-size: 11px; height: 22px; line-height: 1; }
+/* 学习工具（📈/⏳/🎯）：横屏时隐藏，用户在竖屏里打开后状态保留，切回竖屏立即重新出现 */
+.ru-pt-land .ru-el-ctrl-group-tools { display: none; }
+
+/* 图例：单行横滑，减高 */
+.ru-pt-land .ru-el-head + p { display: none; } /* 说明文字（控制栏下方那段）已经在旋转横屏里隐藏了，这里保持 */
+.ru-pt-land .ru-el-legend { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 4px; padding: 2px 4px; font-size: 11px; flex-shrink: 0; }
+.ru-pt-land .ru-el-legend-item-btn, .ru-pt-land .ru-el-legend-item { padding: 2px 6px; }
+
+/* 详情面板 */
+.ru-pt-land .ru-el-detail-panel { max-height: 62vmin; }
+
+/* 设备已转成横屏（移动端，视口高度 ≤ 600px）：原生布局可用宽度更大，取消旋转即可
+   桌面端窗口宽>高也匹配 landscape，但高度 > 600px 不进入此块，避免紧凑化误伤 */
+@media (orientation: landscape) and (max-height: 600px) {
+  .ru-pt-land { width: auto; height: auto; inset: 0; transform: none; }
+  /* 设备自然横过来但没点全屏横屏按钮：titlebar 缩高节省空间 */
+  body:not(.preview-mode) .titlebar { height: 28px; font-size: 11px; padding: 0 8px; gap: 8px; }
+  body:not(.preview-mode) .titlebar button { padding: 2px 6px; font-size: 11px; }
+  /* 设备真横屏时周期表面板也紧凑化（视口高度只有 ~375px，和 transform 横屏一样挤） */
+  .ru-pt-panel { padding: 8px 10px; gap: 4px; }
+  .ru-pt-panel .ru-el-head + p { display: none; }
+  .ru-pt-panel .ru-el-search { height: 28px; padding: 0 6px; font-size: 12px; }
+  .ru-pt-panel .ru-el-search input { height: 100%; font-size: 12px; }
+  .ru-pt-panel .ru-el-controls { height: 30px; gap: 4px; padding: 0 2px; }
+  .ru-pt-panel .ru-el-controls button,
+  .ru-pt-panel .ru-el-controls select { padding: 2px 6px; font-size: 11px; height: 22px; line-height: 1; }
+  .ru-pt-panel .ru-el-legend { gap: 4px; padding: 2px 4px; font-size: 11px; flex-shrink: 0; }
+}
+
+/* ────── FAB 悬浮按钮 + 浮层（横屏时展开完整控制区） ────── */
+.ru-el-fab {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-size: 18px;
+  cursor: pointer;
+  z-index: 50;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.ru-el-fab:hover { transform: scale(1.05); }
+.ru-el-fab:active { transform: scale(0.95); }
+
+/* scrim：浮层展开时的背景遮罩；head/退出按钮在 scrim 之上（z-index:52 确保不被遮挡） */
+.ru-el-fab-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 49;
+  animation: ru-fade-in 0.15s ease-out;
+}
+
+/* head 抬升只用于 FAB 浮层展开时，保证 scrim 上的退出/关闭按钮可点。
+   不能全局生效：面板在普通文档流里时 52 会盖住吸顶标题栏(40)与手机侧栏抽屉(35) */
+.ru-pt-panel.ru-el-fab-open > .ru-el-head { position: relative; z-index: 52; }
+
+/* 浮层主体 */
+.ru-el-fab-sheet {
+  position: absolute;
+  right: 8px;
+  bottom: 72px;
+  left: 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  z-index: 51;
+  max-height: 75vh;
+  overflow-y: auto;
+  padding: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  animation: ru-fab-slide-up 0.2s ease-out;
+}
+
+/* 浮层内 ControlsBundle 正常显示（覆盖横屏紧凑化规则） */
+.ru-el-fab-sheet .ru-el-search {
+  height: auto;
+  min-height: 36px;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  gap: 6px;
+}
+.ru-el-fab-sheet .ru-el-search input { height: 36px; font-size: 14px; }
+.ru-el-fab-sheet .ru-el-search input::placeholder { color: var(--muted); }
+.ru-el-fab-sheet .ru-el-controls {
+  height: auto;
+  padding: 6px 0;
+  gap: 6px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.ru-el-fab-sheet .ru-el-controls button,
+.ru-el-fab-sheet .ru-el-controls select {
+  height: auto;
+  min-height: 28px;
+  padding: 4px 10px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.ru-el-fab-sheet .ru-el-controls .ru-el-ctrl-label { font-size: 12px; margin-right: 4px; }
+.ru-el-fab-sheet .ru-el-legend {
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 6px 0;
+  margin-bottom: 8px;
+  overflow: visible;
+  font-size: 12px;
+  flex-shrink: 1;
+}
+.ru-el-fab-sheet .ru-el-legend-item-btn,
+.ru-el-fab-sheet .ru-el-legend-item { font-size: 12px; padding: 3px 8px; }
+
+/* 关键：浮层里必须显示学习工具组（原来横屏 CSS 用 !important 或同等优先级隐藏了） */
+.ru-el-fab-sheet .ru-el-ctrl-group-tools { display: inline-flex !important; }
+
+/* transform 横屏下浮层最大高度用 vmin（面板旋转后视口尺寸关系复杂） */
+.ru-pt-land .ru-el-fab-sheet { max-height: 72vmin; }
+
+/* 横屏时显示 FAB（transform 横屏 + 设备真横屏，后者限移动端 max-height:600px） */
+.ru-pt-land .ru-el-fab { display: flex; }
+@media (orientation: landscape) and (max-height: 600px) {
+  .ru-pt-panel .ru-el-fab { display: flex; }
+}
+
+@keyframes ru-fab-slide-up {
+  from { transform: translateY(16px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+@keyframes ru-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.ru-pt-exit {
+  margin-left: auto;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 3px 11px;
+  font-size: 11px;
+  cursor: pointer;
+  flex: none;
+}
+/* 横屏键放在标题行（控制栏在手机上是横向滚动条，放末尾会被藏起来） */
+.ru-el-land-btn {
+  display: none;
+  margin-left: auto;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 3px 11px;
+  font-size: 11px;
+  cursor: pointer;
+  flex: none;
+}
+@media (max-width: 900px) {
+  .ru-el-land-btn { display: inline-flex; align-items: center; gap: 4px; }
+}
+
+/* ── 移动端：触控友好 + 底部抽屉式详情 ── */
+.ru-el,
+.ru-el-detail-panel { -webkit-tap-highlight-color: transparent; }
+.ru-el { touch-action: manipulation; } /* 避免 iOS 双击缩放延迟 */
+
+/* 控制栏允许横滑（按钮多时不换行） */
+.ru-el-controls { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
+.ru-el-controls > * { flex: 0 0 auto; }
+
+/* 窄屏：详情面板固定在底部作为抽屉 */
+@media (max-width: 720px) {
+  .ru-el-section-body { grid-template-columns: 1fr; }
+  .ru-el-detail-row { grid-template-columns: 1fr; gap: 1px; }
+  .ru-el-detail-k { text-align: left; font-size: 11px; }
+  .ru-el-list-head, .ru-el-list-row { grid-template-columns: 36px 44px minmax(0, 1fr) minmax(0, 1fr); font-size: 11px; }
+  .ru-el-list-head > *:nth-child(n+5), .ru-el-list-row > *:nth-child(n+5) { display: none; }
+  .ru-el-detail-sym { font-size: 26px; }
+  /* 周期表容器：触控友好的横向滚动 */
+  .ru-pt-wrap { -webkit-overflow-scrolling: touch; scrollbar-width: thin; padding-bottom: 12px; }
+  .ru-pt-19 { min-width: 1354px; }
+  .ru-pt-33 { min-width: 640px; }
+  .ru-pt-short { min-width: 700px; }
+  .ru-pt-short-fblocks { min-width: 700px; }
+  /* 同位素表：窄屏紧凑，减少横向滚动距离 */
+  .ru-iso-table { font-size: 11px; }
+  .ru-iso-table th, .ru-iso-table td { padding: 4px 6px; }
+}
+/* 窄于侧栏断点：详情面板固定在底部作为抽屉（不再出现面板落在视口外） */
+@media (max-width: 1239px) {
+  .ru-el-detail-panel {
+    position: fixed; left: 8px; right: 8px; bottom: 8px; z-index: 40;
+    max-height: 62vh; overflow-y: auto; border-radius: 14px; margin-top: 0;
+    box-shadow: 0 12px 40px rgba(0,0,0,.35);
+    animation: ru-pt-sheet .22s ease-out;
+  }
+  .ru-el-detail-close { width: 32px; height: 32px; font-size: 14px; }
+  .ru-el-detail-panel::before {
+    content: ''; position: absolute; top: 6px; left: 50%; transform: translateX(-50%);
+    width: 40px; height: 4px; background: var(--line); border-radius: 2px;
+  }
+}
+@keyframes ru-pt-sheet {
+  from { transform: translateY(24px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* ── 周期表 P1：检索高亮 ── */
+.ru-el-search {
+  display: flex; align-items: center; gap: 6px;
+  max-width: 520px; margin: 2px 0 10px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 8px;
+  background: var(--panel-2); transition: border-color .15s, box-shadow .15s;
+}
+.ru-el-search:focus-within {
+  border-color: var(--accent-2);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-2) 26%, transparent);
+}
+.ru-el-search-icon { flex: none; color: var(--muted); font-size: 14px; line-height: 1; }
+.ru-el-search input {
+  flex: 1; min-width: 0; padding: 2px 0;
+  border: 0; outline: 0; background: transparent; color: var(--text);
+  font-size: 12.5px;
+}
+.ru-el-search input::-webkit-search-cancel-button { display: none; }
+.ru-el-search-count {
+  flex: none; color: var(--muted); font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+.ru-el-search-clear {
+  flex: none; padding: 0 2px; border: 0; background: transparent;
+  color: var(--muted); font-size: 11px; cursor: pointer;
+}
+.ru-el-search-clear:hover { color: var(--text); }
+.ru-el-search-kbd {
+  flex: none; padding: 1px 4px; border: 1px solid var(--line); border-bottom-width: 2px;
+  border-radius: 4px; color: var(--faint);
+  font: 10px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+@media (max-width: 720px) { .ru-el-search-kbd { display: none; } }
+/* 数值检索提示：说明当前作用于哪个字段 */
+.ru-el-search-hint {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px;
+  margin: -4px 0 8px; font-size: 11px; color: var(--muted);
+}
+.ru-el-search-hint b { color: var(--text); font-weight: 600; }
+.ru-el-search-hint button {
+  font-size: 10.5px; padding: 1px 7px; border: 1px solid var(--line); border-radius: 5px;
+  background: transparent; color: var(--accent-2); cursor: pointer;
+}
+.ru-el-search-hint button:hover { border-color: var(--accent-2); }
+
+/* 搜索命中：描边不覆盖选中态的 box-shadow */
+.ru-el.match { outline: 2px solid color-mix(in srgb, var(--accent) 85%, transparent); outline-offset: -2px; }
+.ru-el-list-row.match { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+
+/* ── 周期表 P1：对比条与对比视图 ── */
+.ru-el-cmp-bar {
+  position: sticky; bottom: 8px; z-index: 35;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin: 0 0 10px; padding: 6px 10px;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  box-shadow: 0 6px 20px var(--shadow);
+  backdrop-filter: blur(6px);
+}
+.ru-el-cmp-label { color: var(--muted); font-size: 11px; }
+.ru-el-cmp-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ru-el-cmp-chip {
+  display: inline-flex; align-items: center; overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--el-c, var(--line)) 55%, var(--line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--el-c, transparent) 14%, var(--panel-2));
+}
+.ru-el-cmp-chip .sym {
+  padding: 2px 6px 2px 9px; border: 0; background: transparent;
+  color: var(--text); font-size: 11.5px; font-weight: 600; cursor: pointer;
+}
+.ru-el-cmp-chip .x {
+  padding: 2px 7px 2px 2px; border: 0; background: transparent;
+  color: var(--muted); font-size: 10px; cursor: pointer;
+}
+.ru-el-cmp-chip .x:hover { color: var(--red); }
+.ru-el-cmp-open {
+  margin-left: auto; padding: 3px 12px; border: 1px solid var(--accent);
+  border-radius: 7px; background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--text); font-size: 11.5px; cursor: pointer;
+}
+.ru-el-cmp-open:disabled { opacity: .45; cursor: not-allowed; }
+.ru-el-cmp-clear {
+  padding: 3px 8px; border: 0; background: transparent;
+  color: var(--muted); font-size: 11px; cursor: pointer;
+}
+.ru-el-cmp-clear:hover { color: var(--red); }
+
+.ru-el-cmp-scrim { position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, .48); }
+.ru-el-cmp-modal {
+  position: fixed; z-index: 61; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex; flex-direction: column;
+  width: min(780px, calc(100vw - 24px));
+  max-height: min(78vh, 720px);
+  border: 1px solid var(--line); border-radius: 12px;
+  background: var(--panel); box-shadow: 0 24px 60px rgba(0, 0, 0, .45);
+  overflow: hidden;
+}
+.ru-el-cmp-modal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 9px 14px; border-bottom: 1px solid var(--line); font-size: 12.5px;
+}
+.ru-el-cmp-modal-head button {
+  width: 26px; height: 26px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--panel-2); color: var(--muted); cursor: pointer;
+}
+.ru-el-cmp-modal-head button:hover { color: var(--text); }
+.ru-el-cmp-scroll { overflow: auto; }
+.ru-el-cmp-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.ru-el-cmp-table th, .ru-el-cmp-table td {
+  padding: 7px 10px; border-bottom: 1px solid var(--line);
+  text-align: left; vertical-align: middle;
+}
+.ru-el-cmp-table thead th { position: sticky; top: 0; z-index: 1; background: var(--panel); }
+.ru-el-cmp-table tbody th { color: var(--muted); font-weight: 500; white-space: nowrap; }
+.ru-el-cmp-table tbody th .unit { color: var(--faint); font-size: 10px; font-weight: 400; }
+.ru-el-cmp-el {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  padding: 0; border: 0; background: transparent; color: var(--text); cursor: pointer;
+}
+.ru-el-cmp-el .sym { color: var(--el-c, var(--text)); font-size: 16px; font-weight: 700; }
+.ru-el-cmp-el .nm { color: var(--muted); font-size: 10.5px; }
+.ru-el-cmp-table td .num { display: block; font-variant-numeric: tabular-nums; }
+.ru-el-cmp-table td .bar {
+  display: block; height: 4px; margin-top: 3px; overflow: hidden;
+  border-radius: 2px; background: color-mix(in srgb, var(--line) 60%, transparent);
+}
+.ru-el-cmp-table td .bar i { display: block; height: 100%; border-radius: 2px; background: var(--accent); }
+
+/* 对比条 / 对比弹窗里的类别色（--el-c 原先只定义在 .ru-el 上） */
+.ru-el-cmp-chip[data-c="alkali"], .ru-el-cmp-el[data-c="alkali"] { --el-c: var(--el-alkali); }
+.ru-el-cmp-chip[data-c="alkaline"], .ru-el-cmp-el[data-c="alkaline"] { --el-c: var(--el-alkaline); }
+.ru-el-cmp-chip[data-c="transition"], .ru-el-cmp-el[data-c="transition"] { --el-c: var(--el-transition); }
+.ru-el-cmp-chip[data-c="post"], .ru-el-cmp-el[data-c="post"] { --el-c: var(--el-post); }
+.ru-el-cmp-chip[data-c="metalloid"], .ru-el-cmp-el[data-c="metalloid"] { --el-c: var(--el-metalloid); }
+.ru-el-cmp-chip[data-c="nonmetal"], .ru-el-cmp-el[data-c="nonmetal"] { --el-c: var(--el-nonmetal); }
+.ru-el-cmp-chip[data-c="halogen"], .ru-el-cmp-el[data-c="halogen"] { --el-c: var(--el-halogen); }
+.ru-el-cmp-chip[data-c="noble"], .ru-el-cmp-el[data-c="noble"] { --el-c: var(--el-noble); }
+.ru-el-cmp-chip[data-c="lanth"], .ru-el-cmp-el[data-c="lanth"] { --el-c: var(--el-lanth); }
+.ru-el-cmp-chip[data-c="act"], .ru-el-cmp-el[data-c="act"] { --el-c: var(--el-act); }
+
+/* ── 周期表 P1：详情操作按钮 ── */
+.ru-el-detail-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.ru-el-detail-actions button {
+  padding: 4px 10px; border: 1px solid var(--line); border-radius: 7px;
+  background: transparent; color: var(--muted); font-size: 11.5px; cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.ru-el-detail-actions button:hover { color: var(--text); border-color: var(--accent-2); }
+.ru-el-detail-actions button.active {
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--line));
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--text);
+}
+.ru-el-detail-actions button:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ── 周期表 P1：原子模型（Bohr / 轨道 / 能级 / 3D） ── */
+.ru-atom { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px; }
+.ru-atom-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.ru-atom-tabs { display: inline-flex; overflow: hidden; border: 1px solid var(--line); border-radius: 7px; }
+.ru-atom-tabs button {
+  padding: 4px 10px; border: 0; background: transparent;
+  color: var(--muted); font-size: 11.5px; cursor: pointer;
+}
+.ru-atom-tabs button.active { background: var(--accent); color: #06110e; font-weight: 600; }
+.ru-atom-play {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 8px; border: 1px solid var(--line); border-radius: 7px;
+  background: transparent; color: var(--muted); font-size: 11px; cursor: pointer;
+}
+.ru-atom-play:hover { color: var(--text); }
+
+.ru-bohr-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.ru-bohr { width: 100%; max-width: 260px; }
+.ru-bohr svg { display: block; width: 100%; height: auto; }
+.ru-bohr-ring { fill: none; stroke: var(--line); stroke-width: 1; }
+.ru-bohr-e { fill: var(--accent); }
+.ru-bohr-shell {
+  transform-box: view-box; transform-origin: center;
+  animation-name: ru-bohr-spin; animation-timing-function: linear; animation-iteration-count: infinite;
+}
+.ru-bohr[data-paused="true"] .ru-bohr-shell { animation-play-state: paused; }
+@keyframes ru-bohr-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.ru-bohr-nuc {
+  fill: color-mix(in srgb, var(--accent) 26%, var(--panel));
+  stroke: var(--accent); stroke-width: 1.5;
+}
+.ru-bohr-sym { fill: var(--accent); font: 700 12px var(--font-ui); }
+.ru-bohr-legend {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 10px;
+  color: var(--muted); font-size: 10.5px;
+}
+.ru-bohr-legend b { color: var(--text); font-weight: 600; }
+.ru-bohr-legend em { flex-basis: 100%; text-align: center; font-style: normal; color: var(--faint); }
+
+.ru-orb-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.ru-orb { width: 200px; height: 200px; perspective: 700px; touch-action: none; cursor: grab; }
+.ru-orb:active { cursor: grabbing; }
+.ru-orb-float { width: 100%; height: 100%; animation: ru-orb-float 7s ease-in-out infinite; }
+.ru-orb[data-paused="true"] .ru-orb-float { animation-play-state: paused; }
+@keyframes ru-orb-float { 0%, 100% { transform: translateY(-3px); } 50% { transform: translateY(3px); } }
+.ru-orb-stage { width: 100%; height: 100%; transform-style: preserve-3d; }
+.ru-orb-stage svg { display: block; width: 100%; height: 100%; }
+.ru-orb-axes line, .ru-orb-axes circle {
+  fill: none; stroke: color-mix(in srgb, var(--line) 80%, transparent);
+  stroke-width: .8; stroke-dasharray: 3 4;
+}
+.ru-orb-lobe { stroke: color-mix(in srgb, var(--accent) 55%, transparent); stroke-width: 1; }
+.ru-orb-nuc { fill: var(--accent); }
+.ru-orb-caption { margin: 0; text-align: center; color: var(--muted); font-size: 11px; }
+.ru-orb-caption b { color: var(--text); }
+.ru-orb-hint { display: block; margin-top: 2px; color: var(--faint); font-size: 10px; }
+
+.ru-levels-wrap { display: flex; flex-direction: column; gap: 6px; }
+.ru-levels { display: flex; flex-wrap: wrap; gap: 6px; }
+.ru-level-box {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--panel-2);
+}
+.ru-level-label { color: var(--muted); font: 10px/1 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.ru-level-label sup { font-size: 8px; }
+.ru-level-cells { display: flex; gap: 2px; }
+.ru-level-cells i {
+  min-width: 15px; padding: 1px 2px;
+  border: 1px solid color-mix(in srgb, var(--line) 90%, transparent); border-radius: 2px;
+  background: var(--panel); color: var(--accent);
+  font-style: normal; font-size: 10px; letter-spacing: -1px; text-align: center;
+}
+.ru-levels-note { margin: 0; color: var(--faint); font-size: 10px; line-height: 1.5; }
+
+.ru-atom3d { position: relative; width: 100%; min-height: 220px; }
+.ru-atom3d-host {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; min-height: 200px;
+}
+.ru-atom3d-host canvas { display: block; max-width: 100%; }
+.ru-atom3d-gate {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px; border: 1px dashed var(--line); border-radius: 8px;
+  background: color-mix(in srgb, var(--panel-2) 88%, transparent); text-align: center;
+}
+.ru-atom3d-btn {
+  padding: 7px 16px; border: 1px solid var(--accent); border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--text); font-size: 12px; cursor: pointer;
+}
+.ru-atom3d-btn:disabled { opacity: .6; cursor: progress; }
+.ru-atom3d-note { max-width: 300px; margin: 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
 
 /* ── 俄语工具箱：高分子术语点读 ── */
 .ru-term-grid {
@@ -2600,8 +3527,10 @@ button.title-command:hover { color: var(--text); border-color: var(--accent-2); 
 
 /* 手机端：分享面板改为底部抽屉（≤640px），触控区全部 ≥40px */
 @media (max-width: 640px) {
-  /* 标签栏：单行横向滑动（出血到屏幕边），高度加大便于点按 */
-  .ru-tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scroll-snap-type: x proximity; margin: 4px -16px 0; padding: 4px 16px 8px; gap: 8px; scrollbar-width: none; }
+  /* 标签栏：单行横向滑动，高度加大便于点按。
+     不再用负外边距出血：该栏有时直接挂在无内边距的容器下（如俄语工具箱主面板），
+     负边距会把整条栏撑到视口外并被 workbench 裁掉，右侧标签显示不全。 */
+  .ru-tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scroll-snap-type: x proximity; margin: 4px 0 0; padding: 4px 16px 8px; gap: 8px; scrollbar-width: none; }
   .ru-tabs::-webkit-scrollbar { display: none; }
   .ru-tab { flex: none; height: 38px; padding: 0 16px; font-size: 13px; scroll-snap-align: start; }
   .ru-share-trigger { height: 36px; padding: 0 15px; font-size: 13px; gap: 6px; }
@@ -3925,4 +4854,251 @@ body.sg-xdnmb-imm .admin-content { padding: 10px 12px 64px; }
 }
 
 
+/* ── 周期表 P2：趋势图 / 时间轴 / 同位素概要 / 测验 ── */
+.ru-trend, .ru-tl {
+  margin: 0 0 12px; padding: 10px 12px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2);
+  min-width: 0; max-width: 100%; overflow: hidden;
+}
+.ru-trend-head {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
+  margin-bottom: 6px; font-size: 12px;
+}
+.ru-trend-head strong { font-size: 12.5px; }
+.ru-trend-head button {
+  font-size: 11.5px; padding: 2px 9px; border: 1px solid var(--line); border-radius: 6px;
+  background: transparent; color: var(--muted); cursor: pointer;
+}
+.ru-trend-head button:hover { color: var(--text); }
+.ru-trend-head button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.ru-trend-hint { margin-left: auto; font-size: 11px; color: var(--faint); }
+.ru-trend-scroll, .ru-tl-scroll { overflow-x: auto; min-width: 0; -webkit-overflow-scrolling: touch; }
+.ru-trend-svg { display: block; width: 100%; min-width: 620px; height: auto; }
+.ru-tl-svg { display: block; width: 100%; min-width: 680px; height: auto; }
+/* 时间机器：滑杆 + 时间轴游标 */
+.ru-tl-machine {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
+  margin: 6px 0 2px; font-size: 11.5px; color: var(--muted);
+}
+.ru-tl-machine label { font-weight: 600; color: var(--text); }
+.ru-tl-machine input[type="range"] { flex: 1 1 180px; min-width: 140px; accent-color: var(--accent-2); cursor: pointer; }
+.ru-tl-machine-val { font-family: ui-monospace, monospace; color: var(--text); min-width: 42px; text-align: right; }
+.ru-tl-machine-count { font-size: 10.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.ru-tl-machine button {
+  font-size: 10.5px; padding: 1px 8px; border: 1px solid var(--line); border-radius: 5px;
+  background: transparent; color: var(--muted); cursor: pointer;
+}
+.ru-tl-machine button:hover { color: var(--text); border-color: var(--accent); }
+.ru-tl-machine-hint { margin: 0 0 6px; font-size: 10.5px; color: var(--faint); line-height: 1.4; }
+.ru-tl-yearline { stroke: var(--accent); stroke-width: 1.2; stroke-dasharray: 4 3; opacity: .8; }
+.ru-tl-yearlabel { fill: var(--accent); font-size: 9px; font-weight: 600; font-family: var(--font-ui, ui-sans-serif); }
+.ru-trend-grid { stroke: var(--line); stroke-width: 1; }
+.ru-tl-grid { stroke: var(--line); stroke-dasharray: 2 3; stroke-width: 1; }
+.ru-trend-axis {
+  fill: var(--muted); font-size: 9px; font-family: var(--font-ui, ui-sans-serif);
+  font-variant-numeric: tabular-nums;
+}
+.ru-trend-axis-title { fill: var(--faint); font-size: 9px; font-family: var(--font-ui, ui-sans-serif); }
+.ru-trend-line { fill: none; stroke: var(--accent); stroke-width: 1.3; opacity: .75; stroke-linejoin: round; }
+.ru-trend-dot {
+  fill: var(--el-c, var(--accent)); stroke: var(--panel-2); stroke-width: .8;
+  cursor: pointer; outline: none;
+}
+.ru-trend-dot:hover, .ru-trend-dot:focus { filter: brightness(1.25); stroke: var(--accent-2); stroke-width: 1.6; }
+.ru-tl-dot { fill: var(--el-c, var(--muted)); stroke: var(--panel-2); stroke-width: .8; cursor: pointer; }
+.ru-tl-node { outline: none; }
+.ru-tl-node:hover .ru-tl-dot, .ru-tl-node:focus .ru-tl-dot {
+  filter: brightness(1.3); stroke: var(--accent-2); stroke-width: 1.6;
+}
+.ru-trend-legend {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 3px 10px;
+  margin-top: 4px; font-size: 10.5px; color: var(--muted);
+}
+.ru-trend-legend span { display: inline-flex; align-items: center; gap: 4px; }
+.ru-trend-legend i { width: 10px; height: 3px; border-radius: 2px; }
+.ru-trend-legend em { font-style: normal; color: var(--faint); }
+.ru-trend-note { margin: 4px 0 0; font-size: 11px; color: var(--faint); }
+
+/* 数据点 / 时间轴圆点：类别 → --el-c */
+.ru-trend-dot[data-c="alkali"], .ru-tl-dot[data-c="alkali"] { --el-c: var(--el-alkali); }
+.ru-trend-dot[data-c="alkaline"], .ru-tl-dot[data-c="alkaline"] { --el-c: var(--el-alkaline); }
+.ru-trend-dot[data-c="transition"], .ru-tl-dot[data-c="transition"] { --el-c: var(--el-transition); }
+.ru-trend-dot[data-c="post"], .ru-tl-dot[data-c="post"] { --el-c: var(--el-post); }
+.ru-trend-dot[data-c="metalloid"], .ru-tl-dot[data-c="metalloid"] { --el-c: var(--el-metalloid); }
+.ru-trend-dot[data-c="nonmetal"], .ru-tl-dot[data-c="nonmetal"] { --el-c: var(--el-nonmetal); }
+.ru-trend-dot[data-c="halogen"], .ru-tl-dot[data-c="halogen"] { --el-c: var(--el-halogen); }
+.ru-trend-dot[data-c="noble"], .ru-tl-dot[data-c="noble"] { --el-c: var(--el-noble); }
+.ru-trend-dot[data-c="lanth"], .ru-tl-dot[data-c="lanth"] { --el-c: var(--el-lanth); }
+.ru-trend-dot[data-c="act"], .ru-tl-dot[data-c="act"] { --el-c: var(--el-act); }
+
+/* 同位素概要：稳定 / 已知比例条 */
+.ru-iso-bar {
+  grid-column: 1 / -1; position: relative; height: 16px; margin-top: 4px;
+  border-radius: 8px; overflow: hidden;
+  background: color-mix(in srgb, var(--line) 55%, transparent);
+}
+.ru-iso-bar i { display: block; height: 100%; background: color-mix(in srgb, var(--accent) 65%, transparent); }
+.ru-iso-bar span {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-size: 9.5px; color: var(--text); font-variant-numeric: tabular-nums;
+}
+
+/* 逐核素同位素表 */
+.ru-iso-table-wrap {
+  grid-column: 1 / -1; margin-top: 10px;
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--line); border-radius: 8px;
+}
+.ru-iso-table {
+  width: 100%; border-collapse: collapse; font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+.ru-iso-table th, .ru-iso-table td {
+  padding: 5px 8px; text-align: left; white-space: nowrap;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+}
+.ru-iso-table th {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--muted); font-weight: 600; position: sticky; top: 0;
+}
+.ru-iso-table tbody tr:last-child td { border-bottom: none; }
+.ru-iso-table td:nth-child(2), .ru-iso-table td:nth-child(3) { text-align: right; }
+.ru-iso-table td:nth-child(1) sup { font-size: 0.85em; }
+
+/* 温度相变提示 */
+.ru-el-phase-hint {
+  display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px;
+  font-size: 11px; color: var(--muted);
+}
+.ru-el-phase-hint button {
+  padding: 1px 6px; border-radius: 999px; background: transparent; font-size: 10.5px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  color: var(--text); cursor: pointer;
+}
+.ru-el-phase-hint button:hover { border-color: var(--accent); color: var(--accent); }
+
+/* 测验弹窗 */
+.ru-quiz-modal { width: min(560px, calc(100vw - 24px)); max-height: min(82vh, 640px); }
+.ru-quiz-score-inline { color: var(--accent); font-variant-numeric: tabular-nums; }
+.ru-quiz-body { padding: 12px 16px 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.ru-quiz-progress { height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.ru-quiz-progress i { display: block; height: 100%; background: var(--accent); transition: width .2s ease; }
+.ru-quiz-prompt { font-size: 15px; font-weight: 600; line-height: 1.4; }
+.ru-quiz-opts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ru-quiz-opt {
+  padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--panel-2); color: var(--text); font-size: 12.5px; text-align: left; cursor: pointer;
+}
+.ru-quiz-opt:hover:not(:disabled) { border-color: var(--accent-2); }
+.ru-quiz-opt.ok { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--panel-2)); }
+.ru-quiz-opt.bad { border-color: var(--red); background: color-mix(in srgb, var(--red) 14%, var(--panel-2)); }
+.ru-quiz-opt.muted { opacity: .55; }
+.ru-quiz-opt:disabled { cursor: default; }
+.ru-quiz-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.ru-quiz-note { font-size: 11.5px; color: var(--muted); }
+.ru-quiz-next {
+  padding: 6px 14px; border: 1px solid var(--accent); border-radius: 8px;
+  background: var(--accent); color: #06110e; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.ru-quiz-next:disabled { opacity: .45; cursor: not-allowed; }
+.ru-quiz-next.ghost { background: transparent; color: var(--muted); border-color: var(--line); font-weight: 400; }
+.ru-quiz-done { display: flex; align-items: baseline; gap: 8px; }
+.ru-quiz-score { font-size: 26px; font-weight: 700; color: var(--accent); }
+.ru-quiz-wrong { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; }
+.ru-quiz-wrong > strong { font-size: 12px; }
+.ru-quiz-wrong button {
+  display: grid; grid-template-columns: 42px 1fr auto; gap: 2px 8px;
+  padding: 6px 8px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--panel-2); color: var(--text); text-align: left; cursor: pointer;
+}
+.ru-quiz-wrong button:hover { border-color: var(--accent-2); }
+.ru-quiz-wrong .sym { color: var(--accent); font-weight: 700; }
+.ru-quiz-wrong .bad { color: var(--red); text-decoration: line-through; }
+.ru-quiz-wrong .ok { color: var(--accent); grid-column: 2 / -1; }
+@media (max-width: 520px) {
+  .ru-quiz-opts { grid-template-columns: 1fr; }
+  .ru-trend, .ru-tl { padding: 8px 9px; }
+}
+
 /* cache-probe-token-A */
+.ru-pt-kbd-hint { color: var(--faint); font-size: 11.5px; }
+@media (max-width: 720px) { .ru-pt-kbd-hint { display: none; } }
+
+/* ── 全站俄语窄屏安全网 ──
+   西里尔长词（«электроотрицательность» 等）没有中文那样的逐字断行能力，
+   容器里一旦缺少断点，min-content 就会把网格/弹性列撑宽，连带圆角背景溢出视口。
+   只作用于文本叶子节点与布局容器，不碰 code/pre（保留横向滚动）。 */
+:where(p, li, dd, dt, th, td, figcaption, blockquote, summary, label, h1, h2, h3, h4, h5, h6) {
+  overflow-wrap: anywhere;
+}
+:where(.panel, .editor-area, .post-card, .course-card, .tree-item, .composer) :where(div, section, article, header, footer, ul, ol, nav) {
+  min-width: 0;
+}
+@media (max-width: 560px) {
+  /* 按钮/元信息行在窄屏允许换行，俄语标签不再把整行推出卡片 */
+  :where(.panel, .editor-area) :where([class*="actions"], [class*="toolbar"], [class*="tabs"], [class*="meta"]) {
+    flex-wrap: wrap;
+  }
+}
+
+/* ── 周期表打印：命名页 A4 横向，只输出表格本身 ── */
+@page ru-pt { size: A4 landscape; margin: 8mm; }
+@media print {
+  /* 只保留 workbench → editor-area → 周期表这条链，避免隐藏元素占位产生空白页 */
+  body.ru-pt-printing > :not(.workbench) { display: none !important; }
+  body.ru-pt-printing .workbench { display: block !important; padding: 0 !important; margin: 0 !important; }
+  body.ru-pt-printing .workbench > :not(.editor-area) { display: none !important; }
+  body.ru-pt-printing .editor-area { display: block !important; padding: 0 !important; margin: 0 !important; overflow: visible !important; }
+  body.ru-pt-printing .editor-area > div { display: block !important; padding: 0 !important; margin: 0 !important; }
+  body.ru-pt-printing .editor-area > div > *:not(.ru-pt-panel) { display: none !important; }
+  body.ru-pt-printing .ru-pt-panel {
+    page: ru-pt;
+    position: static !important; width: 100% !important;
+    margin: 0 !important; padding: 0 !important; border: 0 !important;
+    box-shadow: none !important; background: #fff !important;
+    --text: #111; --muted: #555; --faint: #777; --line: #bbb; --panel: #fff; --panel-2: #f2f2f2;
+    --bg: #fff; --accent: #333; --accent-2: #444;
+    print-color-adjust: exact; -webkit-print-color-adjust: exact;
+  }
+  body.ru-pt-printing .ru-pt-panel > p,
+  body.ru-pt-printing .ru-el-ver,
+  body.ru-pt-printing .ru-el-land-btn,
+  body.ru-pt-printing .ru-pt-exit,
+  body.ru-pt-printing .ru-pt-boot-hint,
+  body.ru-pt-printing .ru-el-search,
+  body.ru-pt-printing .ru-el-search-hint,
+  body.ru-pt-printing .ru-el-controls,
+  body.ru-pt-printing .ru-el-cmp-bar,
+  body.ru-pt-printing .ru-trend,
+  body.ru-pt-printing .ru-tl,
+  body.ru-pt-printing .ru-el-detail-panel,
+  body.ru-pt-printing .ru-el-detail-placeholder,
+  body.ru-pt-printing .ru-el-fab,
+  body.ru-pt-printing .ru-el-fab-scrim,
+  body.ru-pt-printing .ru-el-fab-sheet,
+  body.ru-pt-printing .ru-pt-kbd-hint { display: none !important; }
+  body.ru-pt-printing .ru-pt-main { display: block !important; }
+  body.ru-pt-printing .ru-pt-wrap { overflow: visible !important; }
+  body.ru-pt-printing .ru-pt,
+  body.ru-pt-printing .ru-pt-19,
+  body.ru-pt-printing .ru-pt-33,
+  body.ru-pt-printing .ru-pt-short {
+    min-width: 0 !important; width: 100% !important;
+  }
+  body.ru-pt-printing .ru-pt { gap: 2px !important; }
+  body.ru-pt-printing .ru-el { break-inside: avoid; box-shadow: none !important; transform: none !important; }
+  body.ru-pt-printing .ru-el .nm { -webkit-line-clamp: 1; }
+}
+
+/* 后台流量监控（/admin/traffic） */
+.traffic-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.traffic-spark { width: 100%; height: 68px; display: block; margin-top: 8px; }
+.traffic-bar { height: 8px; border-radius: 999px; background: var(--panel-2, rgba(127, 139, 155, .16)); overflow: hidden; margin: 10px 0 6px; }
+.traffic-bar > i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+.traffic-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 14px; color: var(--muted); font: 11px ui-monospace, monospace; margin-top: 6px; }
+.traffic-status { display: inline-flex; align-items: center; gap: 6px; font: 600 12px ui-monospace, monospace; }
+.traffic-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+.traffic-dot.off { background: var(--red); box-shadow: none; }
+.traffic-auto { display: inline-flex; align-items: center; gap: 6px; font: 11px ui-monospace, monospace; color: var(--muted); }
+.traffic-note { margin: 10px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+@media (max-width: 800px) { .traffic-grid { grid-template-columns: 1fr; } }

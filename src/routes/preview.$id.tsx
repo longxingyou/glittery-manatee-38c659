@@ -7,6 +7,7 @@ import { attachmentPreviewFn, attachmentPreviewRetryFn, AttachmentDownloadButton
 import { useT } from '@/lib/i18n'
 import { onAuthChange } from '@/lib/auth-client'
 import { renderMarkdown } from '@/lib/markdown'
+import { useMarkdownMath } from '@/lib/use-markdown-math'
 import { useMermaidLazy } from '@/lib/use-mermaid'
 import { formatBytes } from '@/lib/utils'
 import { fileExt, PREVIEW_CONVERT_MAX_BYTES, type PreviewKind } from '@/lib/preview'
@@ -313,7 +314,9 @@ function ProgressLine({ p }: { p: number | null }) {
 
 function MarkdownView({ text }: { text: string }) {
   const ref = useRef<HTMLDivElement>(null)
-  const html = useMemo(() => ruStressOutsideTags(renderMarkdown(text)), [text])
+  // 附件预览在水合后才出现，KaTeX 需要按需加载；就绪后触发重算
+  const mathReady = useMarkdownMath()
+  const html = useMemo(() => ruStressOutsideTags(renderMarkdown(text)), [text, mathReady])
   useMermaidLazy(ref)
   // SPA 动态渲染后浏览器已错过 #hash 滚动时机，手动补齐锚点跳转
   useEffect(() => {

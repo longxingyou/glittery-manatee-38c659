@@ -2,6 +2,8 @@ import * as React from 'react'
 import { createServerFn } from '@tanstack/react-start'
 import { Link, Outlet, useLoaderData, useNavigate, useParams, useRouterState, useSearch } from '@tanstack/react-router'
 import {
+  Activity,
+  BadgeCheck,
   Bold,
   CirclePlus,
   Code2,
@@ -70,12 +72,14 @@ import {
   type PostStatus,
 } from '@/lib/utils'
 import { renderMarkdown } from '@/lib/markdown'
+import { useMarkdownMath } from '@/lib/use-markdown-math'
 import { StickerTrigger } from '@/components/sticker-picker'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { LangSwitch } from '@/components/lang-switch'
 import { categoryNameFor, useLang, useT } from '@/lib/i18n'
 import {
   adminCommentsFn,
+  adminConfirmUserFn,
   adminSetSignatureFn,
   createUserTagFn,
   deleteUserTagFn,
@@ -369,6 +373,8 @@ function useAdminStatus(initial?: AdminStatus | null): {
 // =================================================================
 export function AdminGateWrap({ children, initialStatus }: { children: React.ReactNode; initialStatus?: AdminStatus | null }) {
   const t = useT()
+  // 后台内容在水合后加载；KaTeX 就绪后重渲染一次，预览/签名里的公式才成型
+  useMarkdownMath()
   const { loading, status, error, refresh } = useAdminStatus(initialStatus)
   if (loading) return <div className="admin-loading">{t('admin.gate.checking')}</div>
   if (error) return <div className="admin-error">{t('admin.gate.fail')}{error} <button onClick={() => void refresh()}>{t('admin.retry')}</button></div>
@@ -440,6 +446,7 @@ export function AdminLayout() {
           <Link to="/admin/feedback" className="admin-nav-item" onClick={closeOnNav}><Inbox size={17} /><span>{t('admin.nav.feedback')}</span></Link>
           <Link to="/admin/content" className="admin-nav-item" onClick={closeOnNav}><FileText size={17} /><span>{t('admin.nav.content')}</span></Link>
           <Link to="/admin/network" className="admin-nav-item" onClick={closeOnNav}><Globe size={17} /><span>{t('admin.nav.network')}</span></Link>
+          <Link to="/admin/traffic" className="admin-nav-item" onClick={closeOnNav}><Activity size={17} /><span>{t('admin.nav.traffic')}</span></Link>
           <Link to="/admin/xdnmb" className="admin-nav-item" onClick={closeOnNav}><Flame size={17} /><span>{t('admin.nav.xdnmb')}</span></Link>
           <Link to="/admin/c233" className="admin-nav-item" onClick={closeOnNav}><MessageSquare size={17} /><span>{t('admin.nav.c233')}</span></Link>
           <Link to="/admin/settings" className="admin-nav-item" onClick={closeOnNav}><SettingsIcon size={17} /><span>{t('admin.nav.settings')}</span></Link>
@@ -2190,6 +2197,8 @@ type CommenterRow = Awaited<ReturnType<typeof listCommentersFn>>[number]
 
 export function UserManager() {
   const t = useT()
+  const lang = useLang()
+  const dateLocale = lang === 'zh' ? 'zh-CN' : lang === 'ru' ? 'ru-RU' : 'en-US'
   const [rows, setRows] = React.useState<CommenterRow[] | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState('')
@@ -2202,6 +2211,7 @@ export function UserManager() {
   // 身份标签
   const [tagDefs, setTagDefs] = React.useState<UserTag[]>([])
   const [tagFilter, setTagFilter] = React.useState<number | null>(null)
+  const [statusFilter, setStatusFilter] = React.useState<'all' | 'unverified' | 'verified'>('all')
   const [tagMgrOpen, setTagMgrOpen] = React.useState(false)
   const [tagDrafts, setTagDrafts] = React.useState<Record<string, number[]>>({})
 
@@ -2229,6 +2239,17 @@ export function UserManager() {
       const r = await adminSetSignatureFn({ data: { userId: row.userId, signature: sig } })
       setRows((list) => list?.map((x) => x.userId === row.userId ? { ...x, signature: r.signature, signatureUpdatedBy: r.updatedBy } : x) ?? null)
       setMsg({ kind: 'ok', text: clear ? t('admin.sig.cleared') : t('admin.sig.updated') })
+    } catch (e) { setMsg({ kind: 'err', text: e instanceof Error ? e.message : t('admin.op.fail') }) }
+    finally { setBusyId(null) }
+  }
+
+  const confirmUser = async (row: CommenterRow) => {
+    if (!window.confirm(t('admin.users.confirm.ask', { name: row.displayName || row.email }))) return
+    setBusyId(row.userId); setMsg(null)
+    try {
+      await adminConfirmUserFn({ data: { userId: row.userId } })
+      setRows((list) => list?.map((x) => x.userId === row.userId ? { ...x, confirmed: true } : x) ?? null)
+      setMsg({ kind: 'ok', text: t('admin.users.confirm.done') })
     } catch (e) { setMsg({ kind: 'err', text: e instanceof Error ? e.message : t('admin.op.fail') }) }
     finally { setBusyId(null) }
   }
@@ -2264,9 +2285,11 @@ export function UserManager() {
     return rows.filter((r) => {
       if (q && !r.email.toLowerCase().includes(q) && !r.displayName.toLowerCase().includes(q)) return false
       if (tagFilter != null && !r.tags.includes(tagFilter)) return false
+      if (statusFilter === 'unverified' && r.confirmed) return false
+      if (statusFilter === 'verified' && !r.confirmed) return false
       return true
     })
-  }, [rows, query, tagFilter])
+  }, [rows, query, tagFilter, statusFilter])
 
   return (
     <div className="admin-dashboard">
@@ -2279,6 +2302,11 @@ export function UserManager() {
       <div className="panel">
         <div className="admin-filter-row">
           <input placeholder={t('admin.users.filter.ph')} value={query} onChange={(e) => setQuery(e.target.value)} />
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as 'all' | 'unverified' | 'verified')}>
+            <option value="all">{t('admin.users.status.all')}</option>
+            <option value="unverified">{t('admin.users.status.unverified')}</option>
+            <option value="verified">{t('admin.users.status.verified')}</option>
+          </select>
           <select value={tagFilter ?? ''} onChange={(e) => setTagFilter(e.target.value ? Number(e.target.value) : null)}>
             <option value="">{t('admin.users.alltags')}</option>
             {tagDefs.map((tagDef) => <option key={tagDef.id} value={tagDef.id}>{tagDef.name}</option>)}
@@ -2297,13 +2325,22 @@ export function UserManager() {
                 <div className="commenter-head">
                   <div className="commenter-avatar">{(row.displayName || row.email || '?').slice(0, 2).toUpperCase()}</div>
                   <div className="commenter-meta">
-                    <strong>{row.displayName || t('admin.users.noname')}</strong>
+                    <strong>
+                      {row.displayName || t('admin.users.noname')}
+                      {!row.confirmed && <span className="user-status-badge unverified">{t('admin.users.unverified')}</span>}
+                    </strong>
                     <small>{row.email || t('admin.users.nomail')}</small>
                     <div className="commenter-stats">
                       <span>{t('admin.users.comments', { n: row.commentCount })}</span>
                       <span className={row.warningCount > 0 ? 'warn-count' : ''}>{t('admin.users.warnings', { n: row.warningCount })}</span>
+                      {row.createdAt && <span>{t('admin.users.registered', { date: new Date(row.createdAt).toLocaleDateString(dateLocale) })}</span>}
                     </div>
                   </div>
+                  {!row.confirmed && (
+                    <button className="ghost-button small user-confirm-btn" disabled={busyId === row.userId} onClick={() => void confirmUser(row)}>
+                      <BadgeCheck size={13} />{t('admin.users.confirm')}
+                    </button>
+                  )}
                 </div>
                 {tagDefs.length > 0 && (
                   <div className="commenter-tags">

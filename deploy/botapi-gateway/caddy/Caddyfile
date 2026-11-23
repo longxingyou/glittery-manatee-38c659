@@ -46,9 +46,36 @@ gw.xn--fpr224a.mom, gw.loong.me.uk {
 	}
 	# 文渊绝对路径前缀
 	import wenPaths
+	# 站点 API 反代：给国内 bot 一条低延迟链路。
+	# 国内直连 Cloudflare 实测 TTFB 0.9–2s，走本机仅 0.14s；剥掉 /sg 前缀后
+	# 转发到 loong.me.uk，例如 /sg/api/bot → https://loong.me.uk/api/bot。
+	handle_path /sg/* {
+		reverse_proxy https://loong.me.uk {
+			header_up Host loong.me.uk
+		}
+	}
+	# 流量监控 agent（仅本机 9091，要求 X-Traffic-Key；由站点后台服务端代理调用）
+	handle /traffic* {
+		reverse_proxy host.docker.internal:9091
+	}
 	# 兜底：网关原有路由（healthz/tts/bili-playurl/dl/xdnmb/bot*）
 	handle {
 		reverse_proxy gateway:8080
+	}
+}
+
+# X 私聊实时接口（realm-b.x.com）中转。
+# 国内直连 realm-b 的 CloudFront 后端会因 SNI 被阻断，本地 SNI 网关改以
+# gw.loong.me.uk 作为上游 SNI 连入本机；请求 Host 仍是 realm-b.x.com，
+# 由本块把 Host 还原并按 realm-b 的 SNI 回源 CloudFront。
+# tls internal 只为满足站点地址的证书要求：实际握手使用的 SNI 是 gw.loong.me.uk。
+realm-b.x.com {
+	tls internal
+	reverse_proxy https://realm-b.x.com {
+		header_up Host realm-b.x.com
+		transport http {
+			tls_server_name realm-b.x.com
+		}
 	}
 }
 

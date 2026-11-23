@@ -1,0 +1,1004 @@
+{
+  "1": {
+    "src": "/elements/1.jpg",
+    "title": "Hydrogen",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/hydrogen.php",
+    "provider": "images-of-elements"
+  },
+  "2": {
+    "src": "/elements/2.jpg",
+    "title": "Helium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/helium.php",
+    "provider": "images-of-elements"
+  },
+  "3": {
+    "src": "/elements/3.jpg",
+    "title": "Lithium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/lithium.php",
+    "provider": "images-of-elements"
+  },
+  "4": {
+    "src": "/elements/4.jpg",
+    "title": "Beryllium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/beryllium.php",
+    "provider": "images-of-elements"
+  },
+  "5": {
+    "src": "/elements/5.jpg",
+    "title": "Boron front",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/boron.php",
+    "provider": "images-of-elements"
+  },
+  "6": {
+    "src": "/elements/6.jpg",
+    "title": "Carbon as graphite bar.",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/carbon.php",
+    "provider": "images-of-elements"
+  },
+  "7": {
+    "src": "/elements/7.jpg",
+    "title": "Nitrogen",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/nitrogen.php",
+    "provider": "images-of-elements"
+  },
+  "8": {
+    "src": "/elements/8.jpg",
+    "title": "Oxygen",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/oxygen.php",
+    "provider": "images-of-elements"
+  },
+  "9": {
+    "src": "/elements/9.jpg",
+    "title": "Fluorite",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/fluorine.php",
+    "provider": "images-of-elements"
+  },
+  "10": {
+    "src": "/elements/10.jpg",
+    "title": "Neon",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/neon.php",
+    "provider": "images-of-elements"
+  },
+  "11": {
+    "src": "/elements/11.jpg",
+    "title": "Sodium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/sodium.php",
+    "provider": "images-of-elements"
+  },
+  "12": {
+    "src": "/elements/12.jpg",
+    "title": "Magnesium front",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/magnesium.php",
+    "provider": "images-of-elements"
+  },
+  "13": {
+    "src": "/elements/13.jpg",
+    "title": "Aluminium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/aluminium.php",
+    "provider": "images-of-elements"
+  },
+  "14": {
+    "src": "/elements/14.jpg",
+    "title": "Piece of silicon",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/silicon.php",
+    "provider": "images-of-elements"
+  },
+  "15": {
+    "src": "/elements/15.jpg",
+    "title": "Purple Phosphorus",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/phosphorus.php",
+    "provider": "images-of-elements"
+  },
+  "16": {
+    "src": "/elements/16.jpg",
+    "title": "Sulfur crystal",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/sulfur.php",
+    "provider": "images-of-elements"
+  },
+  "17": {
+    "src": "/elements/17.jpg",
+    "title": "Chlorine",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/chlorine.php",
+    "provider": "images-of-elements"
+  },
+  "18": {
+    "src": "/elements/18.jpg",
+    "title": "Argon",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/argon.php",
+    "provider": "images-of-elements"
+  },
+  "19": {
+    "src": "/elements/19.jpg",
+    "title": "Potassium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/potassium.php",
+    "provider": "images-of-elements"
+  },
+  "20": {
+    "src": "/elements/20.jpg",
+    "title": "Calcium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/calcium.php",
+    "provider": "images-of-elements"
+  },
+  "21": {
+    "src": "/elements/21.jpg",
+    "title": "Scandium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/scandium.php",
+    "provider": "images-of-elements"
+  },
+  "22": {
+    "src": "/elements/22.jpg",
+    "title": "Titanium crystal",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/titanium.php",
+    "provider": "images-of-elements"
+  },
+  "23": {
+    "src": "/elements/23.jpg",
+    "title": "Vanadium with oxide layer",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/vanadium.php",
+    "provider": "images-of-elements"
+  },
+  "24": {
+    "src": "/elements/24.jpg",
+    "title": "Chromium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/chromium.php",
+    "provider": "images-of-elements"
+  },
+  "25": {
+    "src": "/elements/25.jpg",
+    "title": "Manganese with crystals",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/manganese.php",
+    "provider": "images-of-elements"
+  },
+  "26": {
+    "src": "/elements/26.jpg",
+    "title": "Iron meteorite fragments",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/iron.php",
+    "provider": "images-of-elements"
+  },
+  "27": {
+    "src": "/elements/27.jpg",
+    "title": "Cobalt",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/cobalt.php",
+    "provider": "images-of-elements"
+  },
+  "28": {
+    "src": "/elements/28.jpg",
+    "title": "Nickel",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/nickel.php",
+    "provider": "images-of-elements"
+  },
+  "29": {
+    "src": "/elements/29.jpg",
+    "title": "Copper nugget",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/copper.php",
+    "provider": "images-of-elements"
+  },
+  "30": {
+    "src": "/elements/30.jpg",
+    "title": "Zinc",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/zinc.php",
+    "provider": "images-of-elements"
+  },
+  "31": {
+    "src": "/elements/31.jpg",
+    "title": "Crystallizing gallium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/gallium.php",
+    "provider": "images-of-elements"
+  },
+  "32": {
+    "src": "/elements/32.jpg",
+    "title": "Germanium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/germanium.php",
+    "provider": "images-of-elements"
+  },
+  "33": {
+    "src": "/elements/33.jpg",
+    "title": "Two pieces of arsenic",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/arsenic.php",
+    "provider": "images-of-elements"
+  },
+  "34": {
+    "src": "/elements/34.jpg",
+    "title": "Selenium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/selenium.php",
+    "provider": "images-of-elements"
+  },
+  "35": {
+    "src": "/elements/35.jpg",
+    "title": "Bromine",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/bromine.php",
+    "provider": "images-of-elements"
+  },
+  "36": {
+    "src": "/elements/36.jpg",
+    "title": "Krypton",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/krypton.php",
+    "provider": "images-of-elements"
+  },
+  "37": {
+    "src": "/elements/37.jpg",
+    "title": "Rubidium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/rubidium.php",
+    "provider": "images-of-elements"
+  },
+  "38": {
+    "src": "/elements/38.jpg",
+    "title": "Strontium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/strontium.php",
+    "provider": "images-of-elements"
+  },
+  "39": {
+    "src": "/elements/39.jpg",
+    "title": "Yttrium front",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/yttrium.php",
+    "provider": "images-of-elements"
+  },
+  "40": {
+    "src": "/elements/40.jpg",
+    "title": "Zirconium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/zirconium.php",
+    "provider": "images-of-elements"
+  },
+  "41": {
+    "src": "/elements/41.jpg",
+    "title": "Niobium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/niobium.php",
+    "provider": "images-of-elements"
+  },
+  "42": {
+    "src": "/elements/42.jpg",
+    "title": "Molybdenum crystal",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/molybdenum.php",
+    "provider": "images-of-elements"
+  },
+  "43": {
+    "src": "/elements/43.jpg",
+    "title": "Technetium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/technetium.php",
+    "provider": "images-of-elements"
+  },
+  "44": {
+    "src": "/elements/44.jpg",
+    "title": "Ruthenium front",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/ruthenium.php",
+    "provider": "images-of-elements"
+  },
+  "45": {
+    "src": "/elements/45.jpg",
+    "title": "Rhodium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/rhodium.php",
+    "provider": "images-of-elements"
+  },
+  "46": {
+    "src": "/elements/46.jpg",
+    "title": "Palladium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/palladium.php",
+    "provider": "images-of-elements"
+  },
+  "47": {
+    "src": "/elements/47.jpg",
+    "title": "Silver nugget",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/silver.php",
+    "provider": "images-of-elements"
+  },
+  "48": {
+    "src": "/elements/48.jpg",
+    "title": "Cadmium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/cadmium.php",
+    "provider": "images-of-elements"
+  },
+  "49": {
+    "src": "/elements/49.jpg",
+    "title": "Indium ingot",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/indium.php",
+    "provider": "images-of-elements"
+  },
+  "50": {
+    "src": "/elements/50.jpg",
+    "title": "Tin blob",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/tin.php",
+    "provider": "images-of-elements"
+  },
+  "51": {
+    "src": "/elements/51.jpg",
+    "title": "Antimony",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/antimony.php",
+    "provider": "images-of-elements"
+  },
+  "52": {
+    "src": "/elements/52.jpg",
+    "title": "Tellurium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/tellurium.php",
+    "provider": "images-of-elements"
+  },
+  "53": {
+    "src": "/elements/53.jpg",
+    "title": "Iodine crystals",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/iodine.php",
+    "provider": "images-of-elements"
+  },
+  "54": {
+    "src": "/elements/54.jpg",
+    "title": "Xenon",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/xenon.php",
+    "provider": "images-of-elements"
+  },
+  "55": {
+    "src": "/elements/55.jpg",
+    "title": "Caesium 4 images",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/caesium.php",
+    "provider": "images-of-elements"
+  },
+  "56": {
+    "src": "/elements/56.jpg",
+    "title": "Barium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/barium.php",
+    "provider": "images-of-elements"
+  },
+  "57": {
+    "src": "/elements/57.jpg",
+    "title": "Lanthanum",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/lanthanum.php",
+    "provider": "images-of-elements"
+  },
+  "58": {
+    "src": "/elements/58.jpg",
+    "title": "Cerium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/cerium.php",
+    "provider": "images-of-elements"
+  },
+  "59": {
+    "src": "/elements/59.jpg",
+    "title": "Praseodymium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/praseodymium.php",
+    "provider": "images-of-elements"
+  },
+  "60": {
+    "src": "/elements/60.jpg",
+    "title": "Neodymium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/neodymium.php",
+    "provider": "images-of-elements"
+  },
+  "61": {
+    "src": "/elements/61.jpg",
+    "title": "Promethium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/promethium.php",
+    "provider": "images-of-elements"
+  },
+  "62": {
+    "src": "/elements/62.jpg",
+    "title": "Samarium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/samarium.php",
+    "provider": "images-of-elements"
+  },
+  "63": {
+    "src": "/elements/63.jpg",
+    "title": "Strongly oxidized europium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/europium.php",
+    "provider": "images-of-elements"
+  },
+  "64": {
+    "src": "/elements/64.jpg",
+    "title": "Gadolinium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/gadolinium.php",
+    "provider": "images-of-elements"
+  },
+  "65": {
+    "src": "/elements/65.jpg",
+    "title": "Terbium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/terbium.php",
+    "provider": "images-of-elements"
+  },
+  "66": {
+    "src": "/elements/66.jpg",
+    "title": "Dysprodium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/dysprosium.php",
+    "provider": "images-of-elements"
+  },
+  "67": {
+    "src": "/elements/67.jpg",
+    "title": "Holmium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/holmium.php",
+    "provider": "images-of-elements"
+  },
+  "68": {
+    "src": "/elements/68.jpg",
+    "title": "Erbium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/erbium.php",
+    "provider": "images-of-elements"
+  },
+  "69": {
+    "src": "/elements/69.jpg",
+    "title": "Thulium front",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/thulium.php",
+    "provider": "images-of-elements"
+  },
+  "70": {
+    "src": "/elements/70.jpg",
+    "title": "Ytterbium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/ytterbium.php",
+    "provider": "images-of-elements"
+  },
+  "71": {
+    "src": "/elements/71.jpg",
+    "title": "Lutetium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/lutetium.php",
+    "provider": "images-of-elements"
+  },
+  "72": {
+    "src": "/elements/72.jpg",
+    "title": "Hafnium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/hafnium.php",
+    "provider": "images-of-elements"
+  },
+  "73": {
+    "src": "/elements/73.jpg",
+    "title": "Tantalum",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/tantalum.php",
+    "provider": "images-of-elements"
+  },
+  "74": {
+    "src": "/elements/74.jpg",
+    "title": "Tungsten rod",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/tungsten.php",
+    "provider": "images-of-elements"
+  },
+  "75": {
+    "src": "/elements/75.jpg",
+    "title": "Rhenium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/rhenium.php",
+    "provider": "images-of-elements"
+  },
+  "76": {
+    "src": "/elements/76.jpg",
+    "title": "Osmium ",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/osmium.php",
+    "provider": "images-of-elements"
+  },
+  "77": {
+    "src": "/elements/77.jpg",
+    "title": "Iridium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/iridium.php",
+    "provider": "images-of-elements"
+  },
+  "78": {
+    "src": "/elements/78.jpg",
+    "title": "Platinum",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/platinum.php",
+    "provider": "images-of-elements"
+  },
+  "79": {
+    "src": "/elements/79.jpg",
+    "title": "Gold leaves",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/gold.php",
+    "provider": "images-of-elements"
+  },
+  "80": {
+    "src": "/elements/80.jpg",
+    "title": "Mercury",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/mercury.php",
+    "provider": "images-of-elements"
+  },
+  "81": {
+    "src": "/elements/81.jpg",
+    "title": "Thallium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/thallium.php",
+    "provider": "images-of-elements"
+  },
+  "82": {
+    "src": "/elements/82.jpg",
+    "title": "Lead bead",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/lead.php",
+    "provider": "images-of-elements"
+  },
+  "83": {
+    "src": "/elements/83.jpg",
+    "title": "Bismuth",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/bismuth.php",
+    "provider": "images-of-elements"
+  },
+  "84": {
+    "src": "/elements/84.jpg",
+    "title": "Polonium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/polonium.php",
+    "provider": "images-of-elements"
+  },
+  "85": {
+    "src": "/elements/85.jpg",
+    "title": "Astatine",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/astatine.php",
+    "provider": "images-of-elements"
+  },
+  "86": {
+    "src": "/elements/86.jpg",
+    "title": "Radon",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/radon.php",
+    "provider": "images-of-elements"
+  },
+  "87": {
+    "src": "/elements/87.jpg",
+    "title": "Francium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/francium.php",
+    "provider": "images-of-elements"
+  },
+  "88": {
+    "src": "/elements/88.jpg",
+    "title": "Radium self-luminous paint",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/radium.php",
+    "provider": "images-of-elements"
+  },
+  "89": {
+    "src": "/elements/89.png",
+    "title": "Actinium-225 radioisotope in a vial at ORNL",
+    "credit": "Oak Ridge National Laboratory",
+    "license": "CC BY 2.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/2.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Actinium_sample_(31481701837).png",
+    "provider": "wikimedia"
+  },
+  "90": {
+    "src": "/elements/90.jpg",
+    "title": "Thorium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/thorium.php",
+    "provider": "images-of-elements"
+  },
+  "91": {
+    "src": "/elements/91.jpg",
+    "title": "Protactinium-233 photographed by its own radiation",
+    "credit": "ENERGY.GOV",
+    "license": "Public domain",
+    "licenseUrl": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Protactinium-233.jpg",
+    "provider": "wikimedia"
+  },
+  "92": {
+    "src": "/elements/92.jpg",
+    "title": "Depleted uranium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/uranium.php",
+    "provider": "images-of-elements"
+  },
+  "93": {
+    "src": "/elements/93.jpg",
+    "title": "Neptunium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/neptunium.php",
+    "provider": "images-of-elements"
+  },
+  "94": {
+    "src": "/elements/94.jpg",
+    "title": "Plutonium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/plutonium.php",
+    "provider": "images-of-elements"
+  },
+  "95": {
+    "src": "/elements/95.jpg",
+    "title": "Americium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/americium.php",
+    "provider": "images-of-elements"
+  },
+  "96": {
+    "src": "/elements/96.png",
+    "title": "Curium fluorescence",
+    "credit": "Eschenmoser + Kollegen",
+    "license": "Public domain",
+    "licenseUrl": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Cm-Fluoreszenz.png",
+    "provider": "wikimedia"
+  },
+  "97": {
+    "src": "/elements/97.jpg",
+    "title": "Berkelium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/berkelium.php",
+    "provider": "images-of-elements"
+  },
+  "98": {
+    "src": "/elements/98.jpg",
+    "title": "Californium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/californium.php",
+    "provider": "images-of-elements"
+  },
+  "99": {
+    "src": "/elements/99.jpg",
+    "title": "Einsteinium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/einsteinium.php",
+    "provider": "images-of-elements"
+  },
+  "100": {
+    "src": "/elements/100.jpg",
+    "title": "Fermium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/fermium.php",
+    "provider": "images-of-elements"
+  },
+  "101": {
+    "src": "/elements/101.jpg",
+    "title": "Mendelevium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/mendelevium.php",
+    "provider": "images-of-elements"
+  },
+  "102": {
+    "src": "/elements/102.jpg",
+    "title": "Nobelium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/nobelium.php",
+    "provider": "images-of-elements"
+  },
+  "103": {
+    "src": "/elements/103.jpg",
+    "title": "Lawrencium",
+    "credit": "images-of-elements.com",
+    "license": "CC BY 3.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+    "sourceUrl": "https://images-of-elements.com/lawrencium.php",
+    "provider": "images-of-elements"
+  },
+  "104": {
+    "placeholder": true,
+    "note": "Резерфордий синтезируется в единичных атомах и не имеет видимой навески.",
+    "sym": "Rf"
+  },
+  "105": {
+    "placeholder": true,
+    "note": "Дубний синтезируется в единичных атомах и не имеет видимой навески.",
+    "sym": "Db"
+  },
+  "106": {
+    "placeholder": true,
+    "note": "Сиборгий синтезируется в единичных атомах и не имеет видимой навески.",
+    "sym": "Sg"
+  },
+  "107": {
+    "placeholder": true,
+    "note": "Борий синтезируется в единичных атомах и не имеет видимой навески.",
+    "sym": "Bh"
+  },
+  "108": {
+    "placeholder": true,
+    "note": "Хассий синтезируется в единичных атомах и не имеет видимой навески.",
+    "sym": "Hs"
+  },
+  "109": {
+    "placeholder": true,
+    "note": "Мейтнерий синтезируется в единичных атомах и не имеет видимой навески.",
+    "sym": "Mt"
+  },
+  "110": {
+    "placeholder": true,
+    "note": "Дармштадтий синтезируется в единичных атомах и не имеет видимой навески.",
+    "sym": "Ds"
+  },
+  "111": {
+    "placeholder": true,
+    "note": "Рентгений синтезируется в единичных атомах и не имеет видимой навески.",
+    "sym": "Rg"
+  },
+  "112": {
+    "placeholder": true,
+    "note": "Коперниций синтезируется в единичных атомах и не имеет видимой навески.",
+    "sym": "Cn"
+  },
+  "113": {
+    "placeholder": true,
+    "note": "Нихоний синтезируется в единичных атомах и не имеет видимой навески.",
+    "sym": "Nh"
+  },
+  "114": {
+    "placeholder": true,
+    "note": "Флеровий синтезируется в единичных атомах и не имеет видимой навески.",
+    "sym": "Fl"
+  },
+  "115": {
+    "placeholder": true,
+    "note": "Московий синтезируется в единичных атомах и не имеет видимой навески.",
+    "sym": "Mc"
+  },
+  "116": {
+    "placeholder": true,
+    "note": "Ливерморий синтезируется в единичных атомах и не имеет видимой навески.",
+    "sym": "Lv"
+  },
+  "117": {
+    "placeholder": true,
+    "note": "Теннессин синтезируется в единичных атомах и не имеет видимой навески.",
+    "sym": "Ts"
+  },
+  "118": {
+    "placeholder": true,
+    "note": "Оганесон синтезируется в единичных атомах и не имеет видимой навески.",
+    "sym": "Og"
+  }
+}

@@ -111,6 +111,10 @@ export const BOOKS: BookMeta[] = [
   // 整理新书时：把 reserved 去掉、填上 title/hint，再在下面 LESSONS 里追加条目
   // （book 填该 id）。预留位在页面上可见，接入时无需改动任何渲染代码。
   { id: 'p-russia-baz', subject: 'russian', title: '《Привет, Россия! (Базовый)》', hint: 'Базовый уровень · Урок 1–10' },
+  // ── 化学俄语（学科俄语，与生活俄语互补）──
+  // 源：C:\Projects\Chemist\Russian\俄语化学入门\
+  // 同步：_extract\sync_chem_to_site.py（目标文件名带 chem- 前缀，与 Э/Б 不撞）
+  { id: 'p-chem', subject: 'russian', title: '《俄语化学入门》', hint: '化学俄语 · 3 预备 + 7 精讲 + 2 专题 + 4 汇总' },
   { id: 'slot-b', subject: 'russian', title: '', hint: '', reserved: true },
   // ── lib 自编课程：统一归「杂项」，学科只作为条目说明 ──
   // 把书编成课后，在 content/misc-lessons/<课程>/ 放 md，再把这条 slot 改成真实条目；
@@ -151,6 +155,26 @@ export const LESSONS: LessonMeta[] = [
   { id: 'b-pos', file: 'b13-words-by-pos.md', title: '词表 · 按词型', hint: '121 个 Базовый 真新词按名词/动词/形容词/副词分类', group: 'global', book: 'p-russia-baz' },
   { id: 'b-theme', file: 'b14-words-by-theme.md', title: '词表 · 按主题', hint: '同 121 词按 10 课主题归集（场景联想）', group: 'global', book: 'p-russia-baz' },
   { id: 'b-comp', file: 'b15-key-compendium.md', title: '关键内容精编', hint: '六格体系总表 · 名词/形容词变格全表 · 运动动词九前缀 · 复合句总表 · 易混辨析', group: 'global', book: 'p-russia-baz' },
+
+  // ── 《俄语化学入门》 独立分区（chem- 前缀文件，与 Э/Б 不撞名）──
+  // 内容源：C:\Projects\Chemist\Russian\俄语化学入门\（同步脚本 _extract\sync_chem_to_site.py）
+  // 顺序 = 「总—分—总」：预备 → 正文 7 讲 → 补充专题 → 汇总精编
+  { id: 'ch-00', file: 'chem-00-overview.md', title: '课程总览与使用指南', hint: '七讲知识链 · 双轨资料结构 · 三种使用路径 · 三个门槛', group: 'global', book: 'p-chem' },
+  { id: 'ch-00a', file: 'chem-00a-alphabet-symbols.md', title: '字母名与化学符号读法', hint: '★33 个字母名 · 化学式三级读法 · 同形字陷阱 · дважды/трижды', group: 'global', book: 'p-chem' },
+  { id: 'ch-00b', file: 'chem-00b-grammar-prep.md', title: '化学课的语法预备', hint: '★按实测频次排：в/на 六格 > -ся 动词 > 第二格 > по 三格', group: 'global', book: 'p-chem' },
+  { id: 'ch-01', file: 'chem-01-zanyatie-1.md', title: 'Занятие 1 · 物质及其式', hint: '12 个性质名词 · 形容词派生 · 化学式三级读法 · 五个句型', group: 'lesson', book: 'p-chem' },
+  { id: 'ch-02', file: 'chem-02-zanyatie-2.md', title: 'Занятие 2 · 化学研究什么', hint: '化学性质定义 · 四类无机物 · различаться по · 组成两方向', group: 'lesson', book: 'p-chem' },
+  { id: 'ch-03', file: 'chem-03-zanyatie-3.md', title: 'Занятие 3 · 单质与化合物', hint: '粒子三层级 · 第二格全套 · 四个核心句型 · 缩写格的歧义', group: 'lesson', book: 'p-chem' },
+  { id: 'ch-04', file: 'chem-04-zanyatie-4.md', title: 'Занятие 4 · 分子组成', hint: '三句式对比（组成/含于/含有）· 质与量两维度 · 化学式的说明力', group: 'lesson', book: 'p-chem' },
+  { id: 'ch-05', file: 'chem-05-zanyatie-5.md', title: 'Занятие 5 · 化学反应', hint: '反应物/生成物 · 方程式结构 · 三个定义句 · называться 五格', group: 'lesson', book: 'p-chem' },
+  { id: 'ch-06', file: 'chem-06-zanyatie-6.md', title: 'Занятие 6 · 相对质量', hint: 'Ar/Mr 定义 · 2N+2 页码 · 倍数句式 · 1/12 碳基准', group: 'lesson', book: 'p-chem' },
+  { id: 'ch-07', file: 'chem-07-zanyatie-7.md', title: 'Занятие 7 · 摩尔质量', hint: 'моль · 阿伏伽德罗常数 · M=Mr · 质量守恒 · 罗蒙诺索夫', group: 'lesson', book: 'p-chem' },
+  { id: 'ch-20', file: 'chem-20-supplement.md', title: '补充专题 · 主教材独有主题', hint: '★原子结构 · 周期表 · 原子价 · 离子 · 阴阳离子 · 分子结构', group: 'global', book: 'p-chem' },
+  { id: 'ch-30', file: 'chem-30-rhtu-reader.md', title: 'РХТУ 化学精读（门捷列夫化工大学）', hint: '★★酸命名四规则 · 盐命名三规律 · 氧化还原 · 动力学 · 平衡 · 溶液', group: 'global', book: 'p-chem' },
+  { id: 'ch-10', file: 'chem-10-overview-table.md', title: '全局总表', hint: '概念链 · 句式总表 · 无机物 · 化学式读法 · 缩写 · 计算三公式', group: 'global', book: 'p-chem' },
+  { id: 'ch-11', file: 'chem-11-words-pos.md', title: '词表 · 按词性', hint: '名词/动词/形容词/数词，含体对与格支配', group: 'global', book: 'p-chem' },
+  { id: 'ch-12', file: 'chem-12-words-theme.md', title: '词表 · 按主题', hint: '14 个主题归集（物质/性质/反应/计量/实验室…）', group: 'global', book: 'p-chem' },
+  { id: 'ch-13', file: 'chem-13-compendium.md', title: '关键内容精编', hint: '知识主干 · 定义句 15 句 · 易错清单 · 英俄对应', group: 'global', book: 'p-chem' },
 
   // ── 数学 · 线性代数（38 讲 + 附录 + 总表）──
   // 内容源：content/misc-lessons/linear-algebra/（与 Rag 课程库单一真源同步）

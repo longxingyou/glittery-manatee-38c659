@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Atom, BookA, BookOpen, Boxes, Check, Copy, Delete, Keyboard, Repeat, Type, Volume2 } from 'lucide-react'
+import { BookA, BookOpen, Boxes, Check, Copy, Delete, Keyboard, Repeat, Type } from 'lucide-react'
 
 import { useLang, useT } from '@/lib/i18n'
 import type { Phrase } from '@/lib/russian-phrases'
@@ -25,7 +25,7 @@ const MaterialsTab = React.lazy(() => import('./russian-materials').then((m) => 
 // ⑤ 动词变位：第一/第二变位法、过去时、将来时、命令式
 // =================================================================
 
-type ToolkitTab = 'translit' | 'alphabet' | 'nouns' | 'verbs' | 'elements' | 'polymer' | 'lexicon' | 'materials'
+type ToolkitTab = 'translit' | 'alphabet' | 'nouns' | 'verbs' | 'polymer' | 'lexicon' | 'materials'
 
 // ── 音译映射（拉丁 → 西里尔；多字母组合在前，最长匹配优先）──
 const LAT2CYR: Array<[string, string]> = [
@@ -682,273 +682,7 @@ function VerbsTab() {
 }
 
 
-// ═══════════════ ⑤ 元素周期表（俄语点读，118 元素标准网格布局）═══════════════
-type Element = { z: number; sym: string; ru: string; zh: string; en: string }
-
-const ELEMENTS: Element[] = [
-  { z: 1, sym: 'H', ru: 'Водород', zh: '氢', en: 'Hydrogen' },
-  { z: 2, sym: 'He', ru: 'Гелий', zh: '氦', en: 'Helium' },
-  { z: 3, sym: 'Li', ru: 'Литий', zh: '锂', en: 'Lithium' },
-  { z: 4, sym: 'Be', ru: 'Бериллий', zh: '铍', en: 'Beryllium' },
-  { z: 5, sym: 'B', ru: 'Бор', zh: '硼', en: 'Boron' },
-  { z: 6, sym: 'C', ru: 'Углерод', zh: '碳', en: 'Carbon' },
-  { z: 7, sym: 'N', ru: 'Азот', zh: '氮', en: 'Nitrogen' },
-  { z: 8, sym: 'O', ru: 'Кислород', zh: '氧', en: 'Oxygen' },
-  { z: 9, sym: 'F', ru: 'Фтор', zh: '氟', en: 'Fluorine' },
-  { z: 10, sym: 'Ne', ru: 'Неон', zh: '氖', en: 'Neon' },
-  { z: 11, sym: 'Na', ru: 'Натрий', zh: '钠', en: 'Sodium' },
-  { z: 12, sym: 'Mg', ru: 'Магний', zh: '镁', en: 'Magnesium' },
-  { z: 13, sym: 'Al', ru: 'Алюминий', zh: '铝', en: 'Aluminium' },
-  { z: 14, sym: 'Si', ru: 'Кремний', zh: '硅', en: 'Silicon' },
-  { z: 15, sym: 'P', ru: 'Фосфор', zh: '磷', en: 'Phosphorus' },
-  { z: 16, sym: 'S', ru: 'Сера', zh: '硫', en: 'Sulfur' },
-  { z: 17, sym: 'Cl', ru: 'Хлор', zh: '氯', en: 'Chlorine' },
-  { z: 18, sym: 'Ar', ru: 'Аргон', zh: '氩', en: 'Argon' },
-  { z: 19, sym: 'K', ru: 'Калий', zh: '钾', en: 'Potassium' },
-  { z: 20, sym: 'Ca', ru: 'Кальций', zh: '钙', en: 'Calcium' },
-  { z: 21, sym: 'Sc', ru: 'Скандий', zh: '钪', en: 'Scandium' },
-  { z: 22, sym: 'Ti', ru: 'Титан', zh: '钛', en: 'Titanium' },
-  { z: 23, sym: 'V', ru: 'Ванадий', zh: '钒', en: 'Vanadium' },
-  { z: 24, sym: 'Cr', ru: 'Хром', zh: '铬', en: 'Chromium' },
-  { z: 25, sym: 'Mn', ru: 'Марганец', zh: '锰', en: 'Manganese' },
-  { z: 26, sym: 'Fe', ru: 'Железо', zh: '铁', en: 'Iron' },
-  { z: 27, sym: 'Co', ru: 'Кобальт', zh: '钴', en: 'Cobalt' },
-  { z: 28, sym: 'Ni', ru: 'Никель', zh: '镍', en: 'Nickel' },
-  { z: 29, sym: 'Cu', ru: 'Медь', zh: '铜', en: 'Copper' },
-  { z: 30, sym: 'Zn', ru: 'Цинк', zh: '锌', en: 'Zinc' },
-  { z: 31, sym: 'Ga', ru: 'Галлий', zh: '镓', en: 'Gallium' },
-  { z: 32, sym: 'Ge', ru: 'Германий', zh: '锗', en: 'Germanium' },
-  { z: 33, sym: 'As', ru: 'Мышьяк', zh: '砷', en: 'Arsenic' },
-  { z: 34, sym: 'Se', ru: 'Селен', zh: '硒', en: 'Selenium' },
-  { z: 35, sym: 'Br', ru: 'Бром', zh: '溴', en: 'Bromine' },
-  { z: 36, sym: 'Kr', ru: 'Криптон', zh: '氪', en: 'Krypton' },
-  { z: 37, sym: 'Rb', ru: 'Рубидий', zh: '铷', en: 'Rubidium' },
-  { z: 38, sym: 'Sr', ru: 'Стронций', zh: '锶', en: 'Strontium' },
-  { z: 39, sym: 'Y', ru: 'Иттрий', zh: '钇', en: 'Yttrium' },
-  { z: 40, sym: 'Zr', ru: 'Цирконий', zh: '锆', en: 'Zirconium' },
-  { z: 41, sym: 'Nb', ru: 'Ниобий', zh: '铌', en: 'Niobium' },
-  { z: 42, sym: 'Mo', ru: 'Молибден', zh: '钼', en: 'Molybdenum' },
-  { z: 43, sym: 'Tc', ru: 'Технеций', zh: '锝', en: 'Technetium' },
-  { z: 44, sym: 'Ru', ru: 'Рутений', zh: '钌', en: 'Ruthenium' },
-  { z: 45, sym: 'Rh', ru: 'Родий', zh: '铑', en: 'Rhodium' },
-  { z: 46, sym: 'Pd', ru: 'Палладий', zh: '钯', en: 'Palladium' },
-  { z: 47, sym: 'Ag', ru: 'Серебро', zh: '银', en: 'Silver' },
-  { z: 48, sym: 'Cd', ru: 'Кадмий', zh: '镉', en: 'Cadmium' },
-  { z: 49, sym: 'In', ru: 'Индий', zh: '铟', en: 'Indium' },
-  { z: 50, sym: 'Sn', ru: 'Олово', zh: '锡', en: 'Tin' },
-  { z: 51, sym: 'Sb', ru: 'Сурьма', zh: '锑', en: 'Antimony' },
-  { z: 52, sym: 'Te', ru: 'Теллур', zh: '碲', en: 'Tellurium' },
-  { z: 53, sym: 'I', ru: 'Иод', zh: '碘', en: 'Iodine' },
-  { z: 54, sym: 'Xe', ru: 'Ксенон', zh: '氙', en: 'Xenon' },
-  { z: 55, sym: 'Cs', ru: 'Цезий', zh: '铯', en: 'Caesium' },
-  { z: 56, sym: 'Ba', ru: 'Барий', zh: '钡', en: 'Barium' },
-  { z: 57, sym: 'La', ru: 'Лантан', zh: '镧', en: 'Lanthanum' },
-  { z: 58, sym: 'Ce', ru: 'Церий', zh: '铈', en: 'Cerium' },
-  { z: 59, sym: 'Pr', ru: 'Празеодим', zh: '镨', en: 'Praseodymium' },
-  { z: 60, sym: 'Nd', ru: 'Неодим', zh: '钕', en: 'Neodymium' },
-  { z: 61, sym: 'Pm', ru: 'Прометий', zh: '钷', en: 'Promethium' },
-  { z: 62, sym: 'Sm', ru: 'Самарий', zh: '钐', en: 'Samarium' },
-  { z: 63, sym: 'Eu', ru: 'Европий', zh: '铕', en: 'Europium' },
-  { z: 64, sym: 'Gd', ru: 'Гадолиний', zh: '钆', en: 'Gadolinium' },
-  { z: 65, sym: 'Tb', ru: 'Тербий', zh: '铽', en: 'Terbium' },
-  { z: 66, sym: 'Dy', ru: 'Диспрозий', zh: '镝', en: 'Dysprosium' },
-  { z: 67, sym: 'Ho', ru: 'Гольмий', zh: '钬', en: 'Holmium' },
-  { z: 68, sym: 'Er', ru: 'Эрбий', zh: '铒', en: 'Erbium' },
-  { z: 69, sym: 'Tm', ru: 'Тулий', zh: '铥', en: 'Thulium' },
-  { z: 70, sym: 'Yb', ru: 'Иттербий', zh: '镱', en: 'Ytterbium' },
-  { z: 71, sym: 'Lu', ru: 'Лютеций', zh: '镥', en: 'Lutetium' },
-  { z: 72, sym: 'Hf', ru: 'Гафний', zh: '铪', en: 'Hafnium' },
-  { z: 73, sym: 'Ta', ru: 'Тантал', zh: '钽', en: 'Tantalum' },
-  { z: 74, sym: 'W', ru: 'Вольфрам', zh: '钨', en: 'Tungsten' },
-  { z: 75, sym: 'Re', ru: 'Рений', zh: '铼', en: 'Rhenium' },
-  { z: 76, sym: 'Os', ru: 'Осмий', zh: '锇', en: 'Osmium' },
-  { z: 77, sym: 'Ir', ru: 'Иридий', zh: '铱', en: 'Iridium' },
-  { z: 78, sym: 'Pt', ru: 'Платина', zh: '铂', en: 'Platinum' },
-  { z: 79, sym: 'Au', ru: 'Золото', zh: '金', en: 'Gold' },
-  { z: 80, sym: 'Hg', ru: 'Ртуть', zh: '汞', en: 'Mercury' },
-  { z: 81, sym: 'Tl', ru: 'Таллий', zh: '铊', en: 'Thallium' },
-  { z: 82, sym: 'Pb', ru: 'Свинец', zh: '铅', en: 'Lead' },
-  { z: 83, sym: 'Bi', ru: 'Висмут', zh: '铋', en: 'Bismuth' },
-  { z: 84, sym: 'Po', ru: 'Полоний', zh: '钋', en: 'Polonium' },
-  { z: 85, sym: 'At', ru: 'Астат', zh: '砹', en: 'Astatine' },
-  { z: 86, sym: 'Rn', ru: 'Радон', zh: '氡', en: 'Radon' },
-  { z: 87, sym: 'Fr', ru: 'Франций', zh: '钫', en: 'Francium' },
-  { z: 88, sym: 'Ra', ru: 'Радий', zh: '镭', en: 'Radium' },
-  { z: 89, sym: 'Ac', ru: 'Актиний', zh: '锕', en: 'Actinium' },
-  { z: 90, sym: 'Th', ru: 'Торий', zh: '钍', en: 'Thorium' },
-  { z: 91, sym: 'Pa', ru: 'Протактиний', zh: '镤', en: 'Protactinium' },
-  { z: 92, sym: 'U', ru: 'Уран', zh: '铀', en: 'Uranium' },
-  { z: 93, sym: 'Np', ru: 'Нептуний', zh: '镎', en: 'Neptunium' },
-  { z: 94, sym: 'Pu', ru: 'Плутоний', zh: '钚', en: 'Plutonium' },
-  { z: 95, sym: 'Am', ru: 'Америций', zh: '镅', en: 'Americium' },
-  { z: 96, sym: 'Cm', ru: 'Кюрий', zh: '锔', en: 'Curium' },
-  { z: 97, sym: 'Bk', ru: 'Берклий', zh: '锫', en: 'Berkelium' },
-  { z: 98, sym: 'Cf', ru: 'Калифорний', zh: '锎', en: 'Californium' },
-  { z: 99, sym: 'Es', ru: 'Эйнштейний', zh: '锿', en: 'Einsteinium' },
-  { z: 100, sym: 'Fm', ru: 'Фермий', zh: '镄', en: 'Fermium' },
-  { z: 101, sym: 'Md', ru: 'Менделевий', zh: '钔', en: 'Mendelevium' },
-  { z: 102, sym: 'No', ru: 'Нобелий', zh: '锘', en: 'Nobelium' },
-  { z: 103, sym: 'Lr', ru: 'Лоуренсий', zh: '铹', en: 'Lawrencium' },
-  { z: 104, sym: 'Rf', ru: 'Резерфордий', zh: '𬬻', en: 'Rutherfordium' },
-  { z: 105, sym: 'Db', ru: 'Дубний', zh: '𬭊', en: 'Dubnium' },
-  { z: 106, sym: 'Sg', ru: 'Сиборгий', zh: '𬭳', en: 'Seaborgium' },
-  { z: 107, sym: 'Bh', ru: 'Борий', zh: '𬭛', en: 'Bohrium' },
-  { z: 108, sym: 'Hs', ru: 'Хассий', zh: '𬭶', en: 'Hassium' },
-  { z: 109, sym: 'Mt', ru: 'Мейтнерий', zh: '鿏', en: 'Meitnerium' },
-  { z: 110, sym: 'Ds', ru: 'Дармштадтий', zh: '𫟷', en: 'Darmstadtium' },
-  { z: 111, sym: 'Rg', ru: 'Рентгений', zh: '𫟔', en: 'Roentgenium' },
-  { z: 112, sym: 'Cn', ru: 'Коперниций', zh: '鎶', en: 'Copernicium' },
-  { z: 113, sym: 'Nh', ru: 'Нихоний', zh: '鉨', en: 'Nihonium' },
-  { z: 114, sym: 'Fl', ru: 'Флеровий', zh: '𫓧', en: 'Flerovium' },
-  { z: 115, sym: 'Mc', ru: 'Московий', zh: '镆', en: 'Moscovium' },
-  { z: 116, sym: 'Lv', ru: 'Ливерморий', zh: '鉝', en: 'Livermorium' },
-  { z: 117, sym: 'Ts', ru: 'Теннессин', zh: '鿬', en: 'Tennessine' },
-  { z: 118, sym: 'Og', ru: 'Оганесон', zh: '鿫', en: 'Oganesson' },
-]
-
-// 标准周期表网格坐标（18 列；9/10 行为镧系/锕系）
-// 返回 [逻辑周期行 1-7, 逻辑族列 1-18]；镧系/锕系单独第 9/10 行
-function elGridPos(z: number): [number, number] {
-  if (z === 1) return [1, 1]
-  if (z === 2) return [1, 18]
-  if (z <= 4) return [2, z - 2]
-  if (z <= 10) return [2, z + 8]
-  if (z <= 12) return [3, z - 10]
-  if (z <= 18) return [3, z]
-  if (z <= 36) return [4, z - 18]
-  if (z <= 54) return [5, z - 36]
-  // 镧系/锕系独立行：必须先于第 6/7 周期主体元素判断
-  if (z >= 58 && z <= 71) return [9, z - 54]
-  if (z >= 90 && z <= 103) return [10, z - 86]
-  // 第 6 周期：Cs(55) Ba(56) La(57) 占 1-3 列，Hf(72)→4 … Rn(86)→18
-  if (z <= 57) return [6, z - 54]
-  if (z <= 86) return [6, z - 68]
-  // 第 7 周期：Fr Ra Ac 占 1-3 列，Rf(104)→4 … Og(118)→18
-  if (z <= 89) return [7, z - 86]
-  return [7, z - 100]
-}
-
-// 元素类别（周期表配色 + 图例）：特殊族用集合列举，其余默认过渡金属
-const EL_CAT_SETS: Array<[string, number[]]> = [
-  ['noble', [2, 10, 18, 36, 54, 86, 118]],
-  ['alkali', [3, 11, 19, 37, 55, 87]],
-  ['alkaline', [4, 12, 20, 38, 56, 88]],
-  ['halogen', [9, 17, 35, 53, 85, 117]],
-  ['metalloid', [5, 14, 32, 33, 51, 52]],
-  ['nonmetal', [1, 6, 7, 8, 15, 16, 34]],
-  ['post', [13, 31, 49, 50, 81, 82, 83, 84, 113, 114, 115, 116]],
-]
-function elCat(z: number): string {
-  if (z >= 57 && z <= 71) return 'lanth'
-  if (z >= 89 && z <= 103) return 'act'
-  for (const [c, zs] of EL_CAT_SETS) if (zs.includes(z)) return c
-  return 'transition'
-}
-
-// 族号表头：中国/国际通用 IUPAC 1–18；俄国教材传统 I–VIII 族 + A（主族）/ B（副族）
-const GROUP_LABELS_CN = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18']
-const GROUP_LABELS_RU = ['IA', 'IIA', 'IIIB', 'IVB', 'VB', 'VIB', 'VIIB', 'VIIIB', 'VIIIB', 'VIIIB', 'IB', 'IIB', 'IIIA', 'IVA', 'VA', 'VIA', 'VIIA', 'VIIIA']
-
-function ElementsTab() {
-  const t = useT()
-  const [sel, setSel] = React.useState<Element | null>(null)
-  const [noVoice, setNoVoice] = React.useState(false)
-  // 表格版本：ru 俄国常用版（俄语名 + I–VIII A/B 族标注）/ cn 中国常用版（中文名 + 1–18 IUPAC）
-  const [ver, setVer] = React.useState<'cn' | 'ru'>('ru')
-  React.useEffect(() => {
-    try {
-      const v = localStorage.getItem('sg-ru-pt-ver')
-      if (v === 'cn' || v === 'ru') setVer(v)
-    } catch { /* ignore */ }
-  }, [])
-  const changeVer = (v: 'cn' | 'ru') => {
-    setVer(v)
-    try { localStorage.setItem('sg-ru-pt-ver', v) } catch { /* ignore */ }
-  }
-  const say = async (e: Element) => {
-    setSel(e)
-    if (!(await playRu(e.ru))) setNoVoice(true)
-  }
-  const groups = ver === 'cn' ? GROUP_LABELS_CN : GROUP_LABELS_RU
-  return (
-    <section className="panel" style={{ marginTop: 14 }}>
-      <div className="ru-el-head">
-        <h2 style={{ margin: 0, fontSize: 16 }}>
-          <Atom size={16} style={{ verticalAlign: '-3px', marginRight: 6 }} />
-          {t('ru.tab.elements')}
-        </h2>
-        <div className="ru-el-ver" role="group" aria-label={t('ru.el.ver')}>
-          <button type="button" className={ver === 'ru' ? 'active' : ''} onClick={() => changeVer('ru')}>
-            {t('ru.el.verru')}
-          </button>
-          <button type="button" className={ver === 'cn' ? 'active' : ''} onClick={() => changeVer('cn')}>
-            {t('ru.el.vercn')}
-          </button>
-        </div>
-      </div>
-      <p style={{ margin: '8px 0 10px', color: 'var(--muted)', fontSize: 13 }}>
-        {noVoice ? t('ru.ab.nosound') : t('ru.el.hint')}
-      </p>
-      <div className="ru-el-legend">
-        {(['alkali', 'alkaline', 'transition', 'post', 'metalloid', 'nonmetal', 'halogen', 'noble', 'lanth', 'act'] as const).map((c) => (
-          <span key={c} className="ru-el-legend-item">
-            <i data-c={c} />
-            {/* lanth/act 复用表格占位框的既有 key，避免词典重复 */}
-            {t(c === 'lanth' ? 'ru.el.lan' : c === 'act' ? 'ru.el.act' : `ru.el.cat.${c}`)}
-          </span>
-        ))}
-      </div>
-      <div className="ru-pt-wrap">
-        <div className="ru-pt ru-pt-19">
-          {/* 第 1 行：族号表头（第 1 列留空放周期号） */}
-          {groups.map((g, i) => (
-            <span key={g + i} className="ru-pt-colhead" style={{ gridRow: 1, gridColumn: i + 2 }}>{g}</span>
-          ))}
-          {/* 第 1 列：周期号 */}
-          {[1, 2, 3, 4, 5, 6, 7].map((p) => (
-            <span key={p} className="ru-pt-rowhead" style={{ gridRow: p + 1, gridColumn: 1 }}>{p}</span>
-          ))}
-          {/* 镧系/锕系占位标签：逻辑 9/10 行 → 表格 10/11 行，列右移 1 */}
-          <span className="ru-el-series" data-c="lanth" style={{ gridRow: 10, gridColumn: '2 / span 3' }}>{t('ru.el.lan')}</span>
-          <span className="ru-el-series" data-c="act" style={{ gridRow: 11, gridColumn: '2 / span 3' }}>{t('ru.el.act')}</span>
-          {ELEMENTS.map((e) => {
-            const [row, col] = elGridPos(e.z)
-            return (
-              <button
-                type="button"
-                key={e.z}
-                className={`ru-el${sel?.z === e.z ? ' sel' : ''}`}
-                data-c={elCat(e.z)}
-                style={{ gridRow: row + 1, gridColumn: col + 1 }}
-                onClick={() => void say(e)}
-              >
-                <span className="n">{e.z}</span>
-                <span className="s">{e.sym}</span>
-                <span className="nm">{ver === 'cn' ? e.zh : e.ru}</span>
-              </button>
-            )
-          })}
-        </div>
-      </div>
-      {sel && (
-        <div className="ru-el-detail">
-          <button
-            type="button"
-            className="ru-el-say"
-            onClick={async () => { if (!(await playRu(sel.ru))) setNoVoice(true) }}
-          >
-            <b>{sel.z} · {sel.sym}</b> {ver === 'cn' ? sel.zh : sel.ru} <Volume2 size={14} />
-          </button>
-          <span style={{ color: 'var(--muted)', fontSize: 13 }}>
-            {ver === 'cn' ? `${sel.ru} · ${sel.en}` : `${sel.zh} · ${sel.en}`}
-          </span>
-        </div>
-      )}
-    </section>
-  )
-}
-
-// ═══════════════ ⑥ 高分子术语点读（聚合物加工工艺方向）═══════════════
+// ═══════════════ ⑤ 高分子术语点读（聚合物加工工艺方向）═══════════════
 type PolymerCatId = 'base' | 'mat' | 'proc' | 'add'
 
 // 数据中的重音用组合锐音符 U+0301 标注（如 поли́мер）。组合变音符号依赖字体
@@ -1251,7 +985,6 @@ export function RussianToolkit() {
                 ['lexicon', t('ru.tab.lexicon')],
                 ['translit', t('ru.tab.translit')],
                 ['alphabet', t('ru.tab.alphabet')],
-                ['elements', t('ru.tab.elements')],
                 ['polymer', t('ru.tab.polymer')],
               ] as Array<[ToolkitTab, string]>
             ).map(([id, label]) => (
@@ -1272,7 +1005,6 @@ export function RussianToolkit() {
           {tab === 'alphabet' && <AlphabetTab />}
           {tab === 'nouns' && <NounsTab />}
           {tab === 'verbs' && <VerbsTab />}
-          {tab === 'elements' && <ElementsTab />}
           {tab === 'polymer' && <PolymerTab />}
           {tab === 'lexicon' && <LexiconTab />}
           {tab === 'materials' && (

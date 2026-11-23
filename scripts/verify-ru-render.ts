@@ -38,9 +38,16 @@ for (const f of files) {
   // 源里的 callout 头数量 vs 渲染出的 callout 块数量
   // 每个 callout 渲染为 `class="callout callout-<type> callout-size-<size>"`，
   // 内部还嵌套 callout-title / callout-icon / callout-content 等，故须精确匹配块容器
-  const srcCallouts = (src.match(/^>\s*\[!\w+\]/gm) || []).length
+  //
+  // ★ 正则必须允许**嵌套引用**：`> [!tip]` 是顶层，`> > [!note]` 是引用块内的
+  // callout（渲染器照样输出一个 callout 块）。原正则只写 `^>\s*`，只能匹配 1 层，
+  // 于是「源码数 10、渲染数 11」这类失败全是**检查器漏计**，不是内容问题
+  // （实测 00-overview / 03-urok-3 / 08-urok-8 的失败差值正好等于各自的嵌套数）。
+  const CALLOUT_HEAD = /^(?:>\s*)+\[!\w+\]/gm
+  const CALLOUT_FOLD = /^(?:>\s*)+\[!\w+\][+-]/gm
+  const srcCallouts = (src.match(CALLOUT_HEAD) || []).length
   const outCallouts = (html.match(/class="callout callout-\w+ callout-size-\w+"/g) || []).length
-  const srcFolded = (src.match(/^>\s*\[!\w+\][+-]/gm) || []).length
+  const srcFolded = (src.match(CALLOUT_FOLD) || []).length
   const outFolded = (html.match(/<details class="callout /g) || []).length
   // 折叠逻辑依赖这个标题元素
   const titleEls = (html.match(/callout-title-text/g) || []).length

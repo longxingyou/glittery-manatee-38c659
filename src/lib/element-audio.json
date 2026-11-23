@@ -1,0 +1,3169 @@
+{
+  "1": {
+    "zh": {
+      "src": "/audio/elements/1-zh.mp3",
+      "file": "Zh-qing1.ogg",
+      "credit": "Jcwf",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-qing1.ogg"
+    },
+    "en": {
+      "src": "/audio/elements/1-en.mp3",
+      "file": "En-us-hydrogen.ogg",
+      "credit": "Wikimedia Commons",
+      "license": "Public domain",
+      "licenseUrl": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-hydrogen.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/1-ru.mp3",
+      "file": "Ru-водород.ogg",
+      "credit": "1640max",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Ru-%D0%B2%D0%BE%D0%B4%D0%BE%D1%80%D0%BE%D0%B4.ogg"
+    }
+  },
+  "2": {
+    "zh": {
+      "src": "/audio/elements/2-zh.mp3",
+      "file": "zh-hài.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-h%C3%A0i.ogg"
+    },
+    "en": {
+      "src": "/audio/elements/2-en.mp3",
+      "file": "En-us-helium.ogg",
+      "credit": "Dvortygirl",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-helium.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/2-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-гелий.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%B3%D0%B5%D0%BB%D0%B8%D0%B9.wav"
+    }
+  },
+  "3": {
+    "en": {
+      "src": "/audio/elements/3-en.mp3",
+      "file": "En-us-lithium.ogg",
+      "credit": "Dvortygirl",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-lithium.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/3-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-литий.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%BB%D0%B8%D1%82%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/3-zh.mp3",
+      "file": "Zh-li3.ogg",
+      "credit": "Jcwf",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-li3.ogg"
+    }
+  },
+  "4": {
+    "en": {
+      "src": "/audio/elements/4-en.mp3",
+      "file": "En-us-beryllium.ogg",
+      "credit": "Jcwf",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-beryllium.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/4-ru.mp3",
+      "file": "LL-Q7737 (rus)-Tatiana Kerbush-бериллий.wav",
+      "credit": "Speaker: Tatiana Kerbush Recorder: Tatiana Kerbush",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Tatiana_Kerbush-%D0%B1%D0%B5%D1%80%D0%B8%D0%BB%D0%BB%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/4-zh.mp3",
+      "file": "Zh-pi2.ogg",
+      "credit": "Jcwf",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-pi2.ogg"
+    }
+  },
+  "5": {
+    "en": {
+      "src": "/audio/elements/5-en.mp3",
+      "file": "En-us-boron.ogg",
+      "credit": "Jcwf",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-boron.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/5-ru.mp3",
+      "file": "Ru-бор.ogg",
+      "credit": "1640max",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Ru-%D0%B1%D0%BE%D1%80.ogg"
+    },
+    "zh": {
+      "src": "/audio/elements/5-zh.mp3",
+      "file": "Zh-péng.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-p%C3%A9ng.ogg",
+      "via": "同音字 peng2"
+    }
+  },
+  "6": {
+    "en": {
+      "src": "/audio/elements/6-en.mp3",
+      "file": "en-us-carbon.ogg",
+      "credit": "Wikimedia Commons",
+      "license": "Public domain",
+      "licenseUrl": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-carbon.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/6-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-углерод.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D1%83%D0%B3%D0%BB%D0%B5%D1%80%D0%BE%D0%B4.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/6-zh.mp3",
+      "file": "Zh-tan4.ogg",
+      "credit": "Wikimedia Commons",
+      "license": "CC BY-SA",
+      "licenseUrl": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-tan4.ogg"
+    }
+  },
+  "7": {
+    "zh": {
+      "src": "/audio/elements/7-zh.mp3",
+      "file": "zh-dan4.ogg",
+      "credit": "Jcwf",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-dan4.ogg"
+    },
+    "en": {
+      "src": "/audio/elements/7-en.mp3",
+      "file": "En-us-nitrogen.ogg",
+      "credit": "Dvortygirl",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-nitrogen.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/7-ru.mp3",
+      "file": "LL-Q7737 (rus)-Tatiana Kerbush-азот.wav",
+      "credit": "Speaker: Tatiana Kerbush Recorder: Tatiana Kerbush",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Tatiana_Kerbush-%D0%B0%D0%B7%D0%BE%D1%82.wav"
+    }
+  },
+  "8": {
+    "zh": {
+      "src": "/audio/elements/8-zh.mp3",
+      "file": "Zh-yǎng.oga",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-y%C7%8Eng.oga"
+    },
+    "en": {
+      "src": "/audio/elements/8-en.mp3",
+      "file": "en-us-oxygen.ogg",
+      "credit": "Dvortygirl",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-oxygen.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/8-ru.mp3",
+      "file": "Ru-кислород.ogg",
+      "credit": "1640max",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Ru-%D0%BA%D0%B8%D1%81%D0%BB%D0%BE%D1%80%D0%BE%D0%B4.ogg"
+    }
+  },
+  "9": {
+    "en": {
+      "src": "/audio/elements/9-en.mp3",
+      "file": "en-us-fluorine.ogg",
+      "credit": "Dvortygirl",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-fluorine.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/9-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-фтор.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D1%84%D1%82%D0%BE%D1%80.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/9-zh.mp3",
+      "file": "Zh-fu2.ogg",
+      "credit": "Jcwf",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-fu2.ogg"
+    }
+  },
+  "10": {
+    "en": {
+      "src": "/audio/elements/10-en.mp3",
+      "file": "en-us-neon.ogg",
+      "credit": "Dvortygirl",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-neon.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/10-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-неон.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%BD%D0%B5%D0%BE%D0%BD.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/10-zh.mp3",
+      "file": "Zh-nai3.ogg",
+      "credit": "Jcwf",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-nai3.ogg"
+    }
+  },
+  "11": {
+    "en": {
+      "src": "/audio/elements/11-en.mp3",
+      "file": "En-us-sodium.ogg",
+      "credit": "Dvortygirl",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-sodium.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/11-ru.mp3",
+      "file": "LL-Q7737 (rus)-Tatiana Kerbush-натрий.wav",
+      "credit": "Speaker: Tatiana Kerbush Recorder: Tatiana Kerbush",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Tatiana_Kerbush-%D0%BD%D0%B0%D1%82%D1%80%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/11-zh.mp3",
+      "file": "Zh-nà.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-n%C3%A0.ogg",
+      "via": "同音字 na4"
+    }
+  },
+  "12": {
+    "en": {
+      "src": "/audio/elements/12-en.mp3",
+      "file": "En-us-magnesium.ogg",
+      "credit": "Dvortygirl",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-magnesium.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/12-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-магний.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%BC%D0%B0%D0%B3%D0%BD%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/12-zh.mp3",
+      "file": "Zh-měi.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-m%C4%9Bi.ogg",
+      "via": "同音字 mei3"
+    }
+  },
+  "13": {
+    "en": {
+      "src": "/audio/elements/13-en.mp3",
+      "file": "en-us-aluminium.ogg",
+      "credit": "Gbeebani",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-aluminium.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/13-ru.mp3",
+      "file": "Ru-алюминий.ogg",
+      "credit": "1640max",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Ru-%D0%B0%D0%BB%D1%8E%D0%BC%D0%B8%D0%BD%D0%B8%D0%B9.ogg"
+    },
+    "zh": {
+      "src": "/audio/elements/13-zh.mp3",
+      "file": "LL-Q727694 (cmn)-Shangkuanlc-铝.wav",
+      "credit": "Speaker: Shangkuanlc Recorder: Shangkuanlc",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q727694_(cmn)-Shangkuanlc-%E9%93%9D.wav"
+    }
+  },
+  "14": {
+    "zh": {
+      "src": "/audio/elements/14-zh.mp3",
+      "file": "Zh-gui.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-gui.ogg"
+    },
+    "en": {
+      "src": "/audio/elements/14-en.mp3",
+      "file": "En-us-silicon.ogg",
+      "credit": "Jcwf",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-silicon.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/14-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-кремний.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%BA%D1%80%D0%B5%D0%BC%D0%BD%D0%B8%D0%B9.wav"
+    }
+  },
+  "15": {
+    "en": {
+      "src": "/audio/elements/15-en.mp3",
+      "file": "En-us-phosphorus.ogg",
+      "credit": "Dvortygirl",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-phosphorus.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/15-ru.mp3",
+      "file": "LL-Q7737 (rus)-Tatiana Kerbush-фосфор.wav",
+      "credit": "Speaker: Tatiana Kerbush Recorder: Tatiana Kerbush",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Tatiana_Kerbush-%D1%84%D0%BE%D1%81%D1%84%D0%BE%D1%80.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/15-zh.mp3",
+      "file": "LL-Q727694 (cmn)-Shangkuanlc-磷.wav",
+      "credit": "Speaker: Shangkuanlc Recorder: Shangkuanlc",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q727694_(cmn)-Shangkuanlc-%E7%A3%B7.wav"
+    }
+  },
+  "16": {
+    "en": {
+      "src": "/audio/elements/16-en.mp3",
+      "file": "En-us-sulfur.ogg",
+      "credit": "Dvortygirl",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-sulfur.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/16-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-сера.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D1%81%D0%B5%D1%80%D0%B0.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/16-zh.mp3",
+      "file": "Zh-liú.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-li%C3%BA.ogg",
+      "via": "同音字 liu2"
+    }
+  },
+  "17": {
+    "zh": {
+      "src": "/audio/elements/17-zh.mp3",
+      "file": "zh-lǜ.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-l%C7%9C.ogg"
+    },
+    "en": {
+      "src": "/audio/elements/17-en.mp3",
+      "file": "en-us-chlorine.ogg",
+      "credit": "Wikimedia Commons",
+      "license": "Public domain",
+      "licenseUrl": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-chlorine.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/17-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-хлор.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D1%85%D0%BB%D0%BE%D1%80.wav"
+    }
+  },
+  "18": {
+    "en": {
+      "src": "/audio/elements/18-en.mp3",
+      "file": "En-us-argon.ogg",
+      "credit": "Jcwf",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-argon.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/18-ru.mp3",
+      "file": "LL-Q7737 (rus)-Tatiana Kerbush-аргон.wav",
+      "credit": "Speaker: Tatiana Kerbush Recorder: Tatiana Kerbush",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Tatiana_Kerbush-%D0%B0%D1%80%D0%B3%D0%BE%D0%BD.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/18-zh.mp3",
+      "file": "Zh-yà.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-y%C3%A0.ogg",
+      "via": "同音字 ya4"
+    }
+  },
+  "19": {
+    "en": {
+      "src": "/audio/elements/19-en.mp3",
+      "file": "en-us-potassium.ogg",
+      "credit": "No machine-readable author provided. Muke assumed (based on copyright claims).",
+      "license": "Public domain",
+      "licenseUrl": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-potassium.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/19-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-калий.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%BA%D0%B0%D0%BB%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/19-zh.mp3",
+      "file": "Zh-jiǎ.oga",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-ji%C7%8E.oga",
+      "via": "同音字 jia3"
+    }
+  },
+  "20": {
+    "en": {
+      "src": "/audio/elements/20-en.mp3",
+      "file": "en-us-calcium.ogg",
+      "credit": "Dvortygirl",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-calcium.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/20-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-кальций.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%BA%D0%B0%D0%BB%D1%8C%D1%86%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/20-zh.mp3",
+      "file": "Zh-gài.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-g%C3%A0i.ogg",
+      "via": "同音字 gai4"
+    }
+  },
+  "21": {
+    "en": {
+      "src": "/audio/elements/21-en.mp3",
+      "file": "En-us-scandium.ogg",
+      "credit": "Jcwf",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-scandium.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/21-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-скандий.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D1%81%D0%BA%D0%B0%D0%BD%D0%B4%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/21-zh.mp3",
+      "file": "Zh-kàng.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-k%C3%A0ng.ogg",
+      "via": "同音字 kang4"
+    }
+  },
+  "22": {
+    "en": {
+      "src": "/audio/elements/22-en.mp3",
+      "file": "en-us-titanium.ogg",
+      "credit": "Dvortygirl",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-titanium.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/22-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-титан.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D1%82%D0%B8%D1%82%D0%B0%D0%BD.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/22-zh.mp3",
+      "file": "Zh-tài.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-t%C3%A0i.ogg",
+      "via": "同音字 tai4"
+    }
+  },
+  "23": {
+    "en": {
+      "src": "/audio/elements/23-en.mp3",
+      "file": "En-us-vanadium.ogg",
+      "credit": "Mikemoral",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-vanadium.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/23-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-ванадий.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%B2%D0%B0%D0%BD%D0%B0%D0%B4%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/23-zh.mp3",
+      "file": "Zh-fán.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-f%C3%A1n.ogg",
+      "via": "同音字 fan2"
+    }
+  },
+  "24": {
+    "en": {
+      "src": "/audio/elements/24-en.mp3",
+      "file": "en-us-chromium.ogg",
+      "credit": "Dvortygirl",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-chromium.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/24-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-хром.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D1%85%D1%80%D0%BE%D0%BC.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/24-zh.mp3",
+      "file": "Zh-gè.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-g%C3%A8.ogg",
+      "via": "同音字 ge4"
+    }
+  },
+  "25": {
+    "en": {
+      "src": "/audio/elements/25-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-manganese.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-manganese.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/25-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-марганец.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%BC%D0%B0%D1%80%D0%B3%D0%B0%D0%BD%D0%B5%D1%86.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/25-zh.mp3",
+      "file": "Zh-meng.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-meng.ogg",
+      "via": "同音字 meng3"
+    }
+  },
+  "26": {
+    "zh": {
+      "src": "/audio/elements/26-zh.mp3",
+      "file": "Zh-tie.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-tie.ogg"
+    },
+    "en": {
+      "src": "/audio/elements/26-en.mp3",
+      "file": "en-us-iron.ogg",
+      "credit": "Dvortygirl",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-iron.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/26-ru.mp3",
+      "file": "Ru-железо.ogg",
+      "credit": "Wikimedia Commons",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Ru-%D0%B6%D0%B5%D0%BB%D0%B5%D0%B7%D0%BE.ogg"
+    }
+  },
+  "27": {
+    "en": {
+      "src": "/audio/elements/27-en.mp3",
+      "file": "En-us-cobalt.ogg",
+      "credit": "Muke Tever",
+      "license": "Public domain",
+      "licenseUrl": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-cobalt.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/27-ru.mp3",
+      "file": "Ru-кобальт.ogg",
+      "credit": "Pogrebnoj-Alexandroff",
+      "license": "CC BY-SA 2.5",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.5",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Ru-%D0%BA%D0%BE%D0%B1%D0%B0%D0%BB%D1%8C%D1%82.ogg"
+    },
+    "zh": {
+      "src": "/audio/elements/27-zh.mp3",
+      "file": "Zh-gu.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-gu.ogg",
+      "via": "同音字 gu3"
+    }
+  },
+  "28": {
+    "en": {
+      "src": "/audio/elements/28-en.mp3",
+      "file": "En-us-nickel.ogg",
+      "credit": "Dvortygirl",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-nickel.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/28-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-никель.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%BD%D0%B8%D0%BA%D0%B5%D0%BB%D1%8C.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/28-zh.mp3",
+      "file": "汉典 py/niè.mp3",
+      "credit": "汉典 zdic.net",
+      "license": "CC0 1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sourceUrl": "https://www.zdic.net/hans/%E9%95%8D",
+      "via": "汉典音节 niè"
+    }
+  },
+  "29": {
+    "en": {
+      "src": "/audio/elements/29-en.mp3",
+      "file": "En-us-copper.ogg",
+      "credit": "Dvortygirl",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-copper.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/29-ru.mp3",
+      "file": "Ru-медь.ogg",
+      "credit": "1640max",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Ru-%D0%BC%D0%B5%D0%B4%D1%8C.ogg"
+    },
+    "zh": {
+      "src": "/audio/elements/29-zh.mp3",
+      "file": "Zh-tóng.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-t%C3%B3ng.ogg"
+    }
+  },
+  "30": {
+    "en": {
+      "src": "/audio/elements/30-en.mp3",
+      "file": "en-us-zinc.ogg",
+      "credit": "Dvortygirl",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-zinc.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/30-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-цинк.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D1%86%D0%B8%D0%BD%D0%BA.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/30-zh.mp3",
+      "file": "Zh-xīn.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-x%C4%ABn.ogg",
+      "via": "同音字 xin1"
+    }
+  },
+  "31": {
+    "en": {
+      "src": "/audio/elements/31-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-gallium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-gallium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/31-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-галлий.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%B3%D0%B0%D0%BB%D0%BB%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/31-zh.mp3",
+      "file": "Zh-jiā.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-ji%C4%81.ogg",
+      "via": "同音字 jia1"
+    }
+  },
+  "32": {
+    "en": {
+      "src": "/audio/elements/32-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-germanium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-germanium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/32-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-германий.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%B3%D0%B5%D1%80%D0%BC%D0%B0%D0%BD%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/32-zh.mp3",
+      "file": "汉典 py/zhě.mp3",
+      "credit": "汉典 zdic.net",
+      "license": "CC0 1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sourceUrl": "https://www.zdic.net/hans/%E9%94%97",
+      "via": "汉典音节 zhě"
+    }
+  },
+  "33": {
+    "en": {
+      "src": "/audio/elements/33-en.mp3",
+      "file": "En-us-arsenic.ogg",
+      "credit": "Dvortygirl",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-arsenic.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/33-ru.mp3",
+      "file": "LL-Q7737 (rus)-Tatiana Kerbush-мышьяк.wav",
+      "credit": "Speaker: Tatiana Kerbush Recorder: Tatiana Kerbush",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Tatiana_Kerbush-%D0%BC%D1%8B%D1%88%D1%8C%D1%8F%D0%BA.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/33-zh.mp3",
+      "file": "Zh-shēn.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-sh%C4%93n.ogg",
+      "via": "同音字 shen1"
+    }
+  },
+  "34": {
+    "en": {
+      "src": "/audio/elements/34-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-selenium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-selenium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/34-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-селен.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D1%81%D0%B5%D0%BB%D0%B5%D0%BD.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/34-zh.mp3",
+      "file": "Zh-xī.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-x%C4%AB.ogg",
+      "via": "同音字 xi1"
+    }
+  },
+  "35": {
+    "en": {
+      "src": "/audio/elements/35-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-bromine.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-bromine.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/35-ru.mp3",
+      "file": "LL-Q7737 (rus)-Tatiana Kerbush-бром.wav",
+      "credit": "Speaker: Tatiana Kerbush Recorder: Tatiana Kerbush",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Tatiana_Kerbush-%D0%B1%D1%80%D0%BE%D0%BC.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/35-zh.mp3",
+      "file": "Zh-xiù.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-xi%C3%B9.ogg",
+      "via": "同音字 xiu4"
+    }
+  },
+  "36": {
+    "en": {
+      "src": "/audio/elements/36-en.mp3",
+      "file": "LL-Q1860 (eng)-Tesco250-krypton.wav",
+      "credit": "Speaker: Tesco250 Recorder: Tesco250",
+      "license": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Tesco250-krypton.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/36-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-криптон.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%BA%D1%80%D0%B8%D0%BF%D1%82%D0%BE%D0%BD.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/36-zh.mp3",
+      "file": "Zh-kè.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-k%C3%A8.ogg",
+      "via": "同音字 ke4"
+    }
+  },
+  "37": {
+    "en": {
+      "src": "/audio/elements/37-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-rubidium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-rubidium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/37-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-рубидий.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D1%80%D1%83%D0%B1%D0%B8%D0%B4%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/37-zh.mp3",
+      "file": "Zh-rú.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-r%C3%BA.ogg",
+      "via": "同音字 ru2"
+    }
+  },
+  "38": {
+    "en": {
+      "src": "/audio/elements/38-en.mp3",
+      "file": "en-us-strontium.ogg",
+      "credit": "Mikemoral",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-strontium.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/38-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-стронций.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D1%81%D1%82%D1%80%D0%BE%D0%BD%D1%86%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/38-zh.mp3",
+      "file": "Zh-si.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-si.ogg",
+      "via": "同音字 si1"
+    }
+  },
+  "39": {
+    "en": {
+      "src": "/audio/elements/39-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-yttrium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-yttrium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/39-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-иттрий.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%B8%D1%82%D1%82%D1%80%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/39-zh.mp3",
+      "file": "Zh-yi.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-yi.ogg",
+      "via": "同音字 yi3"
+    }
+  },
+  "40": {
+    "en": {
+      "src": "/audio/elements/40-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-zirconium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-zirconium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/40-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-цирконий.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D1%86%D0%B8%D1%80%D0%BA%D0%BE%D0%BD%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/40-zh.mp3",
+      "file": "Zh-gào.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-g%C3%A0o.ogg",
+      "via": "同音字 gao4"
+    }
+  },
+  "41": {
+    "en": {
+      "src": "/audio/elements/41-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-niobium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-niobium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/41-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-ниобий.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%BD%D0%B8%D0%BE%D0%B1%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/41-zh.mp3",
+      "file": "Zh-ní.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-n%C3%AD.ogg",
+      "via": "同音字 ni2"
+    }
+  },
+  "42": {
+    "en": {
+      "src": "/audio/elements/42-en.mp3",
+      "file": "LL-Q1860 (eng)-Tesco250-molybdenum.wav",
+      "credit": "Speaker: Tesco250 Recorder: Tesco250",
+      "license": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Tesco250-molybdenum.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/42-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-молибден.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%BC%D0%BE%D0%BB%D0%B8%D0%B1%D0%B4%D0%B5%D0%BD.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/42-zh.mp3",
+      "file": "Zh-mu4.ogg",
+      "credit": "Jcwf",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-mu4.ogg"
+    }
+  },
+  "43": {
+    "en": {
+      "src": "/audio/elements/43-en.mp3",
+      "file": "en-us-technetium.ogg",
+      "credit": "mikemoral",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-technetium.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/43-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-технеций.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D1%82%D0%B5%D1%85%D0%BD%D0%B5%D1%86%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/43-zh.mp3",
+      "file": "Zh-dé.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-d%C3%A9.ogg",
+      "via": "同音字 de2"
+    }
+  },
+  "44": {
+    "en": {
+      "src": "/audio/elements/44-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-ruthenium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-ruthenium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/44-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-рутений.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D1%80%D1%83%D1%82%D0%B5%D0%BD%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/44-zh.mp3",
+      "file": "Zh-liǎo.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-li%C7%8Eo.ogg",
+      "via": "同音字 liao3"
+    }
+  },
+  "45": {
+    "en": {
+      "src": "/audio/elements/45-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-rhodium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-rhodium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/45-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-родий.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D1%80%D0%BE%D0%B4%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/45-zh.mp3",
+      "file": "Zh-lǎo.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-l%C7%8Eo.ogg",
+      "via": "同音字 lao3"
+    }
+  },
+  "46": {
+    "en": {
+      "src": "/audio/elements/46-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-palladium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-palladium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/46-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-палладий.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%BF%D0%B0%D0%BB%D0%BB%D0%B0%D0%B4%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/46-zh.mp3",
+      "file": "Zh-bǎ.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-b%C7%8E.ogg",
+      "via": "同音字 ba3"
+    }
+  },
+  "47": {
+    "zh": {
+      "src": "/audio/elements/47-zh.mp3",
+      "file": "Zh-yín.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-y%C3%ADn.ogg"
+    },
+    "en": {
+      "src": "/audio/elements/47-en.mp3",
+      "file": "en-us-silver.ogg",
+      "credit": "No machine-readable author provided. Dvortygirl assumed (based on copyright claims).",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-silver.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/47-ru.mp3",
+      "file": "Ru-серебро.ogg",
+      "credit": "Wikimedia Commons",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Ru-%D1%81%D0%B5%D1%80%D0%B5%D0%B1%D1%80%D0%BE.ogg"
+    }
+  },
+  "48": {
+    "en": {
+      "src": "/audio/elements/48-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-cadmium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-cadmium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/48-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-кадмий.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%BA%D0%B0%D0%B4%D0%BC%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/48-zh.mp3",
+      "file": "Zh-gé.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-g%C3%A9.ogg",
+      "via": "同音字 ge2"
+    }
+  },
+  "49": {
+    "en": {
+      "src": "/audio/elements/49-en.mp3",
+      "file": "LL-Q1860 (eng)-Tesco250-indium.wav",
+      "credit": "Speaker: Tesco250 Recorder: Tesco250",
+      "license": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Tesco250-indium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/49-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-индий.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%B8%D0%BD%D0%B4%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/49-zh.mp3",
+      "file": "Zh-yīn.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-y%C4%ABn.ogg",
+      "via": "同音字 yin1"
+    }
+  },
+  "50": {
+    "en": {
+      "src": "/audio/elements/50-en.mp3",
+      "file": "en-us-tin.ogg",
+      "credit": "No machine-readable author provided. Dvortygirl assumed (based on copyright claims).",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-tin.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/50-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-олово.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%BE%D0%BB%D0%BE%D0%B2%D0%BE.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/50-zh.mp3",
+      "file": "Zh-xī.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-x%C4%AB.ogg",
+      "via": "同音字 xi1"
+    }
+  },
+  "51": {
+    "en": {
+      "src": "/audio/elements/51-en.mp3",
+      "file": "LL-Q1860 (eng)-Tesco250-antimony.wav",
+      "credit": "Speaker: Tesco250 Recorder: Tesco250",
+      "license": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Tesco250-antimony.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/51-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-сурьма.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D1%81%D1%83%D1%80%D1%8C%D0%BC%D0%B0.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/51-zh.mp3",
+      "file": "Zh-tī.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-t%C4%AB.ogg",
+      "via": "同音字 ti1"
+    }
+  },
+  "52": {
+    "en": {
+      "src": "/audio/elements/52-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-tellurium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-tellurium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/52-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-теллур.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D1%82%D0%B5%D0%BB%D0%BB%D1%83%D1%80.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/52-zh.mp3",
+      "file": "Zh-dì.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-d%C3%AC.ogg",
+      "via": "同音字 di4"
+    }
+  },
+  "53": {
+    "en": {
+      "src": "/audio/elements/53-en.mp3",
+      "file": "en-us-iodine.ogg",
+      "credit": "Dvortygirl",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-iodine.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/53-ru.mp3",
+      "file": "LL-Q7737 (rus)-Tatiana Kerbush-йод.wav",
+      "credit": "Speaker: Tatiana Kerbush Recorder: Tatiana Kerbush",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Tatiana_Kerbush-%D0%B9%D0%BE%D0%B4.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/53-zh.mp3",
+      "file": "Zh-diǎn.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-di%C7%8En.ogg",
+      "via": "同音字 dian3"
+    }
+  },
+  "54": {
+    "en": {
+      "src": "/audio/elements/54-en.mp3",
+      "file": "en-us-xenon.ogg",
+      "credit": "Dvortygirl",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-xenon.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/54-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-ксенон.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D0%BA%D1%81%D0%B5%D0%BD%D0%BE%D0%BD.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/54-zh.mp3",
+      "file": "Zh-xiān.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-xi%C4%81n.ogg",
+      "via": "同音字 xian1"
+    }
+  },
+  "55": {
+    "en": {
+      "src": "/audio/elements/55-en.mp3",
+      "file": "En-us-caesium.ogg",
+      "credit": "Dvortygirl",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-caesium.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/55-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-цезий.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D1%86%D0%B5%D0%B7%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/55-zh.mp3",
+      "file": "Zh-sè.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-s%C3%A8.ogg",
+      "via": "同音字 se4"
+    }
+  },
+  "56": {
+    "en": {
+      "src": "/audio/elements/56-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-barium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-barium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/56-ru.mp3",
+      "file": "LL-Q7737 (rus)-Tatiana Kerbush-барий.wav",
+      "credit": "Speaker: Tatiana Kerbush Recorder: Tatiana Kerbush",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Tatiana_Kerbush-%D0%B1%D0%B0%D1%80%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/56-zh.mp3",
+      "file": "Zh-bèi.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-b%C3%A8i.ogg",
+      "via": "同音字 bei4"
+    }
+  },
+  "57": {
+    "en": {
+      "src": "/audio/elements/57-en.mp3",
+      "file": "LL-Q1860 (eng)-Tesco250-lanthanum.wav",
+      "credit": "Speaker: Tesco250 Recorder: Tesco250",
+      "license": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Tesco250-lanthanum.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/57-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-лантан.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%BB%D0%B0%D0%BD%D1%82%D0%B0%D0%BD.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/57-zh.mp3",
+      "file": "Zh-lán.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-l%C3%A1n.ogg",
+      "via": "同音字 lan2"
+    }
+  },
+  "58": {
+    "en": {
+      "src": "/audio/elements/58-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-cerium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-cerium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/58-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-церий.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D1%86%D0%B5%D1%80%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/58-zh.mp3",
+      "file": "Zh-shì.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-sh%C3%AC.ogg",
+      "via": "同音字 shi4"
+    }
+  },
+  "59": {
+    "en": {
+      "src": "/audio/elements/59-en.mp3",
+      "file": "LL-Q1860 (eng)-Tesco250-praseodymium.wav",
+      "credit": "Speaker: Tesco250 Recorder: Tesco250",
+      "license": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Tesco250-praseodymium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/59-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-празеодим.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D0%BF%D1%80%D0%B0%D0%B7%D0%B5%D0%BE%D0%B4%D0%B8%D0%BC.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/59-zh.mp3",
+      "file": "Zh-pu.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-pu.ogg",
+      "via": "同音字 pu3"
+    }
+  },
+  "60": {
+    "en": {
+      "src": "/audio/elements/60-en.mp3",
+      "file": "LL-Q1860 (eng)-Tesco250-neodymium.wav",
+      "credit": "Speaker: Tesco250 Recorder: Tesco250",
+      "license": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Tesco250-neodymium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/60-ru.mp3",
+      "file": "Ru-неодим.oga",
+      "credit": "1640max",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Ru-%D0%BD%D0%B5%D0%BE%D0%B4%D0%B8%D0%BC.oga"
+    },
+    "zh": {
+      "src": "/audio/elements/60-zh.mp3",
+      "file": "Zh-nǚ.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-n%C7%9A.ogg",
+      "via": "同音字 nv3"
+    }
+  },
+  "61": {
+    "en": {
+      "src": "/audio/elements/61-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-promethium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-promethium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/61-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-прометий.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%BF%D1%80%D0%BE%D0%BC%D0%B5%D1%82%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/61-zh.mp3",
+      "file": "汉典 py/pǒ.mp3",
+      "credit": "汉典 zdic.net",
+      "license": "CC0 1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sourceUrl": "https://www.zdic.net/hans/%E9%92%B7",
+      "via": "汉典音节 pǒ"
+    }
+  },
+  "62": {
+    "en": {
+      "src": "/audio/elements/62-en.mp3",
+      "file": "LL-Q1860 (eng)-Tesco250-samarium.wav",
+      "credit": "Speaker: Tesco250 Recorder: Tesco250",
+      "license": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Tesco250-samarium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/62-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-самарий.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D1%81%D0%B0%D0%BC%D0%B0%D1%80%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/62-zh.mp3",
+      "file": "Zh-shān.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-sh%C4%81n.ogg",
+      "via": "同音字 shan1"
+    }
+  },
+  "63": {
+    "en": {
+      "src": "/audio/elements/63-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-europium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-europium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/63-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-европий.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D0%B5%D0%B2%D1%80%D0%BE%D0%BF%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/63-zh.mp3",
+      "file": "Zh-yǒu.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-y%C7%92u.ogg",
+      "via": "同音字 you3"
+    }
+  },
+  "64": {
+    "en": {
+      "src": "/audio/elements/64-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-gadolinium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-gadolinium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/64-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-гадолиний.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%B3%D0%B0%D0%B4%D0%BE%D0%BB%D0%B8%D0%BD%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/64-zh.mp3",
+      "file": "汉典 py/gá.mp3",
+      "credit": "汉典 zdic.net",
+      "license": "CC0 1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sourceUrl": "https://www.zdic.net/hans/%E9%92%86",
+      "via": "汉典音节 gá"
+    }
+  },
+  "65": {
+    "en": {
+      "src": "/audio/elements/65-en.mp3",
+      "file": "LL-Q1860 (eng)-Tesco250-terbium.wav",
+      "credit": "Speaker: Tesco250 Recorder: Tesco250",
+      "license": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Tesco250-terbium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/65-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-тербий.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D1%82%D0%B5%D1%80%D0%B1%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/65-zh.mp3",
+      "file": "Zh-tè.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-t%C3%A8.ogg",
+      "via": "同音字 te4"
+    }
+  },
+  "66": {
+    "en": {
+      "src": "/audio/elements/66-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-dysprosium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-dysprosium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/66-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-диспрозий.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%B4%D0%B8%D1%81%D0%BF%D1%80%D0%BE%D0%B7%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/66-zh.mp3",
+      "file": "Zh-dī.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-d%C4%AB.ogg",
+      "via": "同音字 di1"
+    }
+  },
+  "67": {
+    "en": {
+      "src": "/audio/elements/67-en.mp3",
+      "file": "LL-Q1860 (eng)-Tesco250-holmium.wav",
+      "credit": "Speaker: Tesco250 Recorder: Tesco250",
+      "license": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Tesco250-holmium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/67-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-гольмий.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%B3%D0%BE%D0%BB%D1%8C%D0%BC%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/67-zh.mp3",
+      "file": "Zh-huǒ.oga",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-hu%C7%92.oga",
+      "via": "同音字 huo3"
+    }
+  },
+  "68": {
+    "en": {
+      "src": "/audio/elements/68-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-erbium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-erbium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/68-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-эрбий.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D1%8D%D1%80%D0%B1%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/68-zh.mp3",
+      "file": "LL-Q9192 (cmn)-雲角-耳.wav",
+      "credit": "Speaker: 雲角 Recorder: 雲角",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q9192_(cmn)-%E9%9B%B2%E8%A7%92-%E8%80%B3.wav",
+      "via": "同音字 er3"
+    }
+  },
+  "69": {
+    "en": {
+      "src": "/audio/elements/69-en.mp3",
+      "file": "En-us-thulium.oga",
+      "credit": "Mikemoral",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-thulium.oga"
+    },
+    "ru": {
+      "src": "/audio/elements/69-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-тулий.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D1%82%D1%83%D0%BB%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/69-zh.mp3",
+      "file": "Zh-diū.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-di%C5%AB.ogg",
+      "via": "同音字 diu1"
+    }
+  },
+  "70": {
+    "en": {
+      "src": "/audio/elements/70-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-ytterbium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-ytterbium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/70-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-иттербий.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%B8%D1%82%D1%82%D0%B5%D1%80%D0%B1%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/70-zh.mp3",
+      "file": "Zh-yì.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-y%C3%AC.ogg",
+      "via": "同音字 yi4"
+    }
+  },
+  "71": {
+    "en": {
+      "src": "/audio/elements/71-en.mp3",
+      "file": "LL-Q1860 (eng)-Tesco250-lutetium.wav",
+      "credit": "Speaker: Tesco250 Recorder: Tesco250",
+      "license": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Tesco250-lutetium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/71-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-лютеций.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D0%BB%D1%8E%D1%82%D0%B5%D1%86%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/71-zh.mp3",
+      "file": "汉典 py/lǔ.mp3",
+      "credit": "汉典 zdic.net",
+      "license": "CC0 1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sourceUrl": "https://www.zdic.net/hans/%E9%95%A5",
+      "via": "汉典音节 lǔ"
+    }
+  },
+  "72": {
+    "en": {
+      "src": "/audio/elements/72-en.mp3",
+      "file": "LL-Q1860 (eng)-Tesco250-hafnium.wav",
+      "credit": "Speaker: Tesco250 Recorder: Tesco250",
+      "license": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Tesco250-hafnium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/72-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-гафний.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%B3%D0%B0%D1%84%D0%BD%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/72-zh.mp3",
+      "file": "LL-Q9192 (cmn)-CanonNi-哈.wav",
+      "credit": "Speaker: CanonNi Recorder: CanonNi",
+      "license": "CC0",
+      "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q9192_(cmn)-CanonNi-%E5%93%88.wav",
+      "via": "同音字 ha1"
+    }
+  },
+  "73": {
+    "en": {
+      "src": "/audio/elements/73-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-tantalum.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-tantalum.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/73-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-тантал.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D1%82%D0%B0%D0%BD%D1%82%D0%B0%D0%BB.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/73-zh.mp3",
+      "file": "汉典 py/tǎn.mp3",
+      "credit": "汉典 zdic.net",
+      "license": "CC0 1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sourceUrl": "https://www.zdic.net/hans/%E9%92%BD",
+      "via": "汉典音节 tǎn"
+    }
+  },
+  "74": {
+    "en": {
+      "src": "/audio/elements/74-en.mp3",
+      "file": "En-us-tungsten.ogg",
+      "credit": "Mikemoral",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-tungsten.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/74-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-вольфрам.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%B2%D0%BE%D0%BB%D1%8C%D1%84%D1%80%D0%B0%D0%BC.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/74-zh.mp3",
+      "file": "Zh-wū.oga",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-w%C5%AB.oga",
+      "via": "同音字 wu1"
+    }
+  },
+  "75": {
+    "en": {
+      "src": "/audio/elements/75-en.mp3",
+      "file": "LL-Q1860 (eng)-Tesco250-rhenium.wav",
+      "credit": "Speaker: Tesco250 Recorder: Tesco250",
+      "license": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Tesco250-rhenium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/75-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-рений.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D1%80%D0%B5%D0%BD%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/75-zh.mp3",
+      "file": "Zh-lái.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-l%C3%A1i.ogg",
+      "via": "同音字 lai2"
+    }
+  },
+  "76": {
+    "en": {
+      "src": "/audio/elements/76-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-osmium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-osmium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/76-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-осмий.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D0%BE%D1%81%D0%BC%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/76-zh.mp3",
+      "file": "Zh-é.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-%C3%A9.ogg",
+      "via": "同音字 e2"
+    }
+  },
+  "77": {
+    "en": {
+      "src": "/audio/elements/77-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-iridium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-iridium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/77-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-иридий.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%B8%D1%80%D0%B8%D0%B4%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/77-zh.mp3",
+      "file": "Zh-yī.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-y%C4%AB.ogg",
+      "via": "同音字 yi1"
+    }
+  },
+  "78": {
+    "en": {
+      "src": "/audio/elements/78-en.mp3",
+      "file": "en-us-platinum.ogg",
+      "credit": "Wikimedia Commons",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-platinum.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/78-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-платина.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D0%BF%D0%BB%D0%B0%D1%82%D0%B8%D0%BD%D0%B0.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/78-zh.mp3",
+      "file": "汉典 py/bó.mp3",
+      "credit": "汉典 zdic.net",
+      "license": "CC0 1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sourceUrl": "https://www.zdic.net/hans/%E9%93%82",
+      "via": "汉典音节 bó"
+    }
+  },
+  "79": {
+    "zh": {
+      "src": "/audio/elements/79-zh.mp3",
+      "file": "zh-jīn.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-j%C4%ABn.ogg"
+    },
+    "en": {
+      "src": "/audio/elements/79-en.mp3",
+      "file": "En-us-gold.ogg",
+      "credit": "Dvortygirl",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-gold.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/79-ru.mp3",
+      "file": "Ru-золото.ogg",
+      "credit": "Wikimedia Commons",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Ru-%D0%B7%D0%BE%D0%BB%D0%BE%D1%82%D0%BE.ogg"
+    }
+  },
+  "80": {
+    "en": {
+      "src": "/audio/elements/80-en.mp3",
+      "file": "En-us-Mercury.ogg",
+      "credit": "EncycloPetey",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-Mercury.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/80-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-ртуть.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D1%80%D1%82%D1%83%D1%82%D1%8C.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/80-zh.mp3",
+      "file": "汉典 py/gǒng.mp3",
+      "credit": "汉典 zdic.net",
+      "license": "CC0 1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sourceUrl": "https://www.zdic.net/hans/%E6%B1%9E",
+      "via": "汉典音节 gǒng"
+    }
+  },
+  "81": {
+    "en": {
+      "src": "/audio/elements/81-en.mp3",
+      "file": "LL-Q1860 (eng)-Tesco250-thallium.wav",
+      "credit": "Speaker: Tesco250 Recorder: Tesco250",
+      "license": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Tesco250-thallium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/81-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-таллий.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D1%82%D0%B0%D0%BB%D0%BB%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/81-zh.mp3",
+      "file": "Zh-tā.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-t%C4%81.ogg",
+      "via": "同音字 ta1"
+    }
+  },
+  "82": {
+    "en": {
+      "src": "/audio/elements/82-en.mp3",
+      "file": "En-us-lead-guide.oga",
+      "credit": "No machine-readable author provided. Dvortygirl assumed (based on copyright claims).",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-lead-guide.oga"
+    },
+    "ru": {
+      "src": "/audio/elements/82-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-свинец.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D1%81%D0%B2%D0%B8%D0%BD%D0%B5%D1%86.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/82-zh.mp3",
+      "file": "LL-Q9192 (cmn)-Luilui6666-铅.wav",
+      "credit": "Speaker: Luilui6666 Recorder: Luilui6666",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q9192_(cmn)-Luilui6666-%E9%93%85.wav"
+    }
+  },
+  "83": {
+    "en": {
+      "src": "/audio/elements/83-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-bismuth.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-bismuth.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/83-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-висмут.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%B2%D0%B8%D1%81%D0%BC%D1%83%D1%82.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/83-zh.mp3",
+      "file": "Zh-bì.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-b%C3%AC.ogg",
+      "via": "同音字 bi4"
+    }
+  },
+  "84": {
+    "en": {
+      "src": "/audio/elements/84-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-polonium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-polonium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/84-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-полоний.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%BF%D0%BE%D0%BB%D0%BE%D0%BD%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/84-zh.mp3",
+      "file": "LL-Q9192 (cmn)-Fake estate-坡.wav",
+      "credit": "Speaker: Fake estate Recorder: Fake estate",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q9192_(cmn)-Fake_estate-%E5%9D%A1.wav",
+      "via": "同音字 po1"
+    }
+  },
+  "85": {
+    "en": {
+      "src": "/audio/elements/85-en.mp3",
+      "file": "en-us-astatine.ogg",
+      "credit": "No machine-readable author provided. Muke assumed (based on copyright claims).",
+      "license": "Public domain",
+      "licenseUrl": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-astatine.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/85-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-астат.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D0%B0%D1%81%D1%82%D0%B0%D1%82.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/85-zh.mp3",
+      "file": "Zh-ài.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-%C3%A0i.ogg",
+      "via": "同音字 ai4"
+    }
+  },
+  "86": {
+    "en": {
+      "src": "/audio/elements/86-en.mp3",
+      "file": "LL-Q1860 (eng)-Tesco250-radon.wav",
+      "credit": "Speaker: Tesco250 Recorder: Tesco250",
+      "license": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Tesco250-radon.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/86-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-радон.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D1%80%D0%B0%D0%B4%D0%BE%D0%BD.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/86-zh.mp3",
+      "file": "Zh-dōng.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-d%C5%8Dng.ogg",
+      "via": "同音字 dong1"
+    }
+  },
+  "87": {
+    "en": {
+      "src": "/audio/elements/87-en.mp3",
+      "file": "LL-Q1860 (eng)-Tesco250-francium.wav",
+      "credit": "Speaker: Tesco250 Recorder: Tesco250",
+      "license": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Tesco250-francium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/87-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-франций.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D1%84%D1%80%D0%B0%D0%BD%D1%86%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/87-zh.mp3",
+      "file": "LL-Q9192 (cmn)-Luilui6666-方.wav",
+      "credit": "Speaker: Luilui6666 Recorder: Luilui6666",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q9192_(cmn)-Luilui6666-%E6%96%B9.wav",
+      "via": "同音字 fang1"
+    }
+  },
+  "88": {
+    "en": {
+      "src": "/audio/elements/88-en.mp3",
+      "file": "LL-Q1860 (eng)-Tesco250-radium.wav",
+      "credit": "Speaker: Tesco250 Recorder: Tesco250",
+      "license": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Tesco250-radium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/88-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-радий.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D1%80%D0%B0%D0%B4%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/88-zh.mp3",
+      "file": "Zh-léi.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-l%C3%A9i.ogg",
+      "via": "同音字 lei2"
+    }
+  },
+  "89": {
+    "en": {
+      "src": "/audio/elements/89-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-actinium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-actinium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/89-ru.mp3",
+      "file": "LL-Q7737 (rus)-Tatiana Kerbush-актиний.wav",
+      "credit": "Speaker: Tatiana Kerbush Recorder: Tatiana Kerbush",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Tatiana_Kerbush-%D0%B0%D0%BA%D1%82%D0%B8%D0%BD%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/89-zh.mp3",
+      "file": "Zh-ā.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-%C4%81.ogg",
+      "via": "同音字 a1"
+    }
+  },
+  "90": {
+    "en": {
+      "src": "/audio/elements/90-en.mp3",
+      "file": "LL-Q1860 (eng)-Tesco250-thorium.wav",
+      "credit": "Speaker: Tesco250 Recorder: Tesco250",
+      "license": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Tesco250-thorium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/90-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-торий.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D1%82%D0%BE%D1%80%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/90-zh.mp3",
+      "file": "LL-Q9192 (cmn)-雲角-吐.wav",
+      "credit": "Speaker: 雲角 Recorder: 雲角",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q9192_(cmn)-%E9%9B%B2%E8%A7%92-%E5%90%90.wav",
+      "via": "同音字 tu3"
+    }
+  },
+  "91": {
+    "en": {
+      "src": "/audio/elements/91-en.mp3",
+      "file": "LL-Q1860 (eng)-Tesco250-protactinium.wav",
+      "credit": "Speaker: Tesco250 Recorder: Tesco250",
+      "license": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Tesco250-protactinium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/91-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-протактиний.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D0%BF%D1%80%D0%BE%D1%82%D0%B0%D0%BA%D1%82%D0%B8%D0%BD%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/91-zh.mp3",
+      "file": "汉典 py/pú.mp3",
+      "credit": "汉典 zdic.net",
+      "license": "CC0 1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sourceUrl": "https://www.zdic.net/hans/%E9%95%A4",
+      "via": "汉典音节 pú"
+    }
+  },
+  "92": {
+    "en": {
+      "src": "/audio/elements/92-en.mp3",
+      "file": "en-us-uranium.ogg",
+      "credit": "Dvortygirl",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-uranium.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/92-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-уран.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D1%83%D1%80%D0%B0%D0%BD.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/92-zh.mp3",
+      "file": "Zh-yóu.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-y%C3%B3u.ogg",
+      "via": "同音字 you2"
+    }
+  },
+  "93": {
+    "en": {
+      "src": "/audio/elements/93-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-neptunium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-neptunium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/93-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-нептуний.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D0%BD%D0%B5%D0%BF%D1%82%D1%83%D0%BD%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/93-zh.mp3",
+      "file": "Zh-ná.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-n%C3%A1.ogg",
+      "via": "同音字 na2"
+    }
+  },
+  "94": {
+    "en": {
+      "src": "/audio/elements/94-en.mp3",
+      "file": "en-us-plutonium.ogg",
+      "credit": "Dvortygirl",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-plutonium.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/94-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-плутоний.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%BF%D0%BB%D1%83%D1%82%D0%BE%D0%BD%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/94-zh.mp3",
+      "file": "Zh-bù.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-b%C3%B9.ogg",
+      "via": "同音字 bu4"
+    }
+  },
+  "95": {
+    "en": {
+      "src": "/audio/elements/95-en.mp3",
+      "file": "LL-Q1860 (eng)-Tesco250-americium.wav",
+      "credit": "Speaker: Tesco250 Recorder: Tesco250",
+      "license": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Tesco250-americium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/95-ru.mp3",
+      "file": "LL-Q7737 (rus)-Tatiana Kerbush-америций.wav",
+      "credit": "Speaker: Tatiana Kerbush Recorder: Tatiana Kerbush",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Tatiana_Kerbush-%D0%B0%D0%BC%D0%B5%D1%80%D0%B8%D1%86%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/95-zh.mp3",
+      "file": "Zh-méi.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-m%C3%A9i.ogg",
+      "via": "同音字 mei2"
+    }
+  },
+  "96": {
+    "en": {
+      "src": "/audio/elements/96-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-curium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-curium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/96-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-кюрий.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D0%BA%D1%8E%D1%80%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/96-zh.mp3",
+      "file": "Zh-ju.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-ju.ogg",
+      "via": "同音字 ju1"
+    }
+  },
+  "97": {
+    "en": {
+      "src": "/audio/elements/97-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-berkelium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-berkelium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/97-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-берклий.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D0%B1%D0%B5%D1%80%D0%BA%D0%BB%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/97-zh.mp3",
+      "file": "Zh-péi.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-p%C3%A9i.ogg",
+      "via": "同音字 pei2"
+    }
+  },
+  "98": {
+    "en": {
+      "src": "/audio/elements/98-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-californium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-californium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/98-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-калифорний.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D0%BA%D0%B0%D0%BB%D0%B8%D1%84%D0%BE%D1%80%D0%BD%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/98-zh.mp3",
+      "file": "Zh-kāi.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-k%C4%81i.ogg",
+      "via": "同音字 kai1"
+    }
+  },
+  "99": {
+    "en": {
+      "src": "/audio/elements/99-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-einsteinium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-einsteinium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/99-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-эйнштейний.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D1%8D%D0%B9%D0%BD%D1%88%D1%82%D0%B5%D0%B9%D0%BD%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/99-zh.mp3",
+      "file": "LL-Q9192 (cmn)-Fake estate-挨.wav",
+      "credit": "Speaker: Fake estate Recorder: Fake estate",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q9192_(cmn)-Fake_estate-%E6%8C%A8.wav",
+      "via": "同音字 ai1"
+    }
+  },
+  "100": {
+    "en": {
+      "src": "/audio/elements/100-en.mp3",
+      "file": "LL-Q1860 (eng)-Tesco250-fermium.wav",
+      "credit": "Speaker: Tesco250 Recorder: Tesco250",
+      "license": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Tesco250-fermium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/100-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-фермий.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D1%84%D0%B5%D1%80%D0%BC%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/100-zh.mp3",
+      "file": "Zh-fèi.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-f%C3%A8i.ogg",
+      "via": "同音字 fei4"
+    }
+  },
+  "101": {
+    "en": {
+      "src": "/audio/elements/101-en.mp3",
+      "file": "LL-Q1860 (eng)-Tesco250-mendelevium.wav",
+      "credit": "Speaker: Tesco250 Recorder: Tesco250",
+      "license": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Tesco250-mendelevium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/101-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-менделевий.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%BC%D0%B5%D0%BD%D0%B4%D0%B5%D0%BB%D0%B5%D0%B2%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/101-zh.mp3",
+      "file": "Zh-mén.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-m%C3%A9n.ogg",
+      "via": "同音字 men2"
+    }
+  },
+  "102": {
+    "en": {
+      "src": "/audio/elements/102-en.mp3",
+      "file": "En-nobelium.oga",
+      "credit": "Drjezza",
+      "license": "Public domain",
+      "licenseUrl": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-nobelium.oga"
+    },
+    "ru": {
+      "src": "/audio/elements/102-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-нобелий.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D0%BD%D0%BE%D0%B1%D0%B5%D0%BB%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/102-zh.mp3",
+      "file": "汉典 py/nuò.mp3",
+      "credit": "汉典 zdic.net",
+      "license": "CC0 1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sourceUrl": "https://www.zdic.net/hans/%E9%94%98",
+      "via": "汉典音节 nuò"
+    }
+  },
+  "103": {
+    "en": {
+      "src": "/audio/elements/103-en.mp3",
+      "file": "LL-Q1860 (eng)-Tesco250-lawrencium.wav",
+      "credit": "Speaker: Tesco250 Recorder: Tesco250",
+      "license": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Tesco250-lawrencium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/103-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-лоуренсий.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%BB%D0%BE%D1%83%D1%80%D0%B5%D0%BD%D1%81%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/103-zh.mp3",
+      "file": "Zh-láo.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-l%C3%A1o.ogg",
+      "via": "同音字 lao2"
+    }
+  },
+  "104": {
+    "en": {
+      "src": "/audio/elements/104-en.mp3",
+      "file": "En-rutherfordium (2).oga",
+      "credit": "Drjezza",
+      "license": "Public domain",
+      "licenseUrl": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-rutherfordium_(2).oga"
+    },
+    "ru": {
+      "src": "/audio/elements/104-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-резерфордий.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D1%80%D0%B5%D0%B7%D0%B5%D1%80%D1%84%D0%BE%D1%80%D0%B4%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/104-zh.mp3",
+      "file": "汉典 py/lú.mp3",
+      "credit": "汉典 zdic.net",
+      "license": "CC0 1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sourceUrl": "https://www.zdic.net/hans/%F0%AC%AC%BB",
+      "via": "汉典音节 lú"
+    }
+  },
+  "105": {
+    "en": {
+      "src": "/audio/elements/105-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-dubnium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-dubnium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/105-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-дубний.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%B4%D1%83%D0%B1%D0%BD%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/105-zh.mp3",
+      "file": "Zh-dù.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-d%C3%B9.ogg",
+      "via": "同音字 du4"
+    }
+  },
+  "106": {
+    "en": {
+      "src": "/audio/elements/106-en.mp3",
+      "file": "En-uk-seaborgium.oga",
+      "credit": "Drjezza .",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-uk-seaborgium.oga"
+    },
+    "ru": {
+      "src": "/audio/elements/106-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-сиборгий.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D1%81%D0%B8%D0%B1%D0%BE%D1%80%D0%B3%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/106-zh.mp3",
+      "file": "Zh-xǐ.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-x%C7%90.ogg",
+      "via": "同音字 xi3"
+    }
+  },
+  "107": {
+    "en": {
+      "src": "/audio/elements/107-en.mp3",
+      "file": "En-bohrium.oga",
+      "credit": "Drjezza",
+      "license": "Public domain",
+      "licenseUrl": "https://commons.wikimedia.org/wiki/Commons:Licensing",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-bohrium.oga"
+    },
+    "ru": {
+      "src": "/audio/elements/107-ru.mp3",
+      "file": "LL-Q7737 (rus)-Rominf-борий.wav",
+      "credit": "Speaker: Rominf Recorder: Rominf",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-Rominf-%D0%B1%D0%BE%D1%80%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/107-zh.mp3",
+      "file": "Zh-bō.oga",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-b%C5%8D.oga",
+      "via": "同音字 bo1"
+    }
+  },
+  "108": {
+    "en": {
+      "src": "/audio/elements/108-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-hassium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-hassium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/108-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-хассий.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D1%85%D0%B0%D1%81%D1%81%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/108-zh.mp3",
+      "file": "Zh-hēi.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-h%C4%93i.ogg",
+      "via": "同音字 hei1"
+    }
+  },
+  "109": {
+    "en": {
+      "src": "/audio/elements/109-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-meitnerium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-meitnerium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/109-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-мейтнерий.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D0%BC%D0%B5%D0%B9%D1%82%D0%BD%D0%B5%D1%80%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/109-zh.mp3",
+      "file": "Zh-mài.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-m%C3%A0i.ogg",
+      "via": "同音字 mai4"
+    }
+  },
+  "110": {
+    "en": {
+      "src": "/audio/elements/110-en.mp3",
+      "file": "LL-Q1860 (eng)-Tesco250-darmstadtium.wav",
+      "credit": "Speaker: Tesco250 Recorder: Tesco250",
+      "license": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Tesco250-darmstadtium.wav"
+    },
+    "ru": {
+      "src": "/audio/elements/110-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-дармштадтий.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D0%B4%D0%B0%D1%80%D0%BC%D1%88%D1%82%D0%B0%D0%B4%D1%82%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/110-zh.mp3",
+      "file": "Zh-dá.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-d%C3%A1.ogg",
+      "via": "同音字 da2"
+    }
+  },
+  "111": {
+    "en": {
+      "src": "/audio/elements/111-en.mp3",
+      "file": "en-us-roentgenium.ogg",
+      "credit": "Mikemoral",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-us-roentgenium.ogg"
+    },
+    "ru": {
+      "src": "/audio/elements/111-ru.mp3",
+      "file": "LL-Q7737 (rus)-DomesticFrog-рентгений.wav",
+      "credit": "Speaker: DomesticFrog Recorder: DomesticFrog",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q7737_(rus)-DomesticFrog-%D1%80%D0%B5%D0%BD%D1%82%D0%B3%D0%B5%D0%BD%D0%B8%D0%B9.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/111-zh.mp3",
+      "file": "汉典 py/lún.mp3",
+      "credit": "汉典 zdic.net",
+      "license": "CC0 1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sourceUrl": "https://www.zdic.net/hans/%F0%AC%AC%AD",
+      "via": "汉典音节 lún"
+    }
+  },
+  "112": {
+    "en": {
+      "src": "/audio/elements/112-en.mp3",
+      "file": "En-copernicium.oga",
+      "credit": "Drjezza",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:En-copernicium.oga"
+    },
+    "zh": {
+      "src": "/audio/elements/112-zh.mp3",
+      "file": "Zh-gē.oga",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-g%C4%93.oga",
+      "via": "同音字 ge1"
+    },
+    "ru": {
+      "src": "/audio/elements/112-ru.mp3",
+      "file": "112-ru.mp3",
+      "credit": "",
+      "license": "",
+      "licenseUrl": "",
+      "sourceUrl": ""
+    }
+  },
+  "113": {
+    "en": {
+      "src": "/audio/elements/113-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-nihonium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-nihonium.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/113-zh.mp3",
+      "file": "Zh-xǐ.ogg",
+      "credit": "Wei Gao, Vion Nicolas",
+      "license": "CC BY 2.0 fr",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/fr/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-x%C7%90.ogg",
+      "via": "同音字 xi3"
+    },
+    "ru": {
+      "src": "/audio/elements/113-ru.mp3",
+      "file": "113-ru.mp3",
+      "credit": "",
+      "license": "",
+      "licenseUrl": "",
+      "sourceUrl": ""
+    }
+  },
+  "114": {
+    "en": {
+      "src": "/audio/elements/114-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-flerovium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-flerovium.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/114-zh.mp3",
+      "file": "LL-Q9192 (cmn)-雲角-夫.wav",
+      "credit": "Speaker: 雲角 Recorder: 雲角",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q9192_(cmn)-%E9%9B%B2%E8%A7%92-%E5%A4%AB.wav",
+      "via": "同音字 fu1"
+    },
+    "ru": {
+      "src": "/audio/elements/114-ru.mp3",
+      "file": "114-ru.mp3",
+      "credit": "",
+      "license": "",
+      "licenseUrl": "",
+      "sourceUrl": ""
+    }
+  },
+  "115": {
+    "en": {
+      "src": "/audio/elements/115-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-moscovium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-moscovium.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/115-zh.mp3",
+      "file": "Zh-mò.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-m%C3%B2.ogg",
+      "via": "同音字 mo4"
+    },
+    "ru": {
+      "src": "/audio/elements/115-ru.mp3",
+      "file": "115-ru.mp3",
+      "credit": "",
+      "license": "",
+      "licenseUrl": "",
+      "sourceUrl": ""
+    }
+  },
+  "116": {
+    "en": {
+      "src": "/audio/elements/116-en.mp3",
+      "file": "LL-Q1860 (eng)-Vealhurl-livermorium.wav",
+      "credit": "Speaker: Vealhurl Recorder: Vealhurl",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Vealhurl-livermorium.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/116-zh.mp3",
+      "file": "Zh-lì.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-l%C3%AC.ogg",
+      "via": "同音字 li4"
+    },
+    "ru": {
+      "src": "/audio/elements/116-ru.mp3",
+      "file": "116-ru.mp3",
+      "credit": "",
+      "license": "",
+      "licenseUrl": "",
+      "sourceUrl": ""
+    }
+  },
+  "117": {
+    "en": {
+      "src": "/audio/elements/117-en.mp3",
+      "file": "LL-Q1860 (eng)-Neøn-tennessine.wav",
+      "credit": "Speaker: Neøn Recorder: Neøn",
+      "license": "CC0",
+      "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Ne%C3%B8n-tennessine.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/117-zh.mp3",
+      "file": "Zh-tián.ogg",
+      "credit": "Yue Tan",
+      "license": "CC BY-SA 3.0 us",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/us/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zh-ti%C3%A1n.ogg",
+      "via": "同音字 tian2"
+    },
+    "ru": {
+      "src": "/audio/elements/117-ru.mp3",
+      "file": "117-ru.mp3",
+      "credit": "",
+      "license": "",
+      "licenseUrl": "",
+      "sourceUrl": ""
+    }
+  },
+  "118": {
+    "en": {
+      "src": "/audio/elements/118-en.mp3",
+      "file": "LL-Q1860 (eng)-Wodencafe-oganesson.wav",
+      "credit": "Speaker: Wodencafe Recorder: Wodencafe",
+      "license": "CC0",
+      "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:LL-Q1860_(eng)-Wodencafe-oganesson.wav"
+    },
+    "zh": {
+      "src": "/audio/elements/118-zh.mp3",
+      "file": "汉典 py/ào.mp3",
+      "credit": "汉典 zdic.net",
+      "license": "CC0 1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sourceUrl": "https://www.zdic.net/hans/%E9%BF%AB",
+      "via": "汉典音节 ào"
+    },
+    "ru": {
+      "src": "/audio/elements/118-ru.mp3",
+      "file": "118-ru.mp3",
+      "credit": "",
+      "license": "",
+      "licenseUrl": "",
+      "sourceUrl": ""
+    }
+  }
+}

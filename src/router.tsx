@@ -5,9 +5,17 @@ import React from 'react'
 // Import the generated route tree
 import { routeTree } from './routeTree.gen'
 import { useT } from './lib/i18n'
+import { ensureMathForSource, loadMarkdownMath } from './lib/markdown-math'
 import { getPublicOrigin } from './lib/server-env'
 import { bookOfLesson, findLesson, loadLessonSource } from './lib/lessons'
 import { dashboardFn } from './components/ui/card'
+import { PeriodicTableSkeleton } from './components/periodic-table-skeleton'
+
+// 直达 /periodic-table 时立刻开始下载表格 chunk（与框架水合并行），
+// 只在该路径生效，其它页面不会为它多付一个请求。
+if (typeof window !== 'undefined' && window.location.pathname === '/periodic-table') {
+  void import('./components/periodic-table')
+}
 
 // 后台 UI 组件统一从 ./components/ui/card（懒加载，避免把 server fns/CRUD 拖入首屏）
 const AdminLayout = React.lazy(() => import('./components/ui/card').then((m) => ({ default: m.AdminLayout })))
@@ -19,7 +27,35 @@ const UserManager = React.lazy(() => import('./components/ui/card').then((m) => 
 const FeedbackManager = React.lazy(() => import('./components/ui/card').then((m) => ({ default: m.FeedbackManager })))
 const SiteContentEditor = React.lazy(() => import('./components/ui/card').then((m) => ({ default: m.SiteContentEditor })))
 const NetworkTools = React.lazy(() => import('./components/network-tools').then((m) => ({ default: m.NetworkTools })))
+const TrafficMonitor = React.lazy(() => import('./components/traffic-monitor').then((m) => ({ default: m.TrafficMonitor })))
 const RussianToolkit = React.lazy(() => import('./components/russian-toolkit').then((m) => ({ default: m.RussianToolkit })))
+// 弱网下动态 chunk 偶发请求失败时，React.lazy 会永久停在 fallback（页面变成死的加载中）。
+// 周期表是体积最大的独立 chunk，最容易中招，这里失败后重试两次再放弃。
+const PeriodicTable = React.lazy(async () => {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const m = await import('./components/periodic-table')
+      return { default: m.PeriodicTable }
+    } catch (err) {
+      if (attempt >= 2) {
+        // 部署刚结束时，浏览器可能仍拿着旧 HTML（引用已删除的旧 hash chunk），
+        // 重试注定失败。整页刷新一次即可取到新外壳；60 秒内只自愈一次，避免离线刷新循环。
+        if (typeof window !== 'undefined') {
+          try {
+            const key = 'sg-pt-chunk-reload'
+            const last = Number(window.sessionStorage.getItem(key) || 0)
+            if (Date.now() - last > 60_000) {
+              window.sessionStorage.setItem(key, String(Date.now()))
+              window.location.reload()
+            }
+          } catch { /* 隐私模式禁用 storage 时忽略 */ }
+        }
+        throw err
+      }
+      await new Promise((r) => setTimeout(r, 800))
+    }
+  }
+})
 const LessonsIndex = React.lazy(() => import('./components/lessons-index').then((m) => ({ default: m.LessonsIndex })))
 const LessonPage = React.lazy(() => import('./components/lesson-page').then((m) => ({ default: m.LessonPage })))
 const XdnmbBrowser = React.lazy(() => import('./components/xdnmb-browser').then((m) => ({ default: m.XdnmbBrowser })))
@@ -29,7 +65,15 @@ const AdminGateWrap = React.lazy(() => import('./components/ui/card').then((m) =
 type AnyLazy = LazyExoticComponent<ComponentType<unknown>>
 
 // Create a new router instance
-export const getRouter = () => {
+//
+// 注意这里必须是 async：首屏 HTML 里已经含公式（KaTeX 输出 .katex 节点）时，
+// 先下载 KaTeX chunk 再建路由/水合。React 19 一旦发现 dangerouslySetInnerHTML
+// 与 SSR 不一致会整树重渲染，因此不能指望「先渲染占位符、稍后升级」保住首屏，
+// 必须在首帧就与 SSR 逐字一致。无公式页面不会触发这份下载。
+export const getRouter = async () => {
+  if (typeof document !== 'undefined' && document.querySelector('.katex')) {
+    await loadMarkdownMath()
+  }
   const root = routeTree
 
   /** 所有管理端子路由均经过 AdminGateWrap 门控 + Suspense 包裹 */
@@ -115,6 +159,11 @@ export const getRouter = () => {
     getParentRoute: () => adminRoute,
     component: wrap(NetworkTools as unknown as AnyLazy),
   })
+  const adminTrafficRoute = createRoute({
+    path: 'traffic',
+    getParentRoute: () => adminRoute,
+    component: wrap(TrafficMonitor as unknown as AnyLazy),
+  })
   const adminXdnmbRoute = createRoute({
     path: 'xdnmb',
     getParentRoute: () => adminRoute,
@@ -153,6 +202,27 @@ export const getRouter = () => {
     },
   })
 
+  // /periodic-table：元素周期表独立页面（免登录）
+  const periodicTableRoute = createRoute({
+    path: '/periodic-table',
+    getParentRoute: () => root,
+    // ?el=Fe / ?el=26 —— 元素深链：SSR 首帧直接选中，刷新与分享都保留
+    validateSearch: (search: Record<string, unknown>): { el?: string } => ({
+      el: typeof search.el === 'string' ? search.el : undefined,
+    }),
+    component: function PeriodicTablePage() {
+      // 表格由 SSR 直出，首屏即可读；水合完成前组件自己会标注「正在初始化交互」，
+      // 不会出现「看得到却点不动却毫无提示」的情况。只有 chunk 还没下载完时才显示骨架屏。
+      return (
+        <div style={{ maxWidth: 1480, margin: '0 auto', padding: '18px 14px 40px' }}>
+          <React.Suspense fallback={<PeriodicTableSkeleton />}>
+            <PeriodicTable />
+          </React.Suspense>
+        </div>
+      )
+    },
+  })
+
   // /lessons：课程中心概览（左教材 / 右课程，公开页）。
   // ?book= 记录当前选中的教材，刷新与分享都保留同一册的选择。
   const lessonsRoute = createRoute({
@@ -182,6 +252,8 @@ export const getRouter = () => {
       const les = findLesson(params.lessonId)
       if (!les) throw notFound()
       const source = await loadLessonSource(les.file)
+      // 客户端软导航时先按需加载 KaTeX（服务端为 no-op）
+      await ensureMathForSource(source ?? '')
       return { les, source }
     },
     head: ({ loaderData }) => {
@@ -226,6 +298,7 @@ export const getRouter = () => {
     adminFeedbackRoute,
     adminContentRoute,
     adminNetworkRoute,
+    adminTrafficRoute,
     adminXdnmbRoute,
     adminChan233Route,
     adminSettingsRoute,
@@ -243,6 +316,7 @@ export const getRouter = () => {
     ...(hasPath('/admin') ? [] : [adminWithChildren]),
     ...(hasPath('/share') ? [] : [shareRoute]),
     ...(hasPath('/russian') ? [] : [russianRoute]),
+    ...(hasPath('/periodic-table') ? [] : [periodicTableRoute]),
     ...(hasPath('/lessons') ? [] : [lessonsRoute, lessonDetailRoute]),
   ]
 

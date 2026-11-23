@@ -7,7 +7,9 @@
 import * as React from 'react'
 
 // ── 本地语音合成 ──
-function speak(text: string, rate = 0.8): boolean {
+// lang 默认 ru（历史调用方都是俄语）；周期表元素名会传 en / zh。
+export type SpeakLang = 'ru' | 'en' | 'zh'
+function speak(text: string, rate = 0.8, lang: SpeakLang = 'ru'): boolean {
     try {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return false
     // 数据里的重音符号（组合锐音符 U+0301，如 полиме́р）供学习者 sight-reading，
@@ -15,12 +17,15 @@ function speak(text: string, rate = 0.8): boolean {
     const clean = text.normalize('NFD').replace(/\u0301/g, '')
     const synth = window.speechSynthesis
     const u = new SpeechSynthesisUtterance(clean)
-    u.lang = 'ru-RU'
+    u.lang = lang === 'zh' ? 'zh-CN' : lang === 'en' ? 'en-US' : 'ru-RU'
     u.rate = rate
-    const ruVoices = synth.getVoices().filter((v) => v.lang?.toLowerCase().startsWith('ru'))
-    // 按所选性别从本地俄语语音中启发式挑选（Windows 常见女声 Irina、男声 Pavel）
-    const maleRe = /pavel|dmitri|male/i
-    const voice = ruVoices.find((v) => maleRe.test(v.name) === (voiceGender === 'm')) || ruVoices[0]
+    const voices = synth.getVoices().filter((v) => v.lang?.toLowerCase().startsWith(lang))
+    let voice = voices[0]
+    if (lang === 'ru') {
+      // 按所选性别从本地俄语语音中启发式挑选（Windows 常见女声 Irina、男声 Pavel）
+      const maleRe = /pavel|dmitri|male/i
+      voice = voices.find((v) => maleRe.test(v.name) === (voiceGender === 'm')) || voices[0]
+    }
     if (voice) u.voice = voice
     synth.cancel()
     synth.speak(u)

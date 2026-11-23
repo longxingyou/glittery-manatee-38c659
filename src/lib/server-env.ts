@@ -66,6 +66,8 @@ export interface ServerEnv {
   CONVERTER_SECRET?: string
   /** 后台「网络工具」代理搜索的 Brave Search API key（可选；缺省回退 DuckDuckGo） */
   BRAVE_API_KEY?: string
+  /** Azure 流量采集 agent 的共享密钥（/api/traffic 服务端代理用；未配置时该页返回 503） */
+  TRAFFIC_KEY?: string
   /**
    * X岛本地搜索索引 D1 数据库（从 Neon 迁移）。
    * 主站只读（search/find/stats/getThread）；爬虫 Worker 读写。

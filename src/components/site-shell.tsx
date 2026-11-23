@@ -1,5 +1,6 @@
 import { Link, useLocation } from '@tanstack/react-router'
 import {
+  Atom,
   BookOpenText,
   BookA,
   Braces,
@@ -56,6 +57,7 @@ export function SiteShell({ children, categories }: { children: React.ReactNode;
   const activeAll = decodedPath === '/' || decodedPath.startsWith('/posts/')
   const activeArchive = decodedPath === '/archive' || decodedPath.startsWith('/archive/')
   const activeRussian = decodedPath === '/russian' || decodedPath.startsWith('/russian/')
+  const activePeriodic = decodedPath === '/periodic-table' || decodedPath.startsWith('/periodic-table/')
   const activeLessons = decodedPath === '/lessons' || decodedPath.startsWith('/lessons/')
   const activeAdmin = decodedPath === '/admin' || decodedPath.startsWith('/admin/')
   const activeCat = (name: string) => decodedPath === `/category/${name}`
@@ -93,11 +95,25 @@ export function SiteShell({ children, categories }: { children: React.ReactNode;
   // 用户未读警告数（用户中心打开后由面板广播），显示为齿轮红点
   const [warningCount, setWarningCount] = useState(0)
 
+  // 把非关键的客户端 DB fetch（getUser / adminStatus）推迟到浏览器空闲时执行。
+  // 原因：首屏水合期间若立刻发起这些请求，会与 JS 解析/水合争抢主线程与网络，
+  // 拖慢「可交互」时刻；且 Neon 免费实例会因此被提前唤醒（冷启动 0.5~3s）。
+  // 周期表等公开页根本不需要登录态，延后 fetch 不影响阅读与交互。
+  const whenIdle = (cb: () => void) => {
+    if (typeof requestIdleCallback === 'function') {
+      const id = requestIdleCallback(cb, { timeout: 4000 })
+      return () => cancelIdleCallback(id)
+    }
+    const id = setTimeout(cb, 1200)
+    return () => clearTimeout(id)
+  }
+
   // 同步当前登录用户（供搜索面板的评论搜索判断身份）
   useEffect(() => {
-    getUser().then((u) => u && setUser(u))
+    let cancel = () => {}
+    cancel = whenIdle(() => { void getUser().then((u) => u && setUser(u)) })
     const unsubscribe = onAuthChange((nextUser) => setUser(nextUser ?? null))
-    return () => { unsubscribe() }
+    return () => { cancel(); unsubscribe() }
   }, [])
 
   // ⌘K / Ctrl+K 打开搜索命令面板，Esc 关闭
@@ -126,8 +142,10 @@ export function SiteShell({ children, categories }: { children: React.ReactNode;
         // 忽略网络失败，安全回退不显示
       }
     }
-    void probe()
-    return onAuthChange(() => { void probe() })
+    // 首次探测延后到空闲，避免与水合抢资源、提前唤醒 Neon
+    const cancelIdle = whenIdle(() => { void probe() })
+    const unsubAuth = onAuthChange(() => { void probe() })
+    return () => { alive = false; cancelIdle(); unsubAuth() }
   }, [])
 
   // 用户中心广播未读警告数 → 齿轮红点；登出时清零
@@ -208,6 +226,7 @@ export function SiteShell({ children, categories }: { children: React.ReactNode;
         <Link to="/" className={`tree-item${activeAll ? ' selected' : ''}`} onClick={() => setSidebarOpen(false)}><BookOpenText size={15} /><span>{t('shell.allposts.file')}</span></Link>
         <Link to="/archive" className={`tree-item${activeArchive ? ' selected' : ''}`} onClick={() => setSidebarOpen(false)}><CalendarDays size={15} /><span>{t('shell.archive.file')}</span></Link>
         <Link to="/russian" className={`tree-item${activeRussian ? ' selected' : ''}`} onClick={() => setSidebarOpen(false)}><BookA size={15} /><span>{t('shell.russian.file')}</span></Link>
+        <Link to="/periodic-table" preload="intent" className={`tree-item${activePeriodic ? ' selected' : ''}`} onClick={() => setSidebarOpen(false)}><Atom size={15} /><span>{t('shell.periodic.file')}</span></Link>
         <Link to="/lessons" className={`tree-item${activeLessons ? ' selected' : ''}`} onClick={() => setSidebarOpen(false)}><GraduationCap size={15} /><span>{t('shell.lessons.file')}</span></Link>
         {adminBadge && (
           <Link to="/admin" className={`tree-item${activeAdmin ? ' selected' : ''}`} onClick={() => setSidebarOpen(false)} style={{ color: 'var(--accent)' }}>
@@ -283,7 +302,10 @@ export function SiteShell({ children, categories }: { children: React.ReactNode;
       <GamesMenu open={gamesOpen} onClose={() => setGamesOpen(false)} />
       <UserPanel />
       <footer className="statusbar"><span><Braces size={13} /> main*</span><span>0 errors</span><span className="status-spacer" /><span>UTF-8</span><span>Markdown</span>
-        <a className="status-host" href="https://workers.cloudflare.com" target="_blank" rel="noreferrer" title={t('shell.cf.title')}>
+        <a className="status-host status-icp" href="https://icp.gov.moe/?keyword=20269939" target="_blank" rel="noreferrer">
+          萌ICP备20269939号
+        </a>
+        <a className="status-host status-cf" href="https://workers.cloudflare.com" target="_blank" rel="noreferrer" title={t('shell.cf.title')}>
           <CloudflareGlyph /> {t('shell.cf.powered')}
         </a>
       </footer>

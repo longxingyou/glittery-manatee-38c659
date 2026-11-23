@@ -6,11 +6,19 @@ import { z } from 'zod'
 // 所有 fn 内部均经 requireAdmin() 二次鉴权
 // =================================================================
 
-// 评论者列表：昵称/邮箱/个签/评论数/警告数
+// 注册用户列表（含未验证）：昵称/邮箱/个签/评论数/警告数
 export const listCommentersFn = createServerFn({ method: 'GET' }).handler(async () => {
   const mod = await import('../../db/index.js')
   return mod.adminListCommenters()
 })
+
+// 手动把账号标记为已验证（验证邮件丢失时的兜底）
+export const adminConfirmUserFn = createServerFn({ method: 'POST' })
+  .inputValidator((input) => z.object({ userId: z.string().min(1).max(128) }).parse(input))
+  .handler(async ({ data }) => {
+    const mod = await import('../../db/index.js')
+    return mod.adminConfirmUser(data.userId)
+  })
 
 // 修改/清空指定用户的个签
 export const adminSetSignatureFn = createServerFn({ method: 'POST' })

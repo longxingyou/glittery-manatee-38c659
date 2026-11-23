@@ -22,6 +22,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { renderMarkdown } from '@/lib/markdown'
+import { useMarkdownMath } from '@/lib/use-markdown-math'
 import { feedbackUploadUrl, formatBytes } from '@/lib/utils'
 import { useT, useLang } from '@/lib/i18n'
 import { UserTagList } from '@/components/user-tag-badge'
@@ -71,6 +72,9 @@ function broadcastUnread(count: number) {
 export function UserPanel() {
   const t = useT()
   const [open, setOpen] = useState(false)
+  // 个人简介/签名在水合后才拉取渲染；KaTeX 只在面板打开后才加载，
+  // 否则每一页首屏都会白下 256KB（周期表等无公式页面）。
+  useMarkdownMath(open)
   const [user, setUser] = useState<AuthUser | null>(null)
   // 服务端身份（读取 sg_auth httpOnly cookie）
   const [serverAuthed, setServerAuthed] = useState(false)

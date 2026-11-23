@@ -1,12 +1,30 @@
-import katex from 'katex'
-// mhchem 必须与主 katex 是同一实例：走 package exports 的 import 条件解析到
-// dist/contrib/mhchem.mjs（其内部 import '../katex.mjs'）。若直接引
-// dist/contrib/mhchem.js（UMD），Vite 打包后会 require 另一个 katex.js 实例，
-// \ce 宏注册到未被使用的实例上 → 渲染时 \ce 变成未知命令（红色文本）。
-import 'katex/contrib/mhchem'
 import { Marked, type Token } from 'marked'
 import { renderStickerShortcode } from './stickers'
 import { pickupCodeFromUrl } from './utils'
+
+// ──────────────────────────────────────────────
+// 数学公式渲染器注册表（KaTeX 按需加载）
+//
+// KaTeX（≈255KB）+ mhchem（≈33KB）曾经是静态依赖，会被打进主入口 chunk ——
+// 于是连完全没有公式的页面也要先下载它们才能水合。现在拆成可注册的实现：
+//   · 服务端：src/lib/markdown-math.server.ts 在 Worker 启动时静态注册，
+//     SSR 始终输出完整 KaTeX HTML（SEO 与首屏不受影响）；
+//   · 客户端：src/lib/markdown-math.ts 动态 import，只在页面确实含公式时加载，
+//     且在水合前完成注册（见 router.tsx），保证首帧 HTML 与 SSR 逐字一致。
+// 未注册时公式降级为可原地升级的占位符，由 upgradePendingMath() 替换。
+// ──────────────────────────────────────────────
+type MathRenderer = (expression: string, displayMode: boolean) => string
+let mathRenderer: MathRenderer | null = null
+
+/** 注册/清除数学渲染器（服务端启动时注册；客户端动态加载后注册） */
+export function setMathRenderer(renderer: MathRenderer | null): void {
+  mathRenderer = renderer
+}
+
+/** 渲染器是否已就绪（客户端用来决定是否还需要等待 KaTeX chunk） */
+export function hasMathRenderer(): boolean {
+  return mathRenderer !== null
+}
 
 const escapeHtml = (value: string) =>
   value.replace(/[&<>'"]/g, (character) => ({
@@ -16,6 +34,13 @@ const escapeHtml = (value: string) =>
     "'": '&#39;',
     '"': '&quot;',
   })[character]!)
+
+/** 渲染单个公式；渲染器未就绪时输出可原地升级的占位符（保留 TeX 纯文本） */
+function renderMathHtml(expression: string, displayMode: boolean): string {
+  const tex = expression.trim()
+  if (mathRenderer) return mathRenderer(tex, displayMode)
+  return `<span class="katex-pending" data-tex="${escapeHtml(tex)}" data-display="${displayMode ? '1' : '0'}">${escapeHtml(tex)}</span>`
+}
 
 // ──────────────────────────────────────────────
 // Callout 配置（对标 Obsidian：类型全集 + 别名归一 + Lucide 风格图标）
@@ -225,11 +250,7 @@ export function renderMarkdown(source: string, headingShift = 0, options: Render
     return /^[ \t]*/.exec(text.slice(start))![0]
   }
   const renderDisplay = (expression: string, indent = '') => {
-    const index = mathBlocks.push(katex.renderToString(expression.trim(), {
-      displayMode: true,
-      throwOnError: false,
-      strict: false,
-    })) - 1
+    const index = mathBlocks.push(renderMathHtml(expression, true)) - 1
     mathSources[index] = expression.trim()
     // 顶格写：双换行独立成段。
     // 写在列表项里（行首有缩进）：必须单换行 + 同缩进，否则空行会终止列表，
@@ -237,11 +258,7 @@ export function renderMarkdown(source: string, headingShift = 0, options: Render
     return indent ? `\n${indent}MATHBLOCK${index}ENDMATH\n` : `\n\nMATHBLOCK${index}ENDMATH\n\n`
   }
   const renderInline = (expression: string) => {
-    const index = mathBlocks.push(katex.renderToString(expression.trim(), {
-      displayMode: false,
-      throwOnError: false,
-      strict: false,
-    })) - 1
+    const index = mathBlocks.push(renderMathHtml(expression, false)) - 1
     mathSources[index] = expression.trim()
     return `MATHINLINE${index}ENDMATH`
   }

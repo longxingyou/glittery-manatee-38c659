@@ -1,5 +1,6 @@
 import React from 'react'
 import { renderMarkdown } from '../lib/markdown'
+import { useMarkdownMath } from '../lib/use-markdown-math'
 import { useT } from '../lib/i18n'
 
 // ──────────────────────────────────────────────
@@ -222,6 +223,8 @@ function OpmlNodeRow({ node, depth, mode }: { node: OpmlNode; depth: number; mod
 // ──────────────────────────────────────────────
 export function MaterialsTab() {
   const t = useT()
+  // 手册正文懒加载后渲染；KaTeX 就绪后重算一次，公式不退化成 TeX 原文
+  const mathReady = useMarkdownMath()
   const [sel, setSel] = React.useState('overview')
   const [mode, setMode] = React.useState<ExpandMode>('top')
   // 画布视图默认开启（与附件预览页一致）；markmap 加载失败自动降级列表
@@ -238,7 +241,7 @@ export function MaterialsTab() {
 
   const mdHtml = React.useMemo(
     () => (mat.kind === 'md' && source ? renderMarkdown(source, 1) : ''),
-    [mat.kind, source],
+    [mat.kind, source, mathReady],
   )
   const tree = React.useMemo(
     () => (mat.kind === 'opml' && source ? parseOpml(source) : []),

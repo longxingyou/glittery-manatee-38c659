@@ -114,7 +114,7 @@ export const BOOKS: BookMeta[] = [
   // ── 化学俄语（学科俄语，与生活俄语互补）──
   // 源：C:\Projects\Chemist\Russian\俄语化学入门\
   // 同步：_extract\sync_chem_to_site.py（目标文件名带 chem- 前缀，与 Э/Б 不撞）
-  { id: 'p-chem', subject: 'russian', title: '《俄语化学入门》', hint: '化学俄语 · 3 预备 + 7 精讲 + 2 专题 + 4 汇总' },
+  { id: 'p-chem', subject: 'russian', title: '《俄语化学入门》', hint: '化学俄语 · 3 预备 + 7 精讲 + 4 专题 + 4 汇总' },
   { id: 'slot-b', subject: 'russian', title: '', hint: '', reserved: true },
   // ── lib 自编课程：统一归「杂项」，学科只作为条目说明 ──
   // 把书编成课后，在 content/misc-lessons/<课程>/ 放 md，再把这条 slot 改成真实条目；
@@ -171,6 +171,8 @@ export const LESSONS: LessonMeta[] = [
   { id: 'ch-07', file: 'chem-07-zanyatie-7.md', title: 'Занятие 7 · 摩尔质量', hint: 'моль · 阿伏伽德罗常数 · M=Mr · 质量守恒 · 罗蒙诺索夫', group: 'lesson', book: 'p-chem' },
   { id: 'ch-20', file: 'chem-20-supplement.md', title: '补充专题 · 主教材独有主题', hint: '★原子结构 · 周期表 · 原子价 · 离子 · 阴阳离子 · 分子结构', group: 'global', book: 'p-chem' },
   { id: 'ch-30', file: 'chem-30-rhtu-reader.md', title: 'РХТУ 化学精读（门捷列夫化工大学）', hint: '★★酸命名四规则 · 盐命名三规律 · 氧化还原 · 动力学 · 平衡 · 溶液', group: 'global', book: 'p-chem' },
+  { id: 'ch-40', file: 'chem-40-polymers-chemistry.md', title: '专题拓展 · 有机化学与高分子化学基础', hint: '★★★单体官能团 · 自由基/离子/配位聚合 · 缩聚机理 · 链架构 · 分子量多分散性', group: 'global', book: 'p-chem' },
+  { id: 'ch-41', file: 'chem-41-polymer-processing.md', title: '专题拓展 · 高分子物理与聚合物加工工艺', hint: '★★★力学三态与热转变 · 熔体流变与ПТР · 配方助剂 · 挤出/注塑/吹塑/压延/模压 · 工艺缺陷排除', group: 'global', book: 'p-chem' },
   { id: 'ch-10', file: 'chem-10-overview-table.md', title: '全局总表', hint: '概念链 · 句式总表 · 无机物 · 化学式读法 · 缩写 · 计算三公式', group: 'global', book: 'p-chem' },
   { id: 'ch-11', file: 'chem-11-words-pos.md', title: '词表 · 按词性', hint: '名词/动词/形容词/数词，含体对与格支配', group: 'global', book: 'p-chem' },
   { id: 'ch-12', file: 'chem-12-words-theme.md', title: '词表 · 按主题', hint: '14 个主题归集（物质/性质/反应/计量/实验室…）', group: 'global', book: 'p-chem' },

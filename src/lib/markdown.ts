@@ -198,6 +198,31 @@ export function renderMarkdown(source: string, headingShift = 0, options: Render
   // ── 预处理 1：剥离 %%…%% 注释 ──
   source = source.replace(/%%[\s\S]*?%%/g, '')
 
+  // ── 预处理 1.5：给成对 **强调** 打上显式标记 ──
+  // marked 的强调判定只认 ASCII 标点做「左右侧分支」判断。紧邻中文/全角标点时
+  // 会判错边界，出现两类故障：
+  //   ① 完全不渲染：`**「而」**（对比）` → 星号原样露出；
+  //   ② 闭合位置错配：`**в пя́тницу**` → `<strong>…пя́тниц</strong>у`。
+  // 课程语料大量使用 `**中文「词」**`，文章正文也有，因此在这里把成对 ** 换成
+  // 显式标记，交给下面的 emphExplicit 行内扩展渲染 <strong>，彻底绕开该判断。
+  // 代码（行内 + 围栏）先临时摘下，其中的 ** 由后面的 inlineCodeEmphasis 处理；
+  // `\***词**`（字面星号 + 粗体）靠 (?<!\\) 正确跳过前一星号。
+  // 讲义里大量存在跨行强调（引用块内一条粗体句子折成两三行），因此按「段落」
+  // 为单位配对：允许跨行，但不允许跨空行，避免两个孤立 ** 被隔段误配。
+  {
+    const stash: string[] = []
+    let s = source.replace(/```[\s\S]*?(?:```|$)|~~~[\s\S]*?(?:~~~|$)|`[^`\n]*`/g, (m) => `\u0000S${stash.push(m) - 1}S\u0000`)
+    s = s
+      .split(/(\n[ \t]*\n)/)
+      .map((chunk) =>
+        /^\n[ \t]*\n$/.test(chunk)
+          ? chunk
+          : chunk.replace(/(?<!\\)\*\*((?:[^*]|\*(?!\*))+?)\*\*/g, (_m, inner: string) => `SGEMPHSTART${inner}SGEMPHEND`),
+      )
+      .join('')
+    source = s.replace(/\u0000S(\d+)S\u0000/g, (_m, i: string) => stash[Number(i)])
+  }
+
   // ── 预处理 2：提取脚注定义 ──
   const footnoteDefs = new Map<string, string>()
   source = source.replace(
@@ -424,6 +449,25 @@ export function renderMarkdown(source: string, headingShift = 0, options: Render
 
     // ── marked 扩展 ──
     extensions: [
+      // 0. 显式强调（预处理 1.5 打过标记的成对 **…**）
+      {
+        name: 'emphExplicit',
+        level: 'inline',
+        start(src: string) { return src.match(/SGEMPHSTART/)?.index },
+        tokenizer(src: string) {
+          const m = /^SGEMPHSTART([\s\S]*?)SGEMPHEND/.exec(src)
+          if (!m) return
+          const token = {
+            type: 'emphExplicit', raw: m[0], text: m[1], tokens: [] as Token[],
+          }
+          this.lexer.inlineTokens(m[1], token.tokens)
+          return token
+        },
+        renderer(token: Token) {
+          const t = token as Token & { tokens: Token[] }
+          return `<strong>${this.parser.parseInline(t.tokens)}</strong>`
+        },
+      },
       // 1. 高亮 ==text==
       {
         name: 'highlight',

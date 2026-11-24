@@ -181,6 +181,14 @@ export interface RenderOptions {
    * 其余调用方不传，相对路径按原样降级为占位徽章。
    */
   resolveImage?: (href: string) => string | undefined
+  /**
+   * 课程语料约定：行内代码 `пе́рв**ое** января́` 中的成对 **…** 渲染为加粗。
+   * 讲义用反引号给俄语词做代码徽章样式，词尾变化部分用 ** 强调，
+   * 但标准 Markdown 的代码 span 不解析强调语法，星号会原样露出。
+   * 开启后在渲染产物上把行内代码里的成对 ** 转为 <strong>
+   * （不含 <pre> 围栏块）。只在课程渲染入口开启；文章/评论的代码样本不受影响。
+   */
+  inlineCodeEmphasis?: boolean
 }
 
 export function renderMarkdown(source: string, headingShift = 0, options: RenderOptions = {}) {
@@ -511,15 +519,21 @@ export function renderMarkdown(source: string, headingShift = 0, options: Render
           const token = {
             type: 'callout', raw: head[0] + bodyRaw,
             calloutType: type, size, fold, title,
+            titleTokens: [] as Token[],
             text: inner, tokens: [] as Token[],
           }
           this.lexer.blockTokens(inner, token.tokens)
+          // 标题支持行内 markdown（**加粗**、`代码`、==高亮==）——Obsidian 同款行为。
+          // 此前标题只做 escapeHtml，`> [!warning] **т 静音**` 会把星号原样露出来。
+          if (title) this.lexer.inlineTokens(title, token.titleTokens)
           return token
         },
         renderer(token: Token) {
-          const t = token as Token & { calloutType: string; size: string; fold: string | null; title: string; tokens: Token[] }
+          const t = token as Token & { calloutType: string; size: string; fold: string | null; title: string; titleTokens: Token[]; tokens: Token[] }
           const icon = `<span class="callout-icon" data-callout-type="${t.calloutType}">${CALLOUT_ICONS[t.calloutType]}</span>`
-          const label = t.title ? escapeHtml(t.title) : CALLOUT_LABELS[t.calloutType]
+          const label = t.title
+            ? (t.titleTokens.length > 0 ? this.parser.parseInline(t.titleTokens) : escapeHtml(t.title))
+            : CALLOUT_LABELS[t.calloutType]
           const titleInner = `${icon}<span class="callout-title-text">${label}</span>`
           const content = `<div class="callout-content">${this.parser.parse(t.tokens)}</div>`
           if (t.fold) {
@@ -592,6 +606,21 @@ export function renderMarkdown(source: string, headingShift = 0, options: Render
   html = html
     .replace(/MATHBLOCK(\d+)ENDMATH/g, (_, index) => mathBlocks[Number(index)] ?? '')
     .replace(/MATHINLINE(\d+)ENDMATH/g, (_, index) => mathBlocks[Number(index)] ?? '')
+
+  // ── 课程语料：行内代码里的成对 ** 渲染为加粗 ──
+  // 只匹配不带 class 的 <code>（围栏块是 <pre><code class=…>）；(?<!<pre>) 排除
+  // 无语言标注的 ``` 围栏块。代码内容已被转义（无裸 < >），直接插入 <strong> 安全。
+  if (options.inlineCodeEmphasis) {
+    const em = (inner: string) =>
+      inner.includes('**') ? inner.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>') : inner
+    html = html.replace(/(?<!<pre>)<code>([^<]*)<\/code>/g, (m, inner: string) =>
+      inner.includes('**') ? `<code>${em(inner)}</code>` : m)
+    // 无语言标注的围栏块（<pre><code> 无 class）——讲义里用作课文引用，
+    // 课文中的 **词尾强调** 同属语料约定。逐行独立配对（课文强调不跨行），
+    // 避免把「x ** 2」这类单处星号与相邻行串成对；带语言标注的块是真代码，不动。
+    html = html.replace(/<pre><code>([\s\S]*?)<\/code><\/pre>/g, (m, inner: string) =>
+      inner.includes('**') ? `<pre><code>${inner.split('\n').map(em).join('\n')}</code></pre>` : m)
+  }
 
   // ── 恢复引用标记与置信徽章占位符 ──
   html = html

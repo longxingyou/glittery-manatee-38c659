@@ -240,7 +240,8 @@ export function MaterialsTab() {
   }
 
   const mdHtml = React.useMemo(
-    () => (mat.kind === 'md' && source ? renderMarkdown(source, 1) : ''),
+    // 课程语料同款约定：行内代码里的 **词尾** 渲染为加粗
+    () => (mat.kind === 'md' && source ? renderMarkdown(source, 1, { inlineCodeEmphasis: true }) : ''),
     [mat.kind, source, mathReady],
   )
   const tree = React.useMemo(

@@ -110,6 +110,8 @@ export function LessonPage({ les, source }: { les: LessonMeta; source?: string }
       // 配图：讲义里写 ![](fig1.png) / ![[fig1.png]] 即可，取 src/assets/lessons/
       const rendered = renderMarkdown(source, 1, {
         resolveImage: (href) => resolveLessonImage(href),
+        // 课程语料约定：`пе́рв**ое** января́` 的词尾强调在代码徽章内也渲染
+        inlineCodeEmphasis: true,
       })
       return book?.subject === 'russian' ? stressHtml(rendered) : rendered
     },
